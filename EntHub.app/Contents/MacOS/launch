@@ -1,0 +1,21 @@
+#!/bin/bash
+# 检测 macOS App Translocation（带 quarantine 属性的 .app 会被复制到临时目录运行，
+# 那里没有项目源码/venv，导致启动失败）。此时只能提示用户移除隔离属性。
+case "$0" in
+    *AppTranslocation*)
+        osascript -e 'display dialog "EntHub 被系统隔离运行，无法读取项目文件。\n\n请在终端执行（路径替换为 .app 实际位置）：\n\nxattr -dr com.apple.quarantine /Users/gm/AI/EntHub/EntHub.app\n\n然后重新双击启动。" buttons {"好"} default button "好" with title "EntHub 启动失败" with icon stop' >/dev/null 2>&1
+        exit 1
+        ;;
+esac
+
+DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+
+# 通过 Terminal 运行 start.sh：
+#  - launch 自身派发后立即退出，避免 .app 进程长期驻留导致 Dock 图标持续跳动
+#  - 所有输出与交互（端口确认 / Ctrl+C / 回车关闭）都在 Terminal 窗口完成
+osascript <<OSA 2>/dev/null
+tell application "Terminal"
+    activate
+    do script "cd '$DIR' && ./start.sh"
+end tell
+OSA

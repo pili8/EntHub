@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}录入企业 · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">录入企业</div>
+    <div class="page-subtitle">只需填写企业名称，其余字段后续可通过爬取补全。</div>
+</div>
+
+<div class="card" style="max-width: 600px">
+    <form action="{{ url_for('add_company') }}" method="post">
+        <div class="form-group">
+            <label for="name">企业名称 *</label>
+            <input type="text" id="name" name="name" class="form-input"
+                   placeholder="e.g. \u6df1\u5733\u5e02\u817e\u8baf\u8ba1\u7b97\u673a\u7cfb\u7edf\u6709\u9650\u516c\u53f8"
+                   required autofocus>
+        </div>
+        <div class="form-group">
+            <label for="phone">电话</label>
+            <input type="text" id="phone" name="phone" class="form-input" placeholder="13800138000">
+        </div>
+        <div class="form-group">
+            <label for="other_phone">其他电话</label>
+            <input type="text" id="other_phone" name="other_phone" class="form-input" placeholder="多个号码用分号 ; 分隔">
+            <div class="form-hint">如有多个号码，请用 ; 或 ， 分隔</div>
+        </div>
+        <div class="form-group">
+            <label for="address">地址</label>
+            <input type="text" id="address" name="address" class="form-input" placeholder="">
+        </div>
+        <div class="form-group">
+            <label for="credit_code">统一社会信用代码</label>
+            <input type="text" id="credit_code" name="credit_code" class="form-input"
+                   placeholder="18-digit code">
+        </div>
+        <div class="form-group">
+            <label for="status">状态</label>
+            <select id="status" name="status" class="form-select">
+                <option value="active" selected>正常</option>
+                <option value="pending">待补全</option>
+                <option value="failed">失败</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">
+            <i data-lucide="plus" style="width:16px;height:16px"></i>
+            录入企业
+        </button>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
+    </form>
+</div>
+{% endblock %}

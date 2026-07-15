@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EntHub{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="{{ url_for('index') }}" class="nav-logo">
+                <span class="nav-logo-icon">
+                    <i data-lucide="building-2" style="width:18px;height:18px"></i>
+                </span>
+                EntHub
+            </a>
+            <div class="nav-links">
+                <form action="{{ url_for('search') }}" method="get" class="nav-search-form">
+                    <input type="text" name="q" class="nav-search-input"
+                           placeholder="搜索企业、电话、地址、法人...">
+                </form>
+                <a href="{{ url_for('stats_phone') }}" class="nav-link">
+                    <i data-lucide="copy" style="width:15px;height:15px"></i>
+                    电话重复
+                </a>
+                <a href="{{ url_for('add_company') }}" class="nav-link">
+                    <i data-lucide="plus" style="width:15px;height:15px"></i>
+                    录入
+                </a>
+                <a href="{{ url_for('import_page') }}" class="nav-link">
+                    <i data-lucide="upload" style="width:15px;height:15px"></i>
+                    导入
+                </a>
+                <a href="{{ url_for('backup_page') }}" class="nav-link">
+                    <i data-lucide="database" style="width:15px;height:15px"></i>
+                    备份
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div id="flash-area" class="flash-wrap">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+    </div>
+
+    <main id="main-content" class="main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+    // ── SPA Router ── keep nav + background, only swap content + flash ──
+    (function() {
+        window._enthubReady = false;
+
+        async function loadPage(url) {
+            const resp = await fetch(url);
+            if (!resp.ok || resp.redirected) {
+                // Server redirected or error — do a full navigation
+                window.location.href = resp.url || url;
+                return;
+            }
+            const html = await resp.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+
+            // Update title
+            document.title = doc.title;
+
+            // Swap flash area
+            const newFlash = doc.getElementById('flash-area');
+            const oldFlash = document.getElementById('flash-area');
+            if (newFlash && oldFlash) {
+                oldFlash.innerHTML = newFlash.innerHTML;
+            }
+
+            // Swap main content
+            const newMain = doc.getElementById('main-content');
+            const oldMain = document.getElementById('main-content');
+            if (newMain && oldMain) {
+                // Build new main off-screen, then swap in one shot to avoid flicker
+                oldMain.style.display = 'none';
+                oldMain.parentNode.insertBefore(newMain, oldMain);
+                oldMain.remove();
+            }
+
+            // Re-init Lucide icons
+            if (window.lucide) lucide.createIcons();
+
+            // Execute page-specific scripts from the new main
+            newMain.querySelectorAll('script').forEach(function(s) {
+                const ns = document.createElement('script');
+                ns.textContent = s.textContent;
+                document.body.appendChild(ns).remove();
+            });
+
+            window._enthubReady = true;
+        }
+
+        function handleClick(e) {
+            const link = e.target.closest('.nav-link, .nav-logo');
+            if (!link) return;
+            // Ignore if user held modifier keys (Cmd-click, etc.)
+            if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+            e.preventDefault();
+            history.pushState(null, '', link.href);
+            loadPage(link.href);
+        }
+
+        document.addEventListener('click', handleClick);
+
+        // Handle back/forward browser buttons
+        window.addEventListener('popstate', function() {
+            loadPage(location.href);
+        });
+
+        // Mark ready after first paint
+        window._enthubReady = true;
+    })();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

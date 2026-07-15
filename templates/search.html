@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}搜索 · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">搜索</div>
+    {% if q %}
+    <div class="page-subtitle">
+        共 {{ total }} 条结果，关键词 "{{ q }}"
+        {% if query_type == 'phone' %}
+        <span class="badge badge-info" style="margin-left: 8px">电话匹配</span>
+        {% elif query_type == 'credit_code' %}
+        <span class="badge badge-info" style="margin-left: 8px">信用代码匹配</span>
+        {% else %}
+        <span class="badge badge-info" style="margin-left: 8px">多字段匹配</span>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="page-subtitle">输入企业名称、电话、地址、法人等进行搜索</div>
+    {% endif %}
+</div>
+
+<form action="{{ url_for('search') }}" method="get">
+    <div class="search-bar" style="margin-bottom: 16px">
+        <input type="text" name="q" class="search-input" value="{{ q }}"
+               placeholder="企业名称、电话、地址、法人、股东..." autofocus>
+        <button type="submit" class="btn btn-primary">
+            <i data-lucide="search" style="width:16px;height:16px"></i>
+            搜索
+        </button>
+    </div>
+</form>
+
+{% if rows %}
+<div style="margin-top: 16px">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-id">ID</th>
+                    <th>企业名称</th>
+                    <th>匹配字段</th>
+                    <th>法定代表人</th>
+                    <th>经营状态</th>
+                    <th class="col-phone">电话</th>
+                    <th>地区</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td class="col-id">#{{ '%08d' % row.id }}</td>
+                    <td class="col-name">
+                        <a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a>
+                    </td>
+                    <td>
+                        <span class="badge badge-secondary">{{ row.matched_field }}</span>
+                    </td>
+                    <td>{{ row.legal_person or '-' }}</td>
+                    <td>
+                        {% if row.business_status %}
+                            <span class="badge {{ 'badge-info' if row.business_status == '存续' else 'badge-warning' }}">{{ row.business_status }}</span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="col-phone">{{ row.phone or '-' }}</td>
+                    <td>{{ (row.province or '') }}{{ (row.city or '') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pagination">
+        <div class="pagination-info">{{ total }} 条记录，第 {{ page }} / {{ pages }} 页</div>
+        <div class="pagination-links">
+            {% if page > 1 %}
+            <a href="{{ url_for('search', q=q, page=page-1) }}">
+                <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
+            </a>
+            {% endif %}
+            <span class="current">{{ page }}</span>
+            {% if page < pages %}
+            <a href="{{ url_for('search', q=q, page=page+1) }}">
+                <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% elif q %}
+<div class="empty-state">
+    没有找到匹配的结果："{{ q }}"
+</div>
+{% endif %}
+{% endblock %}

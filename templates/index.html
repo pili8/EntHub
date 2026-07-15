@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}EntHub · 控制台{% endblock %}
+
+{% block content %}
+<div class="dashboard-search">
+    <form action="{{ url_for('search') }}" method="get">
+        <div class="search-bar">
+            <input type="text" name="q" class="search-input"
+                   placeholder="输入企业名称、电话、地址、法人..." autofocus>
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="search" style="width:16px;height:16px"></i>
+                搜索
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total or 0 }}</div>
+        <div class="stat-label">总记录数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.unique_names or 0 }}</div>
+        <div class="stat-label">独立企业数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.unique_phones or 0 }}</div>
+        <div class="stat-label">独立电话数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.rows_with_phone or 0 }}</div>
+        <div class="stat-label">有电话的记录</div>
+    </div>
+</div>
+
+
+{% endblock %}

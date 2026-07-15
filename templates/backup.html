@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}数据备份 - EntHub{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <h1 class="page-title">数据备份</h1>
+        <form method="post" action="{{ url_for('backup_create') }}" style="display:inline">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="shield-check" style="width:16px;height:16px"></i>
+                立即备份
+            </button>
+        </form>
+    </div>
+
+    <div class="backup-info">
+        <p><strong>备份目录：</strong><code>{{ backup_dir }}</code></p>
+        <p><strong>保留策略：</strong>最近 7 份备份，更早的自动清理</p>
+    </div>
+
+    {% if backups %}
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">历史备份（{{ backups|length }} 份）</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>文件名</th>
+                        <th>备份时间</th>
+                        <th>大小</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in backups %}
+                    <tr>
+                        <td><code>{{ b.filename }}</code></td>
+                        <td>{{ b.time }}</td>
+                        <td>{{ (b.size / 1024)|round(1) }} KB</td>
+                        <td class="actions">
+                            <a href="{{ url_for('backup_download', filename=b.filename) }}" class="btn btn-sm btn-primary">
+                                <i data-lucide="download" style="width:14px;height:14px"></i>
+                                下载
+                            </a>
+                            <form method="post" action="{{ url_for('backup_delete', filename=b.filename) }}"
+                                  style="display:inline"
+                                  onsubmit="return confirm('确定删除备份 {{ b.filename }}？')">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+                                    删除
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty">
+        <i data-lucide="database" style="width:48px;height:48px;stroke-width:1"></i>
+        <p>暂无备份</p>
+        <p style="font-size:13px;color:var(--text-muted)">点击上方"立即备份"创建第一份备份</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+.page-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0;
+}
+.backup-info {
+    background: var(--bg-subtle, #f8f9fa);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+.backup-info p {
+    margin: 8px 0;
+    font-size: 14px;
+}
+.backup-info code {
+    background: var(--bg-card, #fff);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+.card-header {
+    margin-bottom: 16px;
+}
+.card-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+.table-responsive {
+    overflow-x: auto;
+}
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.table th,
+.table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border, #e0e0e0);
+}
+.table th {
+    font-weight: 600;
+    color: var(--text-muted, #666);
+    font-size: 13px;
+}
+.table td code {
+    font-size: 13px;
+    color: var(--text-secondary, #333);
+}
+.actions {
+    display: flex;
+    gap: 8px;
+}
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 13px;
+}
+.btn-danger {
+    background: var(--danger, #dc3545);
+    color: white;
+}
+.btn-danger:hover {
+    background: var(--danger-hover, #c82333);
+}
+.empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted, #666);
+}
+.empty i {
+    margin-bottom: 16px;
+    opacity: 0.3;
+}
+.empty p {
+    margin: 8px 0;
+}
+</style>
+{% endblock %}

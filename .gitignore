@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+
+# IDE
+.DS_Store
+.workbuddy/
+
+# Data
+data/
