@@ -19,23 +19,28 @@
                 <form action="{{ url_for('search') }}" method="get" class="nav-search-form">
                     <input type="text" name="q" class="nav-search-input"
                            placeholder="搜索企业、电话、地址、法人...">
+                    <button type="submit" class="nav-search-btn">
+                        <i data-lucide="search" style="width:15px;height:15px"></i>
+                    </button>
                 </form>
-                <a href="{{ url_for('stats_phone') }}" class="nav-link">
-                    <i data-lucide="copy" style="width:15px;height:15px"></i>
-                    电话重复
-                </a>
-                <a href="{{ url_for('add_company') }}" class="nav-link">
-                    <i data-lucide="plus" style="width:15px;height:15px"></i>
-                    录入
-                </a>
-                <a href="{{ url_for('import_page') }}" class="nav-link">
-                    <i data-lucide="upload" style="width:15px;height:15px"></i>
-                    导入
-                </a>
-                <a href="{{ url_for('backup_page') }}" class="nav-link">
-                    <i data-lucide="database" style="width:15px;height:15px"></i>
-                    备份
-                </a>
+                <div class="nav-actions">
+                    <a href="{{ url_for('browse') }}" class="nav-link">
+                        <i data-lucide="table" style="width:15px;height:15px"></i>
+                        浏览
+                    </a>
+                    <a href="{{ url_for('add_company') }}" class="nav-link">
+                        <i data-lucide="plus" style="width:15px;height:15px"></i>
+                        录入
+                    </a>
+                    <a href="{{ url_for('import_page') }}" class="nav-link">
+                        <i data-lucide="upload" style="width:15px;height:15px"></i>
+                        导入
+                    </a>
+                    <a href="{{ url_for('data_management') }}" class="nav-link">
+                        <i data-lucide="settings" style="width:15px;height:15px"></i>
+                        数据管理
+                    </a>
+                </div>
             </div>
         </div>
     </nav>
@@ -121,6 +126,13 @@
         // Mark ready after first paint
         window._enthubReady = true;
     })();
+
+    // 初始加载 + 确保图标渲染（CDN 可能延迟加载）
+    function initIcons() {
+        if (window.lucide) { lucide.createIcons(); }
+        else { setTimeout(initIcons, 100); }
+    }
+    initIcons();
     </script>
     {% block scripts %}{% endblock %}
 </body>

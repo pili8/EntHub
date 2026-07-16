@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 # Sentinel value used by Tianyancha exports for empty fields
-NULL_MARKERS = {"-", "——", "--", "无", "N/A", "n/a", "null", "NULL", ""}
+NULL_MARKERS = {"-", "——", "--", "无", "N/A", "n/a", "null", "NULL", "nan", "NaN", "NAN", ""}
 
 
 def is_null_value(val):

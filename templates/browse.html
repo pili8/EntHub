@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}数据浏览 · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">数据浏览</div>
+    <div class="page-subtitle">共 {{ total }} 条记录</div>
+</div>
+
+<!-- 筛选栏 -->
+<form action="{{ url_for('browse') }}" method="get" class="browse-filters">
+    <!-- 基础筛选 -->
+    <div class="card" style="margin-bottom: 12px; padding: 12px 16px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">筛选条件</div>
+        <div class="browse-filter-row">
+            <select name="city" class="form-select" onchange="this.form.submit()">
+                <option value="">城市</option>
+                {% for v in filter_options.city %}
+                <option value="{{ v }}" {{ 'selected' if filters.city == v }}>{{ v }}</option>
+                {% endfor %}
+            </select>
+            <select name="district" class="form-select" onchange="this.form.submit()">
+                <option value="">区县</option>
+                {% for v in filter_options.district %}
+                <option value="{{ v }}" {{ 'selected' if filters.district == v }}>{{ v }}</option>
+                {% endfor %}
+            </select>
+            <select name="business_status" class="form-select" onchange="this.form.submit()">
+                <option value="">经营状态</option>
+                {% for v in filter_options.business_status %}
+                <option value="{{ v }}" {{ 'selected' if filters.business_status == v }}>{{ v }}</option>
+                {% endfor %}
+            </select>
+            <select name="industry" class="form-select" onchange="this.form.submit()">
+                <option value="">行业</option>
+                {% for v in filter_options.industry %}
+                <option value="{{ v }}" {{ 'selected' if filters.industry == v }}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="browse-filter-row" style="margin-top: 8px;">
+            <select name="year_range" class="form-select" onchange="applyRange(this, 'year_from', 'year_to')">
+                <option value="">成立年份</option>
+                {% for range in year_ranges %}
+                <option value="{{ range[0] }}-{{ range[1] }}" {{ 'selected' if filters.year_from == range[0] and filters.year_to == range[1] }}>
+                    {% if range[0] == range[1] %}{{ range[0] }}年{% else %}{{ range[0] }}-{{ range[1] }}{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <select name="cap_range" class="form-select" onchange="applyRange(this, 'cap_from', 'cap_to')">
+                <option value="">注册资本</option>
+                <option value="0-100" {{ 'selected' if filters.cap_from == '0' and filters.cap_to == '100' }}>100万以下</option>
+                <option value="100-500" {{ 'selected' if filters.cap_from == '100' and filters.cap_to == '500' }}>100-500万</option>
+                <option value="500-1000" {{ 'selected' if filters.cap_from == '500' and filters.cap_to == '1000' }}>500-1000万</option>
+                <option value="1000-5000" {{ 'selected' if filters.cap_from == '1000' and filters.cap_to == '5000' }}>1000-5000万</option>
+                <option value="5000-999999" {{ 'selected' if filters.cap_from == '5000' and filters.cap_to == '999999' }}>5000万以上</option>
+            </select>
+            <select name="insured_range" class="form-select" onchange="applyRange(this, 'insured_from', 'insured_to')">
+                <option value="">社保人数</option>
+                <option value="0-10" {{ 'selected' if filters.insured_from == '0' and filters.insured_to == '10' }}>10人以下</option>
+                <option value="10-50" {{ 'selected' if filters.insured_from == '10' and filters.insured_to == '50' }}>10-50人</option>
+                <option value="50-100" {{ 'selected' if filters.insured_from == '50' and filters.insured_to == '100' }}>50-100人</option>
+                <option value="100-500" {{ 'selected' if filters.insured_from == '100' and filters.insured_to == '500' }}>100-500人</option>
+                <option value="500-99999" {{ 'selected' if filters.insured_from == '500' and filters.insured_to == '99999' }}>500人以上</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 关联查看 -->
+    <div class="card" style="margin-bottom: 12px; padding: 12px 16px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">关联查看</div>
+        <div class="browse-filter-row">
+            <select name="dup_type" class="form-select" onchange="this.form.submit()">
+                <option value="">全部企业</option>
+                <option value="phone" {{ 'selected' if filters.dup_type == 'phone' }}>电话关联 ({{ dup_counts.phone }})</option>
+                <option value="email" {{ 'selected' if filters.dup_type == 'email' }}>邮箱关联 ({{ dup_counts.email }})</option>
+                <option value="legal_person" {{ 'selected' if filters.dup_type == 'legal_person' }}>法人关联 ({{ dup_counts.legal_person }})</option>
+                <option value="shareholders" {{ 'selected' if filters.dup_type == 'shareholders' }}>股东关联 ({{ dup_counts.shareholders }})</option>
+            </select>
+        </div>
+    </div>
+
+    {% if filters %}
+    <div style="margin-bottom: 12px;">
+        <a href="{{ url_for('browse') }}" class="btn btn-secondary btn-sm">清除所有筛选</a>
+    </div>
+    {% endif %}
+    <input type="hidden" name="year_from" id="year_from" value="{{ filters.year_from or '' }}">
+    <input type="hidden" name="year_to" id="year_to" value="{{ filters.year_to or '' }}">
+    <input type="hidden" name="cap_from" id="cap_from" value="{{ filters.cap_from or '' }}">
+    <input type="hidden" name="cap_to" id="cap_to" value="{{ filters.cap_to or '' }}">
+    <input type="hidden" name="insured_from" id="insured_from" value="{{ filters.insured_from or '' }}">
+    <input type="hidden" name="insured_to" id="insured_to" value="{{ filters.insured_to or '' }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="dir" value="{{ direction }}">
+</form>
+
+<script>
+function applyRange(select, fromField, toField) {
+    const val = select.value;
+    if (val) {
+        const [from, to] = val.split('-');
+        document.getElementById(fromField).value = from;
+        document.getElementById(toField).value = to;
+    } else {
+        document.getElementById(fromField).value = '';
+        document.getElementById(toField).value = '';
+    }
+    select.form.submit();
+}
+</script>
+
+<!-- 数据表 -->
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th class="col-id">
+                    <a href="{{ url_for('browse', sort='id', dir='desc' if sort == 'id' and direction == 'asc' else 'asc', **filters) }}" class="sort-link">
+                        ID {{ '↑' if sort == 'id' and direction == 'asc' else ('↓' if sort == 'id' else '') }}
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ url_for('browse', sort='name', dir='asc' if sort == 'name' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
+                        企业名称 {{ '↑' if sort == 'name' and direction == 'asc' else ('↓' if sort == 'name' else '') }}
+                    </a>
+                </th>
+                <th class="col-phone">电话</th>
+                <th>法人</th>
+                <th>
+                    <a href="{{ url_for('browse', sort='city', dir='asc' if sort == 'city' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
+                        城市/区县 {{ '↑' if sort == 'city' and direction == 'asc' else ('↓' if sort == 'city' else '') }}
+                    </a>
+                </th>
+                <th>注册资本</th>
+                <th>
+                    <a href="{{ url_for('browse', sort='business_status', dir='asc' if sort == 'business_status' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
+                        状态 {{ '↑' if sort == 'business_status' and direction == 'asc' else ('↓' if sort == 'business_status' else '') }}
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ url_for('browse', sort='established_date', dir='asc' if sort == 'established_date' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
+                        成立日期 {{ '↑' if sort == 'established_date' and direction == 'asc' else ('↓' if sort == 'established_date' else '') }}
+                    </a>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="col-id">#{{ '%08d' % row.id }}</td>
+                <td class="col-name">
+                    <a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a>
+                </td>
+                <td class="col-phone">{{ row.phone or '-' }}</td>
+                <td>{{ row.legal_person or '-' }}</td>
+                <td>{{ row.city or '' }} {{ row.district or '' }}</td>
+                <td>{{ row.registered_capital or '-' }}</td>
+                <td>
+                    {% if row.business_status %}
+                    <span class="badge {{ 'badge-info' if row.business_status == '存续' else 'badge-warning' }}">
+                        {{ row.business_status }}
+                    </span>
+                    {% else %}-{% endif %}
+                </td>
+                <td>{{ row.established_date or '-' }}</td>
+            </tr>
+            {% endfor %}
+            {% if not rows %}
+            <tr><td colspan="8" class="empty-state">没有符合条件的记录</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 分页 -->
+{% if pages > 1 %}
+<div class="pagination">
+    <div class="pagination-info">
+        第 {{ page }} / {{ pages }} 页
+        <select onchange="changePerPage(this.value)" style="margin-left: 8px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">
+            <option value="10" {{ 'selected' if per_page == 10 }}>10条/页</option>
+            <option value="25" {{ 'selected' if per_page == 25 }}>25条/页</option>
+            <option value="50" {{ 'selected' if per_page == 50 }}>50条/页</option>
+            <option value="100" {{ 'selected' if per_page == 100 }}>100条/页</option>
+            <option value="200" {{ 'selected' if per_page == 200 }}>200条/页</option>
+        </select>
+    </div>
+    <div class="pagination-links">
+        {% if page > 1 %}
+        <a href="{{ url_for('browse', page=page-1, per_page=per_page, sort=sort, dir=direction, **filters) }}">
+            <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
+        </a>
+        {% endif %}
+        <span class="current">{{ page }}</span>
+        {% if page < pages %}
+        <a href="{{ url_for('browse', page=page+1, per_page=per_page, sort=sort, dir=direction, **filters) }}">
+            <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+<script>
+function changePerPage(val) {
+    const url = new URL(window.location);
+    url.searchParams.set('per_page', val);
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+</script>
+{% endif %}
+{% endblock %}

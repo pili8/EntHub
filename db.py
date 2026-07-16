@@ -83,6 +83,15 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_phone           ON companies(normalized_phone);
         CREATE INDEX IF NOT EXISTS idx_credit_code     ON companies(credit_code);
         CREATE INDEX IF NOT EXISTS idx_status          ON companies(status);
+        CREATE INDEX IF NOT EXISTS idx_province        ON companies(province);
+        CREATE INDEX IF NOT EXISTS idx_city            ON companies(city);
+        CREATE INDEX IF NOT EXISTS idx_district        ON companies(district);
+        CREATE INDEX IF NOT EXISTS idx_business_status ON companies(business_status);
+        CREATE INDEX IF NOT EXISTS idx_industry        ON companies(industry);
+        CREATE INDEX IF NOT EXISTS idx_enterprise_scale ON companies(enterprise_scale);
+        CREATE INDEX IF NOT EXISTS idx_email           ON companies(email);
+        CREATE INDEX IF NOT EXISTS idx_registered_capital ON companies(registered_capital);
+        CREATE INDEX IF NOT EXISTS idx_insured_count   ON companies(insured_count);
 
         CREATE TABLE IF NOT EXISTS import_preview (
             id                INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}数据管理 · EntHub{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+    <div class="page-header">
+        <div class="page-title">数据管理</div>
+        <div class="page-subtitle">备份和维护企业数据库</div>
+    </div>
+
+    <!-- 数据备份 -->
+    <div class="card">
+        <div class="section-title">
+            <i data-lucide="database" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"></i>
+            数据备份
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;">
+                备份路径：<code>{{ backup_dir }}</code>
+            </p>
+            <form action="{{ url_for('backup_create') }}" method="post" style="display: inline;">
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="plus" style="width:14px;height:14px"></i>
+                    立即备份
+                </button>
+            </form>
+        </div>
+
+        {% if backups %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>文件名</th>
+                        <th>大小</th>
+                        <th>创建时间</th>
+                        <th>备注</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in backups %}
+                    <tr>
+                        <td><code>{{ b.filename }}</code></td>
+                        <td>{{ b.size_mb }} MB</td>
+                        <td>{{ b.created_at }}</td>
+                        <td>{{ b.reason or '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('backup_download', filename=b.filename) }}" class="btn btn-secondary btn-sm">
+                                <i data-lucide="download" style="width:12px;height:12px"></i>
+                            </a>
+                            <form action="{{ url_for('backup_delete', filename=b.filename) }}" method="post" style="display: inline;" onsubmit="return confirm('确定要删除这个备份吗？')">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i data-lucide="trash-2" style="width:12px;height:12px"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i data-lucide="inbox" style="width:48px;height:48px;margin:0 auto 12px;display:block;opacity:0.3"></i>
+            暂无备份文件
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 数据清理 -->
+    <div class="card" style="margin-top: 24px;">
+        <div class="section-title">
+            <i data-lucide="trash-2" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"></i>
+            数据清理
+        </div>
+
+        <div style="background: var(--bg); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 24px; font-weight: 700;">{{ stats.total }}</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">总记录</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 24px; font-weight: 700; color: var(--warning);">{{ stats.cc_dup + stats.name_dup }}</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">重复记录</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 24px; font-weight: 700; color: var(--danger);">{{ stats.nan_count + stats.header_count + stats.placeholder_count }}</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">无效数据</div>
+                </div>
+            </div>
+        </div>
+
+        <form action="{{ url_for('cleanup_execute') }}" method="post">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px"></th>
+                        <th>类型</th>
+                        <th>数量</th>
+                        <th>说明</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><input type="checkbox" name="clean_nan" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                        <td><span class="badge badge-danger">脏数据</span></td>
+                        <td><strong>{{ stats.nan_count }}</strong></td>
+                        <td style="color: var(--text-secondary)">空值/无效记录（导入时未正确过滤的空白行）</td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" name="clean_header" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                        <td><span class="badge badge-danger">脏数据</span></td>
+                        <td><strong>{{ stats.header_count }}</strong></td>
+                        <td style="color: var(--text-secondary)">Excel 表头行被误导入</td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" name="clean_placeholder" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                        <td><span class="badge badge-danger">脏数据</span></td>
+                        <td><strong>{{ stats.placeholder_count }}</strong></td>
+                        <td style="color: var(--text-secondary)">含"暂不予显示"等无效占位文本</td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" name="clean_cc_dup" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                        <td><span class="badge badge-warning">重复</span></td>
+                        <td><strong>{{ stats.cc_dup }}</strong></td>
+                        <td style="color: var(--text-secondary)">信用代码相同（{{ stats.cc_unique }} 个唯一值），电话累加后保留最完整记录</td>
+                    </tr>
+                    <tr>
+                        <td><input type="checkbox" name="clean_name_dup" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                        <td><span class="badge badge-warning">重复</span></td>
+                        <td><strong>{{ stats.name_dup }}</strong></td>
+                        <td style="color: var(--text-secondary)">企业名称相同（{{ stats.name_unique }} 个唯一值），电话累加后保留最完整记录</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top: 16px;">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('确定要执行数据清理吗？建议先备份。')">
+                    <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+                    开始清理
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

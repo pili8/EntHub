@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}清理中 · EntHub{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 40px auto; text-align: center;">
+    <div class="page-header" style="text-align: center;">
+        <div class="page-title" id="progress-title">正在清理…</div>
+    </div>
+
+    <div id="progress-section">
+        <div style="margin: 24px 0;">
+            <div id="current-step" style="font-size: 16px; font-weight: 600; margin-bottom: 16px;">准备中…</div>
+            <div id="step-dots" style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;"></div>
+        </div>
+
+        <div id="step-stats" style="margin: 24px 0; display: none;">
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                <div style="background: var(--bg); padding: 12px; border-radius: 8px;">
+                    <div id="stat-deleted" style="font-size: 24px; font-weight: 700; color: var(--danger);">0</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">当前步骤删除</div>
+                </div>
+                <div style="background: var(--bg); padding: 12px; border-radius: 8px;">
+                    <div id="stat-total-deleted" style="font-size: 24px; font-weight: 700;">0</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">累计删除</div>
+                </div>
+            </div>
+        </div>
+
+        <button id="stop-btn" type="button" class="btn btn-danger" onclick="doStop()" style="margin-top: 16px;">
+            停止
+        </button>
+    </div>
+
+    <div id="done-section" style="display: none;">
+        <div style="font-size: 48px; margin: 24px 0;">✅</div>
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 16px;" id="done-title">清理完成</div>
+        <div id="done-stats" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; text-align: left;"></div>
+        <a href="{{ url_for('index') }}" class="btn btn-primary" style="margin-top: 16px; padding: 10px 32px; font-size: 15px;">
+            返回首页
+        </a>
+    </div>
+
+    <div id="error-section" style="display: none;">
+        <div style="font-size: 48px; margin: 24px 0;">❌</div>
+        <div style="font-size: 18px; font-weight: 600; color: var(--danger); margin-bottom: 8px;">清理失败</div>
+        <div id="error-msg" style="color: var(--text-secondary); margin-bottom: 16px;"></div>
+        <a href="{{ url_for('cleanup_page') }}" class="btn btn-primary">返回</a>
+    </div>
+</div>
+
+<style>
+.step-dot {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    background: var(--bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+}
+.step-dot.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+.step-dot.done {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
+}
+</style>
+
+<script>
+(function() {
+    const streamUrl = "{{ url_for('cleanup_stream') }}";
+    const stopUrl = "{{ url_for('cleanup_stop') }}";
+    const source = new EventSource(streamUrl);
+
+    source.addEventListener('start', function(e) {
+        document.getElementById('step-stats').style.display = 'block';
+    });
+
+    source.addEventListener('step', function(e) {
+        const data = JSON.parse(e.data);
+        const dots = document.getElementById('step-dots');
+        // Mark all existing dots as done if past
+        dots.querySelectorAll('.step-dot.active').forEach(el => {
+            el.classList.remove('active');
+            el.classList.add('done');
+        });
+        // Create or update dot for this step
+        let dot = document.getElementById('step-dot-' + data.step);
+        if (!dot) {
+            dot = document.createElement('span');
+            dot.id = 'step-dot-' + data.step;
+            dot.className = 'step-dot active';
+            dot.textContent = data.label;
+            dots.appendChild(dot);
+        } else {
+            dot.className = 'step-dot active';
+        }
+        document.getElementById('current-step').textContent = data.label;
+    });
+
+    source.addEventListener('progress', function(e) {
+        const data = JSON.parse(e.data);
+        document.getElementById('stat-deleted').textContent = data.deleted;
+        document.getElementById('stat-total-deleted').textContent = data.total_deleted;
+    });
+
+    source.addEventListener('done', function(e) {
+        const data = JSON.parse(e.data);
+        source.close();
+        document.getElementById('progress-section').style.display = 'none';
+        document.getElementById('done-section').style.display = 'block';
+        // Mark all steps done
+        document.querySelectorAll('.step-dot').forEach(el => {
+            el.classList.remove('active');
+            el.classList.add('done');
+        });
+        let html = '';
+        html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700">' + data.total_before + '</div><div style="font-size:12px;color:var(--text-muted)">清理前</div></div>';
+        html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700;color:var(--danger)">' + data.total_deleted + '</div><div style="font-size:12px;color:var(--text-muted)">已删除</div></div>';
+        html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700;color:var(--success)">' + data.total_after + '</div><div style="font-size:12px;color:var(--text-muted)">清理后</div></div>';
+        document.getElementById('done-stats').innerHTML = html;
+    });
+
+    source.addEventListener('stopped', function(e) {
+        source.close();
+        document.getElementById('progress-section').style.display = 'none';
+        document.getElementById('done-section').style.display = 'block';
+        document.getElementById('done-title').textContent = '已停止清理';
+    });
+
+    source.addEventListener('error', function(e) {
+        if (e.data) {
+            const data = JSON.parse(e.data);
+            source.close();
+            document.getElementById('progress-section').style.display = 'none';
+            document.getElementById('error-section').style.display = 'block';
+            document.getElementById('error-msg').textContent = data.message || '未知错误';
+        }
+    });
+
+    source.onerror = function() {
+        source.close();
+        document.getElementById('progress-section').style.display = 'none';
+        document.getElementById('error-section').style.display = 'block';
+        document.getElementById('error-msg').textContent = '连接中断';
+    };
+
+    window.doStop = function() {
+        if (!confirm('确定要停止清理吗？已执行的步骤不会回滚。')) return;
+        document.getElementById('stop-btn').disabled = true;
+        document.getElementById('stop-btn').textContent = '正在停止…';
+        fetch(stopUrl, {method: 'POST'});
+    };
+
+    if (window.lucide) lucide.createIcons();
+})();
+</script>
+{% endblock %}

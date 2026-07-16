@@ -3,10 +3,16 @@
 
 {% block content %}
 <div class="page-header">
-    <a href="{{ request.referrer or url_for('index') }}" class="btn btn-secondary btn-sm" style="margin-bottom: 12px">
-        <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
-        返回
-    </a>
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <a href="{{ request.referrer or url_for('index') }}" class="btn btn-secondary btn-sm">
+            <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
+            返回
+        </a>
+        <a href="{{ url_for('edit_company', company_id=company.id) }}" class="btn btn-primary btn-sm">
+            <i data-lucide="pencil" style="width:14px;height:14px"></i>
+            编辑
+        </a>
+    </div>
     <div class="page-title">{{ company.name }}</div>
     {% if company.former_name and company.former_name != '-' %}
     <div class="page-subtitle">曾用名：{{ company.former_name }}</div>
@@ -28,7 +34,19 @@
         </div>
         <div class="detail-item">
             <div class="detail-label">法定代表人</div>
-            <div class="detail-value">{{ company.legal_person or '-' }}</div>
+            <div class="detail-value">
+                {% if company.legal_person %}
+                    <a href="{{ url_for('search', q=company.legal_person) }}">{{ company.legal_person }}</a>
+                    {% if field_counts.legal_person and field_counts.legal_person > 1 %}
+                    <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">
+                        {{ field_counts.legal_person }} 家
+                    </span>
+                    <a href="{{ url_for('stats_legal_person') }}" class="stat-link" title="法人统计">
+                        <i data-lucide="bar-chart-2" style="width:12px;height:12px"></i>
+                    </a>
+                    {% endif %}
+                {% else %}-{% endif %}
+            </div>
         </div>
         <div class="detail-item">
             <div class="detail-label">注册资本</div>
@@ -56,7 +74,19 @@
         </div>
         <div class="detail-item">
             <div class="detail-label">所属行业</div>
-            <div class="detail-value">{{ company.industry or '-' }}</div>
+            <div class="detail-value">
+                {% if company.industry %}
+                    <a href="{{ url_for('search', q=company.industry) }}">{{ company.industry }}</a>
+                    {% if field_counts.industry and field_counts.industry > 1 %}
+                    <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">
+                        {{ field_counts.industry }} 家
+                    </span>
+                    <a href="{{ url_for('stats_industry') }}" class="stat-link" title="行业统计">
+                        <i data-lucide="bar-chart-2" style="width:12px;height:12px"></i>
+                    </a>
+                    {% endif %}
+                {% else %}-{% endif %}
+            </div>
         </div>
         <div class="detail-item">
             <div class="detail-label">参保人数</div>
@@ -81,7 +111,17 @@
         {% if company.shareholders %}
         <div class="detail-item" style="grid-column: 1 / -1">
             <div class="detail-label">股东</div>
-            <div class="detail-value">{{ company.shareholders }}</div>
+            <div class="detail-value">
+                <a href="{{ url_for('search', q=company.shareholders) }}">{{ company.shareholders }}</a>
+                {% if field_counts.shareholders and field_counts.shareholders > 1 %}
+                <span class="dup-count {{ 'dup-high' if field_counts.shareholders >= 5 else 'dup-mid' }}">
+                    {{ field_counts.shareholders }} 家
+                </span>
+                <a href="{{ url_for('stats_shareholder') }}" class="stat-link" title="股东统计">
+                    <i data-lucide="bar-chart-2" style="width:12px;height:12px"></i>
+                </a>
+                {% endif %}
+            </div>
         </div>
         {% endif %}
     </div>
@@ -96,7 +136,10 @@
             <div class="phone-list">
                 {% for cp in company_phones %}
                 <div class="phone-row">
-                    <a href="{{ url_for('search_phone', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
+                    <a href="{{ url_for('search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
+                    <button type="button" class="copy-btn" onclick="copyText('{{ cp.phone }}')" title="复制">
+                        <i data-lucide="copy" style="width:12px;height:12px"></i>
+                    </button>
                     {% if cp.is_primary %}
                     <span class="badge badge-info" style="font-size:11px">主电话</span>
                     {% elif cp.is_recommended %}
@@ -118,18 +161,34 @@
             <div class="detail-label">电话</div>
             <div class="detail-value col-phone">
                 {% if company.phone %}
-                    <a href="{{ url_for('search_phone', q=company.phone) }}">{{ company.phone }}</a>
+                    <a href="{{ url_for('search', q=company.phone) }}">{{ company.phone }}</a>
+                    <button type="button" class="copy-btn" onclick="copyText('{{ company.phone }}')" title="复制">
+                        <i data-lucide="copy" style="width:12px;height:12px"></i>
+                    </button>
                 {% else %}-{% endif %}
             </div>
         </div>
         {% endif %}
         <div class="detail-item">
             <div class="detail-label">邮箱</div>
-            <div class="detail-value">{{ company.email or '-' }}</div>
+            <div class="detail-value">
+                {% if company.email %}
+                    <a href="{{ url_for('search', q=company.email) }}">{{ company.email }}</a>
+                    {% if field_counts.email and field_counts.email > 1 %}
+                    <span class="dup-count {{ 'dup-high' if field_counts.email >= 5 else 'dup-mid' }}">
+                        {{ field_counts.email }} 家
+                    </span>
+                    {% endif %}
+                {% else %}-{% endif %}
+            </div>
         </div>
         <div class="detail-item">
             <div class="detail-label">其他邮箱</div>
-            <div class="detail-value">{{ company.other_email or '-' }}</div>
+            <div class="detail-value">
+                {% if company.other_email %}
+                    <a href="{{ url_for('search', q=company.other_email) }}">{{ company.other_email }}</a>
+                {% else %}-{% endif %}
+            </div>
         </div>
         <div class="detail-item">
             <div class="detail-label">网址</div>
@@ -212,33 +271,154 @@
     {% endif %}
 </div>
 
-{% if related %}
+{% if related_phones or related_legal_person or related_shareholders or related_industry or related_email %}
 <div class="card">
-    <div class="section-title">关联记录（{{ related|length }}）</div>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th class="col-id">ID</th>
-                    <th>企业名称</th>
-                    <th class="col-phone">电话</th>
-                    <th>地址</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in related %}
-                <tr>
-                    <td class="col-id">#{{ '%08d' % row.id }}</td>
-                    <td class="col-name">
-                        <a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a>
-                    </td>
-                    <td class="col-phone">{{ row.phone or '-' }}</td>
-                    <td>{{ row.address or '-' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="section-title">关联企业</div>
+
+    {% if related_legal_person %}
+    <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
+            同法人 ({{ field_counts.legal_person or 0 }})
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>企业名称</th>
+                        <th class="col-phone">电话</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in related_legal_person %}
+                    <tr>
+                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
+                        <td class="col-phone">{{ row.phone or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
+    {% endif %}
+
+    {% if related_shareholders %}
+    <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
+            同股东 ({{ field_counts.shareholders or 0 }})
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>企业名称</th>
+                        <th class="col-phone">电话</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in related_shareholders %}
+                    <tr>
+                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
+                        <td class="col-phone">{{ row.phone or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if related_phones %}
+    <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
+            同电话
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>企业名称</th>
+                        <th class="col-phone">电话</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in related_phones %}
+                    <tr>
+                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
+                        <td class="col-phone">{{ row.phone or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if related_email %}
+    <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
+            同邮箱 ({{ field_counts.email or 0 }})
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>企业名称</th>
+                        <th class="col-phone">电话</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in related_email %}
+                    <tr>
+                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
+                        <td class="col-phone">{{ row.phone or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if related_industry %}
+    <div>
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
+            同行业 ({{ field_counts.industry or 0 }})
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>企业名称</th>
+                        <th class="col-phone">电话</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in related_industry %}
+                    <tr>
+                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
+                        <td class="col-phone">{{ row.phone or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyText(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Find the button that was clicked and show feedback
+        const btn = event.target.closest('.copy-btn');
+        if (btn) {
+            btn.classList.add('copied');
+            setTimeout(function() { btn.classList.remove('copied'); }, 1500);
+        }
+    });
+}
+</script>
 {% endblock %}

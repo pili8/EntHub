@@ -1,0 +1,157 @@
+{# 通用企业表单（录入/编辑共用） #}
+{# 变量：company（编辑时有值，录入时传 None） #}
+
+<div class="card">
+    <div class="section-title">基本信息</div>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>企业名称 *</label>
+            <input type="text" name="name" class="form-input" value="{{ company.name or '' }}" required>
+        </div>
+        <div class="form-group">
+            <label>经营状态</label>
+            <input type="text" name="business_status" class="form-input" value="{{ company.business_status or '' }}">
+        </div>
+        <div class="form-group">
+            <label>法定代表人</label>
+            <input type="text" name="legal_person" class="form-input" value="{{ company.legal_person or '' }}">
+        </div>
+        <div class="form-group">
+            <label>注册资本</label>
+            <input type="text" name="registered_capital" class="form-input" value="{{ company.registered_capital or '' }}">
+        </div>
+        <div class="form-group">
+            <label>实缴资本</label>
+            <input type="text" name="paid_capital" class="form-input" value="{{ company.paid_capital or '' }}">
+        </div>
+        <div class="form-group">
+            <label>成立日期</label>
+            <input type="text" name="established_date" class="form-input" value="{{ company.established_date or '' }}" placeholder="YYYY-MM-DD">
+        </div>
+        <div class="form-group">
+            <label>核准日期</label>
+            <input type="text" name="approved_date" class="form-input" value="{{ company.approved_date or '' }}" placeholder="YYYY-MM-DD">
+        </div>
+        <div class="form-group">
+            <label>营业期限</label>
+            <input type="text" name="business_term" class="form-input" value="{{ company.business_term or '' }}">
+        </div>
+        <div class="form-group">
+            <label>公司类型</label>
+            <input type="text" name="company_type" class="form-input" value="{{ company.company_type or '' }}">
+        </div>
+        <div class="form-group">
+            <label>所属行业</label>
+            <input type="text" name="industry" class="form-input" value="{{ company.industry or '' }}">
+        </div>
+        <div class="form-group">
+            <label>参保人数</label>
+            <input type="text" name="insured_count" class="form-input" value="{{ company.insured_count or '' }}">
+        </div>
+        <div class="form-group">
+            <label>企业规模</label>
+            <input type="text" name="enterprise_scale" class="form-input" value="{{ company.enterprise_scale or '' }}">
+        </div>
+        <div class="form-group">
+            <label>曾用名</label>
+            <input type="text" name="former_name" class="form-input" value="{{ company.former_name or '' }}">
+        </div>
+        <div class="form-group">
+            <label>英文名</label>
+            <input type="text" name="english_name" class="form-input" value="{{ company.english_name or '' }}">
+        </div>
+        <div class="form-group">
+            <label>标签</label>
+            <input type="text" name="tags" class="form-input" value="{{ company.tags or '' }}">
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1">
+            <label>股东</label>
+            <input type="text" name="shareholders" class="form-input" value="{{ company.shareholders or '' }}">
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">联系方式</div>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>电话</label>
+            <input type="text" name="phone" class="form-input" value="{{ company.phone or '' }}">
+        </div>
+        <div class="form-group">
+            <label>其他电话</label>
+            <input type="text" name="other_phone" class="form-input" value="{{ company.other_phone or '' }}">
+        </div>
+        <div class="form-group">
+            <label>邮箱</label>
+            <input type="text" name="email" class="form-input" value="{{ company.email or '' }}">
+        </div>
+        <div class="form-group">
+            <label>其他邮箱</label>
+            <input type="text" name="other_email" class="form-input" value="{{ company.other_email or '' }}">
+        </div>
+        <div class="form-group">
+            <label>网址</label>
+            <input type="text" name="website" class="form-input" value="{{ company.website or '' }}">
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">地址信息</div>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>所属省份</label>
+            <input type="text" name="province" class="form-input" value="{{ company.province or '' }}">
+        </div>
+        <div class="form-group">
+            <label>所属城市</label>
+            <input type="text" name="city" class="form-input" value="{{ company.city or '' }}">
+        </div>
+        <div class="form-group">
+            <label>所属区县</label>
+            <input type="text" name="district" class="form-input" value="{{ company.district or '' }}">
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1">
+            <label>注册地址</label>
+            <input type="text" name="address" class="form-input" value="{{ company.address or '' }}">
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1">
+            <label>最新年报地址</label>
+            <input type="text" name="annual_report_address" class="form-input" value="{{ company.annual_report_address or '' }}">
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1">
+            <label>通信地址</label>
+            <input type="text" name="mailing_address" class="form-input" value="{{ company.mailing_address or '' }}">
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">注册编号</div>
+    <div class="form-grid">
+        <div class="form-group">
+            <label>统一社会信用代码</label>
+            <input type="text" name="credit_code" class="form-input" value="{{ company.credit_code or '' }}">
+        </div>
+        <div class="form-group">
+            <label>纳税人识别号</label>
+            <input type="text" name="taxpayer_id" class="form-input" value="{{ company.taxpayer_id or '' }}">
+        </div>
+        <div class="form-group">
+            <label>注册号</label>
+            <input type="text" name="registration_no" class="form-input" value="{{ company.registration_no or '' }}">
+        </div>
+        <div class="form-group">
+            <label>组织机构代码</label>
+            <input type="text" name="org_code" class="form-input" value="{{ company.org_code or '' }}">
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">经营范围</div>
+    <div class="form-group">
+        <textarea name="business_scope" class="form-input" rows="4" style="resize: vertical">{{ company.business_scope or '' }}</textarea>
+    </div>
+</div>

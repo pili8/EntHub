@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}数据清理 · EntHub{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <div class="page-header">
+        <div class="page-title">数据清理</div>
+        <div class="page-subtitle">分析并清理重复和无效数据</div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">数据概况</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+            <div style="background: var(--bg); padding: 16px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 24px; font-weight: 700;">{{ stats.total }}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">总记录</div>
+            </div>
+        </div>
+    </div>
+
+    <form action="{{ url_for('cleanup_execute') }}" method="post">
+    <div class="card">
+        <div class="section-title">待清理项</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:40px"></th>
+                    <th>类型</th>
+                    <th>数量</th>
+                    <th>说明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="checkbox" name="clean_nan" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                    <td><span class="badge badge-danger">脏数据</span></td>
+                    <td><strong>{{ stats.nan_count }}</strong></td>
+                    <td style="color: var(--text-secondary)">空值/无效记录（导入时未正确过滤的空白行）</td>
+                </tr>
+                <tr>
+                    <td><input type="checkbox" name="clean_header" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                    <td><span class="badge badge-danger">脏数据</span></td>
+                    <td><strong>{{ stats.header_count }}</strong></td>
+                    <td style="color: var(--text-secondary)">Excel 表头行被误导入</td>
+                </tr>
+                <tr>
+                    <td><input type="checkbox" name="clean_placeholder" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                    <td><span class="badge badge-danger">脏数据</span></td>
+                    <td><strong>{{ stats.placeholder_count }}</strong></td>
+                    <td style="color: var(--text-secondary)">含"暂不予显示"等无效占位文本</td>
+                </tr>
+                <tr>
+                    <td><input type="checkbox" name="clean_cc_dup" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                    <td><span class="badge badge-warning">重复</span></td>
+                    <td><strong>{{ stats.cc_dup }}</strong></td>
+                    <td style="color: var(--text-secondary)">信用代码相同（{{ stats.cc_unique }} 个唯一值），电话累加后保留最完整记录</td>
+                </tr>
+                <tr>
+                    <td><input type="checkbox" name="clean_name_dup" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
+                    <td><span class="badge badge-warning">重复</span></td>
+                    <td><strong>{{ stats.name_dup }}</strong></td>
+                    <td style="color: var(--text-secondary)">企业名称相同（{{ stats.name_unique }} 个唯一值），电话累加后保留最完整记录</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card" style="background: var(--warning-light); border-color: var(--warning);">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <span style="font-size: 20px;">⚠️</span>
+            <div>
+                <div style="font-weight: 600; margin-bottom: 4px;">去重规则（与导入逻辑一致）</div>
+                <ul style="margin: 0; padding-left: 16px; color: var(--text-secondary); font-size: 13px; line-height: 1.8;">
+                    <li>每组重复记录中，保留<strong>字段最完整</strong>的那条</li>
+                    <li>被删记录的<strong>电话累加</strong>到保留记录（相同电话自动去重）</li>
+                    <li>被删记录的<strong>非空字段补全</strong>保留记录的空字段</li>
+                    <li>清理前会自动备份数据库</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+        <button type="submit" class="btn btn-danger" style="padding: 10px 32px; font-size: 15px;"
+                onclick="return confirm('确定要执行数据清理吗？建议先备份。')">
+            <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+            开始清理
+        </button>
+    </div>
+    </form>
+</div>
+{% endblock %}

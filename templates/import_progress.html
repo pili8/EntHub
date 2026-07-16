@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}导入中 · EntHub{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 40px auto; text-align: center;">
+    <div class="page-header" style="text-align: center;">
+        <div class="page-title" id="progress-title">正在导入…</div>
+        {% if backup_msg %}
+        <div class="page-subtitle" style="font-size: 12px; color: var(--text-muted);">{{ backup_msg }}</div>
+        {% endif %}
+    </div>
+
+    <!-- 进度条 -->
+    <div id="progress-section">
+        <div style="margin: 32px 0 16px;">
+            <div style="background: var(--border); border-radius: 8px; height: 12px; overflow: hidden;">
+                <div id="progress-bar" style="background: var(--accent); height: 100%; width: 0%; border-radius: 8px; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="margin-top: 8px; font-size: 14px; color: var(--text-secondary);">
+                <span id="progress-text">准备中…</span>
+            </div>
+        </div>
+
+        <!-- 实时统计 -->
+        <div id="progress-stats" style="display: none; margin: 24px 0;">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                <div style="background: var(--bg); padding: 12px; border-radius: 8px;">
+                    <div id="stat-inserted" style="font-size: 24px; font-weight: 700; color: var(--success);">0</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">新增</div>
+                </div>
+                <div style="background: var(--bg); padding: 12px; border-radius: 8px;">
+                    <div id="stat-updated" style="font-size: 24px; font-weight: 700; color: var(--warning);">0</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">更新</div>
+                </div>
+                <div style="background: var(--bg); padding: 12px; border-radius: 8px;">
+                    <div id="stat-phones" style="font-size: 24px; font-weight: 700; color: var(--accent);">0</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">电话累加</div>
+                </div>
+                <div style="background: var(--bg); padding: 12px; border-radius: 8px;">
+                    <div id="stat-processed" style="font-size: 24px; font-weight: 700; color: var(--text);">0</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">已处理</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 停止按钮 -->
+        <button id="stop-btn" type="button" class="btn btn-danger" onclick="doStop()" style="margin-top: 16px;">
+            <i data-lucide="square" style="width:14px;height:14px"></i>
+            停止导入
+        </button>
+    </div>
+
+    <!-- 完成结果 -->
+    <div id="done-section" style="display: none;">
+        <div style="font-size: 48px; margin: 24px 0;">✅</div>
+        <div style="font-size: 18px; font-weight: 600; margin-bottom: 16px;" id="done-title">导入完成</div>
+        <div id="done-stats" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 24px 0; text-align: left;"></div>
+        <a href="{{ url_for('index') }}" class="btn btn-primary" style="margin-top: 16px; padding: 10px 32px; font-size: 15px;">
+            返回首页
+        </a>
+    </div>
+
+    <!-- 错误 -->
+    <div id="error-section" style="display: none;">
+        <div style="font-size: 48px; margin: 24px 0;">❌</div>
+        <div style="font-size: 18px; font-weight: 600; color: var(--danger); margin-bottom: 8px;">导入失败</div>
+        <div id="error-msg" style="color: var(--text-secondary); margin-bottom: 16px;"></div>
+        <a href="{{ url_for('import_page') }}" class="btn btn-primary">返回重试</a>
+    </div>
+</div>
+
+<script>
+(function() {
+    const batchId = "{{ batch_id }}";
+    const streamUrl = "{{ url_for('import_stream', batch_id=batch_id) }}";
+    const stopUrl = "{{ url_for('import_stop', batch_id=batch_id) }}";
+
+    const source = new EventSource(streamUrl);
+    let total = 0;
+
+    function updateStats(data) {
+        document.getElementById('stat-inserted').textContent = data.inserted || 0;
+        document.getElementById('stat-updated').textContent = data.updated || 0;
+        document.getElementById('stat-phones').textContent = data.phones_merged || 0;
+        document.getElementById('stat-processed').textContent = data.processed || 0;
+    }
+
+    source.addEventListener('start', function(e) {
+        const data = JSON.parse(e.data);
+        total = data.total;
+        document.getElementById('progress-stats').style.display = 'block';
+        document.getElementById('progress-text').textContent = '共 ' + total + ' 条记录';
+    });
+
+    source.addEventListener('progress', function(e) {
+        const data = JSON.parse(e.data);
+        const pct = Math.round((data.processed / total) * 100);
+        document.getElementById('progress-bar').style.width = pct + '%';
+        document.getElementById('progress-text').textContent =
+            data.processed + ' / ' + total + '（' + pct + '%）';
+        updateStats(data);
+    });
+
+    source.addEventListener('done', function(e) {
+        const data = JSON.parse(e.data);
+        source.close();
+        document.getElementById('progress-section').style.display = 'none';
+        document.getElementById('done-section').style.display = 'block';
+
+        let html = '';
+        if (data.inserted > 0)
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700;color:var(--success)">' + data.inserted + '</div><div style="font-size:12px;color:var(--text-muted)">新增</div></div>';
+        if (data.updated > 0)
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700;color:var(--warning)">' + data.updated + '</div><div style="font-size:12px;color:var(--text-muted)">更新</div></div>';
+        if (data.phones_merged > 0)
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700;color:var(--accent)">' + data.phones_merged + '</div><div style="font-size:12px;color:var(--text-muted)">电话累加</div></div>';
+        html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700">' + data.total + '</div><div style="font-size:12px;color:var(--text-muted)">总记录</div></div>';
+        document.getElementById('done-stats').innerHTML = html;
+
+        document.getElementById('done-title').textContent = '导入完成';
+    });
+
+    source.addEventListener('stopped', function(e) {
+        const data = JSON.parse(e.data);
+        source.close();
+        document.getElementById('progress-section').style.display = 'none';
+        document.getElementById('done-section').style.display = 'block';
+        document.getElementById('done-title').textContent = '已停止导入';
+
+        let html = '<div style="background:var(--bg);padding:12px;border-radius:8px;grid-column:1/-1"><div style="font-size:14px;color:var(--text-secondary)">已处理 ' + data.processed + ' / ' + data.total + ' 条</div></div>';
+        if (data.inserted > 0)
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700;color:var(--success)">' + data.inserted + '</div><div style="font-size:12px;color:var(--text-muted)">已新增</div></div>';
+        if (data.updated > 0)
+            html += '<div style="background:var(--bg);padding:12px;border-radius:8px;"><div style="font-size:20px;font-weight:700;color:var(--warning)">' + data.updated + '</div><div style="font-size:12px;color:var(--text-muted)">已更新</div></div>';
+        document.getElementById('done-stats').innerHTML = html;
+    });
+
+    source.addEventListener('error', function(e) {
+        if (e.data) {
+            const data = JSON.parse(e.data);
+            source.close();
+            document.getElementById('progress-section').style.display = 'none';
+            document.getElementById('error-section').style.display = 'block';
+            document.getElementById('error-msg').textContent = data.message || '未知错误';
+        }
+    });
+
+    source.onerror = function() {
+        source.close();
+        document.getElementById('progress-section').style.display = 'none';
+        document.getElementById('error-section').style.display = 'block';
+        document.getElementById('error-msg').textContent = '连接中断，请检查网络后返回首页查看导入结果';
+    };
+
+    window.doStop = function() {
+        if (!confirm('确定要停止导入吗？已处理的数据不会回滚。')) return;
+        document.getElementById('stop-btn').disabled = true;
+        document.getElementById('stop-btn').textContent = '正在停止…';
+        fetch(stopUrl, {method: 'POST'});
+    };
+
+    // Re-init lucide icons
+    if (window.lucide) lucide.createIcons();
+})();
+</script>
+{% endblock %}

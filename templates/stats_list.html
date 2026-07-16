@@ -1,20 +1,21 @@
 {% extends "base.html" %}
-{% block title %}电话重复统计 · EntHub{% endblock %}
+{% block title %}{{ title }} · EntHub{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <div class="page-title">电话号码重复统计</div>
-    <div class="page-subtitle">被多家企业共用的电话号码，按重复次数排序</div>
+    <div class="page-title">{{ title }}</div>
+    <div class="page-subtitle">{{ subtitle }}</div>
 </div>
 
-<form action="{{ url_for('stats_phone') }}" method="get" style="margin-bottom: 16px">
+<form action="{{ url_for(endpoint) }}" method="get" style="margin-bottom: 16px">
     <div class="search-mode">
-        <label>最少重复次数：
+        <label>最少出现次数：
             <select name="min" class="form-select" style="width:auto; display:inline-block" onchange="this.form.submit()">
                 <option value="2" {{ 'selected' if min_count == 2 }}>2+</option>
                 <option value="3" {{ 'selected' if min_count == 3 }}>3+</option>
                 <option value="5" {{ 'selected' if min_count == 5 }}>5+</option>
                 <option value="10" {{ 'selected' if min_count == 10 }}>10+</option>
+                <option value="20" {{ 'selected' if min_count == 20 }}>20+</option>
             </select>
         </label>
     </div>
@@ -25,8 +26,8 @@
     <table>
         <thead>
             <tr>
-                <th>电话</th>
-                <th>重复次数</th>
+                <th>{{ '法人' if field == 'legal_person' else ('股东' if field == 'shareholders' else '行业') }}</th>
+                <th>企业数量</th>
                 <th>关联企业</th>
                 <th>操作</th>
             </tr>
@@ -34,10 +35,8 @@
         <tbody>
             {% for row in rows %}
             <tr>
-                <td class="col-phone">
-                    <a href="{{ url_for('search', q=row.display_phone) }}">
-                        {{ row.display_phone }}
-                    </a>
+                <td>
+                    <a href="{{ url_for('search', q=row.val) }}">{{ row.val }}</a>
                 </td>
                 <td>
                     <span class="dup-count {{ 'dup-high' if row.cnt >= 5 else 'dup-mid' }}">
@@ -46,7 +45,7 @@
                 </td>
                 <td>{{ row.company_names[:200] }}{{ '...' if row.company_names|length > 200 }}</td>
                 <td>
-                    <a href="{{ url_for('search', q=row.display_phone) }}" class="btn btn-secondary btn-sm">
+                    <a href="{{ url_for('search', q=row.val) }}" class="btn btn-secondary btn-sm">
                         <i data-lucide="search" style="width:13px;height:13px"></i>
                     </a>
                 </td>
@@ -57,16 +56,16 @@
 </div>
 
 <div class="pagination">
-    <div class="pagination-info">共 {{ total }} 个号码被 {{ min_count }} 家以上企业使用，第 {{ page }} / {{ pages }} 页</div>
+    <div class="pagination-info">共 {{ total }} 条记录，最低 {{ min_count }} 次，第 {{ page }} / {{ pages }} 页</div>
     <div class="pagination-links">
         {% if page > 1 %}
-        <a href="{{ url_for('stats_phone', min=min_count, page=page-1) }}">
+        <a href="{{ url_for(endpoint, min=min_count, page=page-1) }}">
             <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
         </a>
         {% endif %}
         <span class="current">{{ page }}</span>
         {% if page < pages %}
-        <a href="{{ url_for('stats_phone', min=min_count, page=page+1) }}">
+        <a href="{{ url_for(endpoint, min=min_count, page=page+1) }}">
             <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
         </a>
         {% endif %}
@@ -74,7 +73,7 @@
 </div>
 {% else %}
 <div class="empty-state">
-    没有被 {{ min_count }} 家以上企业共用的电话号码。
+    没有符合筛选条件的记录。
 </div>
 {% endif %}
 {% endblock %}

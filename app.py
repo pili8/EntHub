@@ -2,11 +2,16 @@
 import math
 import uuid
 import os
+import json
+import sqlite3
+import tempfile
+import threading
+import queue
 
 import pandas as pd
 from flask import (
     Flask, g, render_template, request, redirect,
-    url_for, flash, jsonify, abort, send_file
+    url_for, flash, jsonify, abort, send_file, Response
 )
 
 from db import get_db, init_db, DB_PATH
@@ -20,6 +25,9 @@ from utils import (
 app = Flask(__name__)
 app.secret_key = "enthub-dev-key"
 PER_PAGE = 25
+
+# 导入任务跟踪（SSE 异步导入）
+_import_tasks = {}  # batch_id -> {queue, stop_event, status}
 
 # Full field list for import
 IMPORT_FIELDS = [
@@ -165,6 +173,465 @@ def index():
         FROM companies
     """).fetchone()
     return render_template("index.html", stats=stats)
+
+
+# --------------------------------------------------------------------------- #
+#  数据清理
+# --------------------------------------------------------------------------- #
+
+@app.route("/cleanup")
+def cleanup_page():
+    """统计待清理数据量。"""
+    stats = {}
+    stats["nan_count"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE name IN ('nan','NaN','NAN') OR normalized_name IN ('nan','NaN','NAN')"
+    ).fetchone()[0]
+
+    stats["header_count"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE name IN ('公司名称','企业名称')"
+    ).fetchone()[0]
+
+    stats["cc_total"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE credit_code IS NOT NULL AND credit_code <> '' AND credit_code NOT IN ('nan','NaN','NAN')"
+    ).fetchone()[0]
+    stats["cc_unique"] = g.db.execute(
+        "SELECT COUNT(DISTINCT credit_code) FROM companies WHERE credit_code IS NOT NULL AND credit_code <> '' AND credit_code NOT IN ('nan','NaN','NAN')"
+    ).fetchone()[0]
+    stats["cc_dup"] = stats["cc_total"] - stats["cc_unique"]
+
+    stats["name_total"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE normalized_name IS NOT NULL AND normalized_name <> '' AND normalized_name <> 'nan'"
+    ).fetchone()[0]
+    stats["name_unique"] = g.db.execute(
+        "SELECT COUNT(DISTINCT normalized_name) FROM companies WHERE normalized_name IS NOT NULL AND normalized_name <> '' AND normalized_name <> 'nan'"
+    ).fetchone()[0]
+    stats["name_dup"] = stats["name_total"] - stats["name_unique"]
+
+    stats["total"] = g.db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+
+    stats["placeholder_count"] = g.db.execute("""
+        SELECT COUNT(*) FROM companies WHERE 
+        business_scope LIKE '%暂不予显示%' OR business_scope LIKE '%企业信息暂不%'
+        OR name LIKE '%暂不予显示%' OR address LIKE '%暂不予显示%'
+    """).fetchone()[0]
+
+    return render_template("cleanup.html", stats=stats)
+
+
+@app.route("/cleanup/execute", methods=["POST"])
+def cleanup_execute():
+    """启动异步清理。"""
+    # 读取用户勾选的清理项
+    clean_nan = request.form.get("clean_nan", "0") == "1"
+    clean_header = request.form.get("clean_header", "0") == "1"
+    clean_placeholder = request.form.get("clean_placeholder", "0") == "1"
+    clean_cc_dup = request.form.get("clean_cc_dup", "0") == "1"
+    clean_name_dup = request.form.get("clean_name_dup", "0") == "1"
+
+    task_queue = queue.Queue()
+    stop_event = threading.Event()
+    _import_tasks["cleanup"] = {"queue": task_queue, "stop_event": stop_event, "status": "running"}
+
+    t = threading.Thread(
+        target=_cleanup_worker,
+        args=(task_queue, stop_event, clean_nan, clean_header, clean_placeholder, clean_cc_dup, clean_name_dup),
+        daemon=True,
+    )
+    t.start()
+
+    return render_template("cleanup_progress.html")
+
+
+def _cleanup_worker(task_queue, stop_event, clean_nan, clean_header, clean_placeholder, clean_cc_dup, clean_name_dup):
+    def send(event, data=None):
+        task_queue.put({"event": event, "data": data or {}})
+
+    try:
+        db = sqlite3.connect(DB_PATH)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA journal_mode=WAL")
+
+        total_before = db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        send("start", {"total_before": total_before})
+
+        deleted_total = 0
+        step = 0
+
+        # 1. 删除 nan 记录
+        if clean_nan and not stop_event.is_set():
+            step += 1
+            send("step", {"step": step, "label": "清理空值/无效数据"})
+            n = db.execute("DELETE FROM companies WHERE name IN ('nan','NaN','NAN') OR normalized_name IN ('nan','NaN','NAN')").rowcount
+            deleted_total += n
+            send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
+
+        # 2. 删除表头行
+        if clean_header and not stop_event.is_set():
+            step += 1
+            send("step", {"step": step, "label": "清理表头行"})
+            n = db.execute("DELETE FROM companies WHERE name IN ('公司名称','企业名称')").rowcount
+            deleted_total += n
+            send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
+
+        # 2.5 清理"暂不予显示"等无效占位文本
+        if clean_placeholder and not stop_event.is_set():
+            step += 1
+            send("step", {"step": step, "label": "清理无效占位文本"})
+            n = db.execute("""
+                DELETE FROM companies WHERE 
+                business_scope LIKE '%暂不予显示%' OR business_scope LIKE '%企业信息暂不%'
+                OR name LIKE '%暂不予显示%' OR address LIKE '%暂不予显示%'
+            """).rowcount
+            deleted_total += n
+            send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
+
+        # 3. 信用代码去重（保留字段最完整的记录）
+        if clean_cc_dup and not stop_event.is_set():
+            step += 1
+            send("step", {"step": step, "label": "信用代码去重"})
+            n = _dedup_by_field(db, "credit_code")
+            deleted_total += n
+            send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
+
+        # 4. 企业名称去重（保留字段最完整的记录）
+        if clean_name_dup and not stop_event.is_set():
+            step += 1
+            send("step", {"step": step, "label": "企业名称去重"})
+            n = _dedup_by_field(db, "normalized_name")
+            deleted_total += n
+            send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
+
+        # 5. 清理孤立电话
+        if not stop_event.is_set():
+            step += 1
+            send("step", {"step": step, "label": "清理孤立电话记录"})
+            n = db.execute("DELETE FROM company_phones WHERE company_id NOT IN (SELECT id FROM companies)").rowcount
+            deleted_total += n
+            send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
+
+        db.commit()
+
+        total_after = db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        db.close()
+
+        if stop_event.is_set():
+            send("stopped", {"total_deleted": deleted_total, "total_after": total_after})
+        else:
+            send("done", {"total_before": total_before, "total_after": total_after, "total_deleted": deleted_total})
+
+    except Exception as e:
+        send("error", {"message": str(e)})
+
+
+def _dedup_by_field(db, field):
+    """按字段去重，保留每组中「最好」的记录。
+    
+    逻辑与导入一致：
+    - 保留字段最完整的记录（完整度 > updated_at > id）
+    - 被删记录的电话累加到保留记录（merge_phones 自动去重）
+    - 被删记录的非空字段补全保留记录的空字段
+    """
+    groups = db.execute(f"""
+        SELECT {field}, GROUP_CONCAT(id) as ids
+        FROM companies
+        WHERE {field} IS NOT NULL AND {field} <> '' AND {field} NOT IN ('nan','NaN','NAN')
+        GROUP BY {field}
+        HAVING COUNT(*) > 1
+    """).fetchall()
+
+    deleted = 0
+
+    for group in groups:
+        ids = [int(x) for x in group["ids"].split(",")]
+        if len(ids) <= 1:
+            continue
+
+        # 读取这些记录
+        placeholders = ",".join(["?"] * len(ids))
+        rows = db.execute(f"""
+            SELECT id, name, phone, other_phone, credit_code, legal_person,
+                   address, province, city, industry, business_status, email,
+                   updated_at, registered_capital, paid_capital,
+                   established_date, approved_date, business_term,
+                   district, insured_count, company_type, former_name,
+                   website, other_email, business_scope, enterprise_scale,
+                   shareholders, mailing_address, english_name, tags,
+                   annual_report_address, taxpayer_id, registration_no, org_code,
+                   (CASE WHEN name <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN phone <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN credit_code <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN legal_person <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN address <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN province <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN city <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN industry <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN business_status <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN email <> '' THEN 1 ELSE 0 END) AS completeness
+            FROM companies WHERE id IN ({placeholders})
+        """, ids).fetchall()
+
+        # 排序：完整度降序 > updated_at 降序 > id 升序
+        rows = list(rows)
+        rows.sort(key=lambda r: (-r["completeness"], r["updated_at"] or "", r["id"]))
+
+        keep = rows[0]
+        keep_id = keep["id"]
+
+        # 从被删记录中合并数据到保留记录
+        updates = {}
+        for r in rows[1:]:
+            # 电话累加（merge_phones 自动按 normalized_phone 去重）
+            if r["phone"] or r["other_phone"]:
+                merge_phones(db, keep_id, r["phone"] or "", r["other_phone"] or "")
+
+            # 其他字段：保留记录为空时，从被删记录补全
+            for f in IMPORT_FIELDS:
+                if f in ("name", "phone", "other_phone", "source_file", "tags"):
+                    continue  # 这些字段特殊处理或不合并
+                kept_val = updates.get(f) or keep[f]
+                dup_val = r[f] if f in r.keys() else ""
+                if (not kept_val or kept_val in ("", "-", "nan")) and dup_val and dup_val not in ("", "-", "nan"):
+                    updates[f] = dup_val
+
+        # 应用字段补全
+        if updates:
+            set_parts = []
+            params = []
+            for k, v in updates.items():
+                set_parts.append(f"{k} = ?")
+                params.append(v)
+            params.append(keep_id)
+            db.execute(f"UPDATE companies SET {', '.join(set_parts)} WHERE id = ?", params)
+
+        # 删除被合并的记录
+        delete_ids = [r["id"] for r in rows[1:]]
+        del_placeholders = ",".join(["?"] * len(delete_ids))
+        db.execute(f"DELETE FROM companies WHERE id IN ({del_placeholders})", delete_ids)
+        deleted += len(delete_ids)
+
+    return deleted
+
+
+@app.route("/cleanup/stream")
+def cleanup_stream():
+    task = _import_tasks.get("cleanup")
+    if not task:
+        return Response("event: error\ndata: {\"message\": \"任务不存在\"}\n\n",
+                        content_type="text/event-stream")
+
+    def generate():
+        try:
+            while True:
+                try:
+                    msg = task["queue"].get(timeout=30)
+                    event = msg.get("event", "message")
+                    data = json.dumps(msg.get("data", {}), ensure_ascii=False)
+                    yield f"event: {event}\ndata: {data}\n\n"
+                    if event in ("done", "error", "stopped"):
+                        break
+                except queue.Empty:
+                    yield f"event: heartbeat\ndata: {{}}\n\n"
+        finally:
+            _import_tasks.pop("cleanup", None)
+
+    return Response(generate(), content_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/cleanup/stop", methods=["POST"])
+def cleanup_stop():
+    task = _import_tasks.get("cleanup")
+    if task:
+        task["stop_event"].set()
+        return jsonify({"ok": True})
+    return jsonify({"ok": False}), 404
+
+
+
+# --------------------------------------------------------------------------- #
+#  数据浏览
+# --------------------------------------------------------------------------- #
+
+@app.route("/browse")
+def browse():
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = min(100, max(10, request.args.get("per_page", 25, type=int)))
+
+    # 筛选
+    filters = {}
+    filter_clauses = []
+    filter_params = []
+    for f in ("city", "district", "business_status", "industry"):
+        val = request.args.get(f, "").strip()
+        if val:
+            filters[f] = val
+            filter_clauses.append(f"{f} = ?")
+            filter_params.append(val)
+
+    # 成立年份区间
+    year_from = request.args.get("year_from", "").strip()
+    year_to = request.args.get("year_to", "").strip()
+    if year_from:
+        filters["year_from"] = year_from
+        filter_clauses.append("established_date >= ?")
+        filter_params.append(f"{year_from}-01-01")
+    if year_to:
+        filters["year_to"] = year_to
+        filter_clauses.append("established_date <= ?")
+        filter_params.append(f"{year_to}-12-31")
+
+    # 注册资本区间（万元）
+    cap_from = request.args.get("cap_from", "").strip()
+    cap_to = request.args.get("cap_to", "").strip()
+    if cap_from:
+        filters["cap_from"] = cap_from
+        filter_clauses.append("CAST(REPLACE(REPLACE(registered_capital, '万元', ''), '万', '') AS REAL) >= ?")
+        filter_params.append(float(cap_from))
+    if cap_to:
+        filters["cap_to"] = cap_to
+        filter_clauses.append("CAST(REPLACE(REPLACE(registered_capital, '万元', ''), '万', '') AS REAL) <= ?")
+        filter_params.append(float(cap_to))
+
+    # 社保人数区间
+    insured_from = request.args.get("insured_from", "").strip()
+    insured_to = request.args.get("insured_to", "").strip()
+    if insured_from:
+        filters["insured_from"] = insured_from
+        filter_clauses.append("CAST(insured_count AS INTEGER) >= ?")
+        filter_params.append(int(insured_from))
+    if insured_to:
+        filters["insured_to"] = insured_to
+        filter_clauses.append("CAST(insured_count AS INTEGER) <= ?")
+        filter_params.append(int(insured_to))
+
+    # 重复类型筛选
+    dup_type = request.args.get("dup_type", "").strip()
+    if dup_type:
+        filters["dup_type"] = dup_type
+        if dup_type == "phone":
+            filter_clauses.append("""id IN (
+                SELECT cp.company_id FROM company_phones cp
+                WHERE cp.normalized_phone IN (
+                    SELECT normalized_phone FROM company_phones
+                    GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) > 1
+                )
+            )""")
+        elif dup_type == "email":
+            filter_clauses.append("""email IN (
+                SELECT email FROM companies
+                WHERE email IS NOT NULL AND email <> '' AND email <> '-'
+                GROUP BY email HAVING COUNT(*) > 1
+            )""")
+        elif dup_type == "legal_person":
+            filter_clauses.append("""legal_person IN (
+                SELECT legal_person FROM companies
+                WHERE legal_person IS NOT NULL AND legal_person <> '' AND legal_person <> '-'
+                GROUP BY legal_person HAVING COUNT(*) > 1
+            )""")
+        elif dup_type == "shareholders":
+            filter_clauses.append("""shareholders IN (
+                SELECT shareholders FROM companies
+                WHERE shareholders IS NOT NULL AND shareholders <> '' AND shareholders <> '-'
+                GROUP BY shareholders HAVING COUNT(*) > 1
+            )""")
+
+    where = ""
+    if filter_clauses:
+        where = "WHERE " + " AND ".join(filter_clauses)
+
+    # 排序
+    sort = request.args.get("sort", "id")
+    direction = request.args.get("dir", "desc")
+    allowed_sorts = {
+        "id": "id", "name": "normalized_name", "province": "province",
+        "city": "city", "established_date": "established_date",
+        "business_status": "business_status", "created_at": "created_at",
+    }
+    sort_col = allowed_sorts.get(sort, "id")
+    dir_sql = "ASC" if direction == "asc" else "DESC"
+
+    # 总数
+    total = g.db.execute(
+        f"SELECT COUNT(*) FROM companies {where}", filter_params
+    ).fetchone()[0]
+
+    pages = max(1, math.ceil(total / per_page))
+    offset = (page - 1) * per_page
+
+    rows = g.db.execute(f"""
+        SELECT id, name, phone, credit_code, legal_person, city, district,
+               business_status, established_date, registered_capital, industry, enterprise_scale
+        FROM companies {where}
+        ORDER BY {sort_col} {dir_sql}
+        LIMIT ? OFFSET ?
+    """, filter_params + [per_page, offset]).fetchall()
+
+    # 筛选器选项（从数据库取已有值）
+    filter_options = {}
+    for f in ("city", "district", "business_status", "industry"):
+        vals = g.db.execute(f"""
+            SELECT DISTINCT {f} FROM companies
+            WHERE {f} IS NOT NULL AND {f} <> '' AND {f} <> '-'
+            ORDER BY {f} LIMIT 50
+        """).fetchall()
+        filter_options[f] = [v[f] for v in vals]
+
+    # 关联查看计数
+    dup_counts = {}
+    dup_counts["phone"] = g.db.execute("""
+        SELECT COUNT(DISTINCT company_id) FROM company_phones
+        WHERE normalized_phone IN (
+            SELECT normalized_phone FROM company_phones
+            GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) > 1
+        )
+    """).fetchone()[0]
+    dup_counts["email"] = g.db.execute("""
+        SELECT COUNT(*) FROM companies WHERE email IN (
+            SELECT email FROM companies
+            WHERE email IS NOT NULL AND email <> '' AND email <> '-'
+            GROUP BY email HAVING COUNT(*) > 1
+        )
+    """).fetchone()[0]
+    dup_counts["legal_person"] = g.db.execute("""
+        SELECT COUNT(*) FROM companies WHERE legal_person IN (
+            SELECT legal_person FROM companies
+            WHERE legal_person IS NOT NULL AND legal_person <> '' AND legal_person <> '-'
+            GROUP BY legal_person HAVING COUNT(*) > 1
+        )
+    """).fetchone()[0]
+    dup_counts["shareholders"] = g.db.execute("""
+        SELECT COUNT(*) FROM companies WHERE shareholders IN (
+            SELECT shareholders FROM companies
+            WHERE shareholders IS NOT NULL AND shareholders <> '' AND shareholders <> '-'
+            GROUP BY shareholders HAVING COUNT(*) > 1
+        )
+    """).fetchone()[0]
+
+    # 动态生成年份区间（递增：1,2,3,4,5,6,7...），只包含有数据的区间
+    year_bounds = g.db.execute(
+        """SELECT MIN(SUBSTR(established_date, 1, 4)) as min_y,
+                  MAX(SUBSTR(established_date, 1, 4)) as max_y
+           FROM companies
+           WHERE established_date IS NOT NULL AND established_date <> ''
+           AND established_date NOT IN ('nan','NaN','NAN')
+           AND SUBSTR(established_date, 1, 4) GLOB '[0-9][0-9][0-9][0-9]'"""
+    ).fetchone()
+    max_year = int(year_bounds["max_y"]) if year_bounds and year_bounds["max_y"] else 2026
+    min_year = int(year_bounds["min_y"]) if year_bounds and year_bounds["min_y"] else 1950
+    year_ranges = []
+    y = max_year
+    span = 1
+    while y >= min_year:
+        start = max(min_year, y - span + 1)
+        year_ranges.append((str(start), str(y)))
+        y = start - 1
+        span += 1
+
+    return render_template("browse.html",
+                           rows=rows, total=total, page=page, pages=pages,
+                           per_page=per_page, sort=sort, direction=direction,
+                           filters=filters, filter_options=filter_options,
+                           year_ranges=year_ranges, dup_counts=dup_counts)
 
 
 # --------------------------------------------------------------------------- #
@@ -360,6 +827,66 @@ def stats_phone():
 
 
 # --------------------------------------------------------------------------- #
+#  通用字段统计（法人 / 股东 / 行业）
+# --------------------------------------------------------------------------- #
+
+def _stats_generic(field, title, subtitle, min_default=2, endpoint=None):
+    """通用统计视图：按某字段分组，统计企业数量。"""
+    ep = endpoint or f"stats_{field}"
+    page = max(1, request.args.get("page", 1, type=int))
+    min_count = max(min_default, request.args.get("min", min_default, type=int))
+
+    total = g.db.execute(f"""
+        SELECT COUNT(*) FROM (
+            SELECT {field} FROM companies
+            WHERE {field} IS NOT NULL AND {field} <> '' AND {field} <> '-'
+            GROUP BY {field}
+            HAVING COUNT(*) >= ?
+        )
+    """, [min_count]).fetchone()[0]
+
+    pages = max(1, math.ceil(total / PER_PAGE))
+    offset = (page - 1) * PER_PAGE
+
+    rows = g.db.execute(f"""
+        SELECT {field} AS val,
+               COUNT(*) AS cnt,
+               GROUP_CONCAT(name) AS company_names
+        FROM companies
+        WHERE {field} IS NOT NULL AND {field} <> '' AND {field} <> '-'
+        GROUP BY {field}
+        HAVING cnt >= ?
+        ORDER BY cnt DESC
+        LIMIT ? OFFSET ?
+    """, [min_count, PER_PAGE, offset]).fetchall()
+
+    return render_template("stats_list.html",
+                           field=field, endpoint=ep,
+                           title=title, subtitle=subtitle,
+                           rows=rows, total=total, min_count=min_count,
+                           page=page, pages=pages)
+
+
+@app.route("/stats/legal_person")
+def stats_legal_person():
+    return _stats_generic("legal_person", "法定代表人统计",
+                          "担任多家企业法人的记录，按企业数量排序")
+
+
+@app.route("/stats/shareholder")
+def stats_shareholder():
+    return _stats_generic("shareholders", "股东统计",
+                          "出现多次的股东记录，按关联企业数量排序",
+                          endpoint="stats_shareholder")
+
+
+@app.route("/stats/industry")
+def stats_industry():
+    return _stats_generic("industry", "行业统计",
+                          "各行业的企业数量分布")
+
+
+# --------------------------------------------------------------------------- #
 #  企业详情
 # --------------------------------------------------------------------------- #
 
@@ -387,16 +914,102 @@ def company_detail(company_id):
     phone_norms = [r["normalized_phone"] for r in company_phones] if company_phones else [row["normalized_phone"]]
     phone_placeholders = ",".join(["?"] * len(phone_norms)) if phone_norms else "''"
 
-    related = g.db.execute(f"""
-        SELECT DISTINCT c.id, c.name, c.phone, c.address, c.credit_code
+    related_phones = g.db.execute(f"""
+        SELECT DISTINCT c.id, c.name, c.phone, c.address
         FROM companies c
         JOIN company_phones cp ON cp.company_id = c.id
         WHERE c.id <> ? AND cp.normalized_phone IN ({phone_placeholders})
         AND cp.normalized_phone <> ''
-        ORDER BY c.name LIMIT 20
+        ORDER BY c.name LIMIT 10
     """, [company_id] + phone_norms).fetchall()
 
-    return render_template("company_detail.html", company=row, related=related, company_phones=company_phones)
+    # Find related records by other fields
+    related_legal_person = []
+    if row["legal_person"] and row["legal_person"] != '-':
+        related_legal_person = g.db.execute("""
+            SELECT id, name, phone, address
+            FROM companies
+            WHERE id <> ? AND legal_person = ? AND legal_person <> ''
+            ORDER BY name LIMIT 10
+        """, [company_id, row["legal_person"]]).fetchall()
+
+    related_shareholders = []
+    if row["shareholders"] and row["shareholders"] != '-':
+        related_shareholders = g.db.execute("""
+            SELECT id, name, phone, address
+            FROM companies
+            WHERE id <> ? AND shareholders = ? AND shareholders <> ''
+            ORDER BY name LIMIT 10
+        """, [company_id, row["shareholders"]]).fetchall()
+
+    related_industry = []
+    if row["industry"] and row["industry"] != '-':
+        related_industry = g.db.execute("""
+            SELECT id, name, phone, address
+            FROM companies
+            WHERE id <> ? AND industry = ? AND industry <> ''
+            ORDER BY name LIMIT 10
+        """, [company_id, row["industry"]]).fetchall()
+
+    related_email = []
+    if row["email"] and row["email"] != '-' and '@' in row["email"]:
+        related_email = g.db.execute("""
+            SELECT id, name, phone, address
+            FROM companies
+            WHERE id <> ? AND email = ? AND email <> ''
+            ORDER BY name LIMIT 10
+        """, [company_id, row["email"]]).fetchall()
+
+    # 统计关联数量：法人 / 股东 / 行业 / 邮箱
+    field_counts = {}
+    for f in ("legal_person", "shareholders", "industry", "email"):
+        val = row[f] if row[f] else None
+        if val and val != '-':
+            cnt = g.db.execute(
+                f"SELECT COUNT(*) FROM companies WHERE {f} = ?", [val]
+            ).fetchone()[0]
+            field_counts[f] = cnt
+
+    return render_template("company_detail.html", company=row,
+                           related_phones=related_phones,
+                           related_legal_person=related_legal_person,
+                           related_shareholders=related_shareholders,
+                           related_industry=related_industry,
+                           related_email=related_email,
+                           company_phones=company_phones, field_counts=field_counts)
+
+
+@app.route("/company/<int:company_id>/edit", methods=["GET", "POST"])
+def edit_company(company_id):
+    row = g.db.execute("SELECT * FROM companies WHERE id = ?", [company_id]).fetchone()
+    if not row:
+        abort(404)
+
+    if request.method == "POST":
+        fields = {}
+        for f in IMPORT_FIELDS:
+            val = request.form.get(f, "").strip()
+            fields[f] = val if val else ""
+
+        # 更新 normalized 字段
+        fields["normalized_name"] = normalize_name(fields.get("name", ""))
+        fields["normalized_phone"] = normalize_phone(fields.get("phone", ""))
+        if fields.get("credit_code"):
+            fields["credit_code"] = normalize_credit_code(fields["credit_code"])
+
+        set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
+        g.db.execute(f"UPDATE companies SET {set_clause} WHERE id = ?",
+                     list(fields.values()) + [company_id])
+
+        # 更新电话关联表
+        sync_phones(g.db, company_id,
+                    fields.get("phone", ""), fields.get("other_phone", ""))
+        g.db.commit()
+
+        flash(f"已更新：{fields.get('name', '')}", "success")
+        return redirect(url_for("company_detail", company_id=company_id))
+
+    return render_template("edit.html", company=dict(row))
 
 
 # --------------------------------------------------------------------------- #
@@ -440,7 +1053,7 @@ def add_company():
         flash(f"已录入：{name}", "success")
         return redirect(url_for("add_company"))
 
-    return render_template("add.html")
+    return render_template("add.html", company={})
 
 
 # --------------------------------------------------------------------------- #
@@ -562,7 +1175,6 @@ def import_upload():
             record["_recommended_phone"] = ";".join(rec_parts)
 
             # Source filename
-            # If the data has a 文件名 column, use that; otherwise use the actual filename
             if not record.get("source_file"):
                 record["source_file"] = source_name
 
@@ -572,47 +1184,26 @@ def import_upload():
             if not record.get("name"):
                 continue
 
+            # 跳过包含无效占位文本的记录
+            placeholder_texts = ["暂不予显示", "企业信息暂不"]
+            has_placeholder = False
+            for field in ["name", "business_scope", "address"]:
+                val = record.get(field, "")
+                if val and any(pt in val for pt in placeholder_texts):
+                    has_placeholder = True
+                    break
+            if has_placeholder:
+                continue
+
             record["normalized_name"] = normalize_name(record.get("name", ""))
             record["normalized_phone"] = normalize_phone(record.get("phone", ""))
             if record.get("credit_code"):
                 record["credit_code"] = normalize_credit_code(record.get("credit_code"))
 
-            # Dedup check against existing data
-            is_dup = 0
-            dup_reason = ""
-            will_update = 0  # 1 = will update, 0 = will skip, -1 = new record
-
-            if record.get("credit_code"):
-                existing = g.db.execute(
-                    "SELECT id, updated_at FROM companies WHERE credit_code = ? LIMIT 1",
-                    [record["credit_code"]]
-                ).fetchone()
-                if existing:
-                    is_dup = 1
-                    dup_reason = "credit_code"
-                    # Check if new data is newer
-                    if file_date and existing["updated_at"]:
-                        will_update = 1 if file_date > existing["updated_at"] else 0
-                    elif file_date:
-                        will_update = 1  # No existing date, new has date
-
-            if not is_dup and record["normalized_name"]:
-                existing = g.db.execute(
-                    "SELECT id, updated_at FROM companies WHERE normalized_name = ? LIMIT 1",
-                    [record["normalized_name"]]
-                ).fetchone()
-                if existing:
-                    is_dup = 1
-                    dup_reason = "name"
-                    # Check if new data is newer
-                    if file_date and existing["updated_at"]:
-                        will_update = 1 if file_date > existing["updated_at"] else 0
-                    elif file_date:
-                        will_update = 1
-
-            record["is_duplicate"] = is_dup
-            record["duplicate_reason"] = dup_reason
-            record["will_update"] = will_update
+            # 预览阶段不做去重检查，确认时统一处理
+            record["is_duplicate"] = 0
+            record["duplicate_reason"] = ""
+            record["will_update"] = 0
             all_cleaned.append(record)
 
     if not all_cleaned:
@@ -620,26 +1211,8 @@ def import_upload():
             flash(e, "error")
         return redirect(url_for("import_page"))
 
-    # Intra-batch dedup (across all files)
-    seen_names = {}
-    seen_codes = {}
-    for rec in all_cleaned:
-        if rec.get("credit_code") and rec["credit_code"] in seen_codes:
-            rec["is_duplicate"] = 1
-            if not rec["duplicate_reason"]:
-                rec["duplicate_reason"] = "batch:credit_code"
-        elif rec.get("credit_code"):
-            seen_codes[rec["credit_code"]] = rec["row_num"]
-
-        if rec["normalized_name"] and rec["normalized_name"] in seen_names:
-            if not rec["is_duplicate"]:
-                rec["is_duplicate"] = 1
-                rec["duplicate_reason"] = "batch:name"
-        elif rec["normalized_name"]:
-            seen_names[rec["normalized_name"]] = rec["row_num"]
-
-    # Insert into preview
-    for rec in all_cleaned:
+    # Insert sample into preview table for display
+    for rec in all_cleaned[:50]:
         g.db.execute("""
             INSERT INTO import_preview
                 (batch_id, row_num, name, normalized_name, phone, normalized_phone,
@@ -656,7 +1229,6 @@ def import_upload():
     g.db.commit()
 
     # Store full cleaned data + field mappings
-    import json, tempfile, os
     temp_path = os.path.join(tempfile.gettempdir(), f"enthub_import_{batch_id}.json")
     with open(temp_path, "w") as f:
         json.dump({"records": all_cleaned, "mappings": file_mappings}, f, ensure_ascii=False)
@@ -671,47 +1243,6 @@ def import_upload():
 
 @app.route("/import/preview/<batch_id>")
 def import_preview(batch_id):
-    stats = g.db.execute("""
-        SELECT
-            COUNT(*) AS total,
-            COALESCE(SUM(CASE WHEN is_duplicate = 0 THEN 1 ELSE 0 END), 0) AS new_count,
-            COALESCE(SUM(CASE WHEN is_duplicate = 1 AND will_update = 1 THEN 1 ELSE 0 END), 0) AS update_count,
-            COALESCE(SUM(CASE WHEN is_duplicate = 1 AND will_update = 0 THEN 1 ELSE 0 END), 0) AS skip_count
-        FROM import_preview WHERE batch_id = ?
-    """, [batch_id]).fetchone()
-
-    sample = g.db.execute("""
-        SELECT * FROM import_preview
-        WHERE batch_id = ? ORDER BY row_num LIMIT 30
-    """, [batch_id]).fetchall()
-
-    # Load field mapping info
-    import json, tempfile, os
-    temp_path = os.path.join(tempfile.gettempdir(), f"enthub_import_{batch_id}.json")
-    mappings = []
-    if os.path.exists(temp_path):
-        with open(temp_path) as f:
-            data = json.load(f)
-            if isinstance(data, dict):
-                mappings = data.get("mappings", [])
-
-    return render_template("import_preview.html", batch_id=batch_id,
-                           stats=stats, sample=sample, mappings=mappings)
-
-
-@app.route("/import/confirm/<batch_id>", methods=["POST"])
-def import_confirm(batch_id):
-    import json, tempfile, os, sqlite3
-    skip_dup = request.form.get("skip_dup", "1") == "1"
-
-    # 导入前自动备份
-    backup_result = backup.create_backup(DB_PATH, reason="导入前自动备份")
-    if backup_result["success"]:
-        backup.cleanup_old_backups(keep_count=7)
-        flash(f"已自动创建备份：{backup_result['filename']}", "info")
-    else:
-        flash(f"自动备份失败：{backup_result.get('error', '未知错误')}", "warning")
-
     temp_path = os.path.join(tempfile.gettempdir(), f"enthub_import_{batch_id}.json")
     if not os.path.exists(temp_path):
         flash("导入会话已过期，请重新上传", "error")
@@ -719,145 +1250,257 @@ def import_confirm(batch_id):
 
     with open(temp_path) as f:
         data = json.load(f)
-        cleaned = data["records"] if isinstance(data, dict) else data  # backward compat
 
-    # Pre-load existing records for faster duplicate checking
-    existing_by_code = {}
-    existing_by_name = {}
-    for row in g.db.execute("SELECT id, credit_code, normalized_name, updated_at FROM companies"):
-        if row["credit_code"]:
-            existing_by_code[row["credit_code"]] = (row["id"], row["updated_at"])
-        if row["normalized_name"]:
-            existing_by_name[row["normalized_name"]] = (row["id"], row["updated_at"])
+    if isinstance(data, dict):
+        mappings = data.get("mappings", [])
+        total = len(data.get("records", []))
+    else:
+        mappings = []
+        total = len(data)
 
-    # Start transaction
-    g.db.execute("BEGIN TRANSACTION")
-    
-    inserted = 0
-    updated = 0
-    phones_merged = 0
+    sample = g.db.execute("""
+        SELECT * FROM import_preview
+        WHERE batch_id = ? ORDER BY row_num LIMIT 30
+    """, [batch_id]).fetchall()
+
+    return render_template("import_preview.html", batch_id=batch_id,
+                           total=total, sample=sample, mappings=mappings)
+
+
+@app.route("/import/confirm/<batch_id>", methods=["POST"])
+def import_confirm(batch_id):
+    skip_dup = request.form.get("skip_dup", "1") == "1"
+
+    temp_path = os.path.join(tempfile.gettempdir(), f"enthub_import_{batch_id}.json")
+    if not os.path.exists(temp_path):
+        flash("导入会话已过期，请重新上传", "error")
+        return redirect(url_for("import_page"))
+
+    # 导入前自动备份
+    backup_result = backup.create_backup(DB_PATH, reason="导入前自动备份")
+    backup_msg = ""
+    if backup_result["success"]:
+        backup.cleanup_old_backups(keep_count=7)
+        backup_msg = f"已自动创建备份：{backup_result['filename']}"
+    else:
+        backup_msg = f"自动备份失败：{backup_result.get('error', '未知错误')}"
+
+    # 创建任务跟踪
+    task_queue = queue.Queue()
+    stop_event = threading.Event()
+    _import_tasks[batch_id] = {"queue": task_queue, "stop_event": stop_event, "status": "running"}
+
+    # 启动后台线程
+    t = threading.Thread(
+        target=_import_worker,
+        args=(batch_id, temp_path, skip_dup, task_queue, stop_event),
+        daemon=True,
+    )
+    t.start()
+
+    return render_template("import_progress.html",
+                           batch_id=batch_id, backup_msg=backup_msg)
+
+
+def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
+    """后台导入线程：逐条处理，发送进度事件。"""
+    def send(event, data=None):
+        task_queue.put({"event": event, "data": data or {}})
+
     try:
-        for rec in cleaned:
+        with open(temp_path) as f:
+            data = json.load(f)
+            cleaned = data["records"] if isinstance(data, dict) else data
+
+        total = len(cleaned)
+        send("start", {"total": total})
+
+        # 用独立连接操作数据库
+        db = sqlite3.connect(DB_PATH)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA journal_mode=WAL")
+
+        # 预加载已有记录
+        existing_by_code = {}
+        existing_by_name = {}
+        for row in db.execute("SELECT id, credit_code, normalized_name, updated_at FROM companies"):
+            if row["credit_code"]:
+                existing_by_code[row["credit_code"]] = (row["id"], row["updated_at"])
+            if row["normalized_name"]:
+                existing_by_name[row["normalized_name"]] = (row["id"], row["updated_at"])
+
+        db.execute("BEGIN TRANSACTION")
+
+        inserted = 0
+        updated = 0
+        phones_merged = 0
+        skipped = 0
+        report_every = max(1, total // 100)  # 每 1% 报告一次
+
+        for i, rec in enumerate(cleaned):
+            if stop_event.is_set():
+                db.rollback()
+                send("stopped", {
+                    "processed": i, "total": total,
+                    "inserted": inserted, "updated": updated,
+                    "phones_merged": phones_merged, "skipped": skipped,
+                })
+                db.close()
+                return
+
             file_date = rec.get("_file_date")
-            
-            # Check if this is a duplicate
+
+            # 去重检查
             existing_id = None
             existing_updated = None
-            
+
             if rec.get("credit_code") and rec["credit_code"] in existing_by_code:
                 existing_id, existing_updated = existing_by_code[rec["credit_code"]]
             elif rec.get("normalized_name") and rec["normalized_name"] in existing_by_name:
                 existing_id, existing_updated = existing_by_name[rec["normalized_name"]]
-        
-            # Decide: insert, update, or skip
+
             if existing_id:
-                # Duplicate found
                 if skip_dup:
-                    # Check if new data is newer
                     if file_date and existing_updated:
                         if file_date > existing_updated:
-                            # New data is newer → UPDATE
-                            pass  # Continue to update logic below
+                            pass  # UPDATE
                         else:
-                            # New data is older → SKIP field updates, but MERGE phones
-                            merge_phones(
-                                g.db, existing_id,
-                                rec.get("phone", ""),
-                                rec.get("other_phone", ""),
-                                rec.get("_recommended_phone", "")
-                            )
+                            merge_phones(db, existing_id,
+                                rec.get("phone", ""), rec.get("other_phone", ""),
+                                rec.get("_recommended_phone", ""))
                             phones_merged += 1
+                            if (i + 1) % report_every == 0:
+                                send("progress", {
+                                    "processed": i + 1, "total": total,
+                                    "inserted": inserted, "updated": updated,
+                                    "phones_merged": phones_merged, "skipped": skipped,
+                                })
                             continue
                     elif file_date:
-                        # No existing date, but new has date → UPDATE
-                        pass
+                        pass  # UPDATE
                     else:
-                        # No date comparison possible → SKIP field updates, but MERGE phones
-                        merge_phones(
-                            g.db, existing_id,
-                            rec.get("phone", ""),
-                            rec.get("other_phone", ""),
-                            rec.get("_recommended_phone", "")
-                        )
+                        merge_phones(db, existing_id,
+                            rec.get("phone", ""), rec.get("other_phone", ""),
+                            rec.get("_recommended_phone", ""))
                         phones_merged += 1
+                        if (i + 1) % report_every == 0:
+                            send("progress", {
+                                "processed": i + 1, "total": total,
+                                "inserted": inserted, "updated": updated,
+                                "phones_merged": phones_merged, "skipped": skipped,
+                            })
                         continue
-                # If skip_dup is False, we'll update anyway (upsert mode)
-                
-                # UPDATE existing record
-                fields = {}
-                for f_name in IMPORT_FIELDS:
-                    val = rec.get(f_name, "")
-                    if val:  # Only update non-empty fields
-                        fields[f_name] = val
-                
-                if fields:
-                    fields["normalized_name"] = rec.get("normalized_name", "")
-                    fields["normalized_phone"] = rec.get("normalized_phone", "")
-                    if file_date:
-                        fields["updated_at"] = file_date
-                    
-                    set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
-                    g.db.execute(
-                        f"UPDATE companies SET {set_clause} WHERE id = ?",
-                        list(fields.values()) + [existing_id]
-                    )
-                    
-                    # Update phones (merge, don't replace)
-                    merge_phones(
-                        g.db, existing_id,
-                        rec.get("phone", ""),
-                        rec.get("other_phone", ""),
-                        rec.get("_recommended_phone", "")
-                    )
-                    updated += 1
-            else:
-                # No duplicate → INSERT
+
+                # UPDATE
                 fields = {}
                 for f_name in IMPORT_FIELDS:
                     val = rec.get(f_name, "")
                     if val:
                         fields[f_name] = val
-
+                if fields:
+                    fields["normalized_name"] = rec.get("normalized_name", "")
+                    fields["normalized_phone"] = rec.get("normalized_phone", "")
+                    if file_date:
+                        fields["updated_at"] = file_date
+                    set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
+                    db.execute(
+                        f"UPDATE companies SET {set_clause} WHERE id = ?",
+                        list(fields.values()) + [existing_id]
+                    )
+                    merge_phones(db, existing_id,
+                        rec.get("phone", ""), rec.get("other_phone", ""),
+                        rec.get("_recommended_phone", ""))
+                    updated += 1
+            else:
+                # INSERT
+                fields = {}
+                for f_name in IMPORT_FIELDS:
+                    val = rec.get(f_name, "")
+                    if val:
+                        fields[f_name] = val
                 fields["normalized_name"] = rec.get("normalized_name", "")
                 fields["normalized_phone"] = rec.get("normalized_phone", "")
                 fields["status"] = "active"
                 fields["source"] = "import"
-
                 if file_date:
                     fields["updated_at"] = file_date
-
                 cols = ", ".join(fields.keys())
                 placeholders = ", ".join(["?"] * len(fields))
-                cursor = g.db.execute(
+                cursor = db.execute(
                     f"INSERT INTO companies ({cols}) VALUES ({placeholders})",
                     list(fields.values())
                 )
-                sync_phones(
-                    g.db, cursor.lastrowid,
-                    rec.get("phone", ""),
-                    rec.get("other_phone", ""),
-                    rec.get("_recommended_phone", "")
-                )
+                sync_phones(db, cursor.lastrowid,
+                    rec.get("phone", ""), rec.get("other_phone", ""),
+                    rec.get("_recommended_phone", ""))
+                # 更新索引
+                if rec.get("credit_code"):
+                    existing_by_code[rec["credit_code"]] = (cursor.lastrowid, file_date)
+                if rec.get("normalized_name"):
+                    existing_by_name[rec["normalized_name"]] = (cursor.lastrowid, file_date)
                 inserted += 1
 
-        g.db.execute("DELETE FROM import_preview WHERE batch_id = ?", [batch_id])
-        g.db.commit()
-        
-        # Clean up temp file
+            # 进度报告
+            if (i + 1) % report_every == 0:
+                send("progress", {
+                    "processed": i + 1, "total": total,
+                    "inserted": inserted, "updated": updated,
+                    "phones_merged": phones_merged, "skipped": skipped,
+                })
+
+        db.execute("DELETE FROM import_preview WHERE batch_id = ?", [batch_id])
+        db.commit()
+        db.close()
+
+        # 清理临时文件
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+        send("done", {
+            "total": total,
+            "inserted": inserted, "updated": updated,
+            "phones_merged": phones_merged, "skipped": skipped,
+        })
+
     except Exception as e:
-        g.db.rollback()
-        flash(f"导入失败：{str(e)}", "error")
-        return redirect(url_for("import_page"))
-    
-    msg = f"已导入 {inserted} 条新记录"
-    if updated > 0:
-        msg += f"，更新 {updated} 条已有记录"
-    if phones_merged > 0:
-        msg += f"，累加 {phones_merged} 条记录的电话号码"
-    flash(msg, "success")
-    return redirect(url_for("index"))
+        send("error", {"message": str(e)})
+
+
+@app.route("/import/confirm/<batch_id>/stream")
+def import_stream(batch_id):
+    """SSE 端点：向前端推送导入进度。"""
+    task = _import_tasks.get(batch_id)
+    if not task:
+        return Response("event: error\ndata: {\"message\": \"任务不存在\"}\n\n",
+                        content_type="text/event-stream")
+
+    def generate():
+        try:
+            while True:
+                try:
+                    msg = task["queue"].get(timeout=30)
+                    event = msg.get("event", "message")
+                    data = json.dumps(msg.get("data", {}), ensure_ascii=False)
+                    yield f"event: {event}\ndata: {data}\n\n"
+                    if event in ("done", "error", "stopped"):
+                        break
+                except queue.Empty:
+                    yield f"event: heartbeat\ndata: {{}}\n\n"
+        finally:
+            _import_tasks.pop(batch_id, None)
+
+    return Response(generate(), content_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/import/confirm/<batch_id>/stop", methods=["POST"])
+def import_stop(batch_id):
+    """停止导入任务。"""
+    task = _import_tasks.get(batch_id)
+    if task:
+        task["stop_event"].set()
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "任务不存在"}), 404
 
 
 @app.route("/import/cancel/<batch_id>", methods=["POST"])
@@ -968,6 +1611,55 @@ def api_phone_stats():
         LIMIT ?
     """, [limit]).fetchall()
     return jsonify({"results": [dict(r) for r in rows]})
+
+
+# --------------------------------------------------------------------------- #
+#  数据管理（备份 + 清理）
+# --------------------------------------------------------------------------- #
+
+@app.route("/data")
+def data_management():
+    """数据管理页面：备份和清理"""
+    # 备份信息
+    backups = backup.list_backups()
+    backup_dir = backup.get_backup_dir()
+
+    # 清理统计
+    stats = {}
+    stats["nan_count"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE name IN ('nan','NaN','NAN') OR normalized_name IN ('nan','NaN','NAN')"
+    ).fetchone()[0]
+
+    stats["header_count"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE name IN ('公司名称','企业名称')"
+    ).fetchone()[0]
+
+    stats["placeholder_count"] = g.db.execute("""
+        SELECT COUNT(*) FROM companies WHERE
+        business_scope LIKE '%暂不予显示%' OR business_scope LIKE '%企业信息暂不%'
+        OR name LIKE '%暂不予显示%' OR address LIKE '%暂不予显示%'
+    """).fetchone()[0]
+
+    stats["cc_total"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE credit_code IS NOT NULL AND credit_code <> '' AND credit_code NOT IN ('nan','NaN','NAN')"
+    ).fetchone()[0]
+    stats["cc_unique"] = g.db.execute(
+        "SELECT COUNT(DISTINCT credit_code) FROM companies WHERE credit_code IS NOT NULL AND credit_code <> '' AND credit_code NOT IN ('nan','NaN','NAN')"
+    ).fetchone()[0]
+    stats["cc_dup"] = stats["cc_total"] - stats["cc_unique"]
+
+    stats["name_total"] = g.db.execute(
+        "SELECT COUNT(*) FROM companies WHERE normalized_name IS NOT NULL AND normalized_name <> '' AND normalized_name <> 'nan'"
+    ).fetchone()[0]
+    stats["name_unique"] = g.db.execute(
+        "SELECT COUNT(DISTINCT normalized_name) FROM companies WHERE normalized_name IS NOT NULL AND normalized_name <> '' AND normalized_name <> 'nan'"
+    ).fetchone()[0]
+    stats["name_dup"] = stats["name_total"] - stats["name_unique"]
+
+    stats["total"] = g.db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+
+    return render_template("data_management.html",
+                           backups=backups, backup_dir=str(backup_dir), stats=stats)
 
 
 # ── 数据备份 ──

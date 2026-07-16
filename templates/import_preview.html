@@ -10,20 +10,8 @@
 
     <div class="import-preview-summary">
         <div class="import-preview-stat">
-            <div class="import-preview-stat-value">{{ stats.total }}</div>
+            <div class="import-preview-stat-value">{{ total }}</div>
             <div class="import-preview-stat-label">总记录</div>
-        </div>
-        <div class="import-preview-stat">
-            <div class="import-preview-stat-value" style="color: var(--success)">{{ stats.new_count }}</div>
-            <div class="import-preview-stat-label">新增</div>
-        </div>
-        <div class="import-preview-stat">
-            <div class="import-preview-stat-value" style="color: var(--warning)">{{ stats.update_count }}</div>
-            <div class="import-preview-stat-label">更新</div>
-        </div>
-        <div class="import-preview-stat">
-            <div class="import-preview-stat-value" style="color: var(--text-muted)">{{ stats.skip_count }}</div>
-            <div class="import-preview-stat-label">跳过</div>
         </div>
     </div>
 
@@ -110,7 +98,7 @@
                     <th>企业名称</th>
                     <th class="col-phone">电话</th>
                     <th>信用代码</th>
-                    <th>状态</th>
+                    <th>法人</th>
                 </tr>
             </thead>
             <tbody>
@@ -120,17 +108,7 @@
                     <td class="col-name">{{ row.name }}</td>
                     <td class="col-phone">{{ row.phone or '-' }}</td>
                     <td class="col-phone">{{ row.credit_code or '-' }}</td>
-                    <td>
-                        {% if row.is_duplicate %}
-                            {% if row.will_update %}
-                                <span class="badge badge-warning">更新</span>
-                            {% else %}
-                                <span class="badge badge-danger">跳过</span>
-                            {% endif %}
-                        {% else %}
-                            <span class="badge badge-info">新增</span>
-                        {% endif %}
-                    </td>
+                    <td>{{ row.legal_person or '-' }}</td>
                 </tr>
                 {% endfor %}
                 {% if not sample %}
@@ -140,9 +118,9 @@
         </table>
     </div>
 
-    {% if stats.total > 30 %}
+    {% if total > 30 %}
     <div style="text-align: center; padding: 12px 0 0; color: var(--text-muted); font-size: 12px">
-        预览前 30 行，共 {{ stats.total }} 条
+        预览前 30 行，共 {{ total }} 条
     </div>
     {% endif %}
 </div>
