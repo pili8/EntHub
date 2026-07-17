@@ -2,37 +2,182 @@
 {% block title %}EntHub · 控制台{% endblock %}
 
 {% block content %}
-<div class="dashboard-search">
-    <form action="{{ url_for('search') }}" method="get">
-        <div class="search-bar">
-            <input type="text" name="q" class="search-input"
-                   placeholder="输入企业名称、电话、地址、法人..." autofocus>
-            <button type="submit" class="btn btn-primary">
-                <i data-lucide="search" style="width:16px;height:16px"></i>
-                搜索
-            </button>
-        </div>
-    </form>
+<div class="launcher">
+
+  <!-- ─────────── Status Hero ─────────── -->
+  <header class="lh-hero">
+    <div class="lh-status">
+      <span class="lh-pulse" aria-hidden="true"></span>
+      <span class="lh-status-label">服务运行中</span>
+      <span class="lh-status-sep">·</span>
+      <span class="lh-status-port">127.0.0.1:5210</span>
+    </div>
+    <div class="lh-greeting">
+      <h1 class="lh-title">欢迎回来，<em>{{ stats.total or 0 }}</em> 条企业记录待你查询</h1>
+      <p class="lh-sub">用名称、电话、地址、法人，秒级定位企业工商信息</p>
+    </div>
+  </header>
+
+  <!-- ─────────── Big Search ─────────── -->
+  <form action="{{ url_for('search') }}" method="get" class="lh-search" role="search">
+    <div class="lh-search-field">
+      <i data-lucide="search" class="lh-search-icon" aria-hidden="true"></i>
+      <input type="text" name="q" class="lh-search-input"
+             placeholder="搜企业名称、电话号码、地址、法人代表…"
+             autocomplete="off" autofocus>
+      <kbd class="lh-kbd">Enter</kbd>
+    </div>
+  </form>
+
+  <!-- ─────────── Quick Actions ─────────── -->
+  <section class="lh-section">
+    <h2 class="lh-section-title">快捷入口</h2>
+    <div class="lh-grid">
+
+      <a href="{{ url_for('search') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--warm">
+          <i data-lucide="search" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">搜索企业</span>
+          <span class="lh-card-desc">按名称 / 信用代码 / 法人 / 地址模糊匹配</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+
+      <a href="{{ url_for('add_company') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--leaf">
+          <i data-lucide="plus" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">手动录入</span>
+          <span class="lh-card-desc">逐条补录企业，电话自动拆分到号码表</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+
+      <a href="{{ url_for('import_page') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--sky">
+          <i data-lucide="upload" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">Excel 批量导入</span>
+          <span class="lh-card-desc">天眼查导出格式自动识别，去重预览后写入</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+
+      <a href="{{ url_for('stats_phone') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--coral">
+          <i data-lucide="phone" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">电话可信度</span>
+          <span class="lh-card-desc">查重复次数，识别代理记账、中介号码</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+
+      <a href="{{ url_for('browse') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--ink">
+          <i data-lucide="table" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">浏览全部</span>
+          <span class="lh-card-desc">分页查看所有企业记录，支持排序筛选</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+
+      <a href="{{ url_for('backup_page') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--stone">
+          <i data-lucide="database" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">数据备份</span>
+          <span class="lh-card-desc">备份数据库，下载历史备份文件</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+
+      <a href="{{ url_for('cleanup_page') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--coral">
+          <i data-lucide="trash-2" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">数据清理</span>
+          <span class="lh-card-desc">清理重复记录和无效数据</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ─────────── Snapshot ─────────── -->
+  <section class="lh-section">
+    <h2 class="lh-section-title">数据快照</h2>
+    <div class="lh-snapshot">
+
+      <div class="lh-snap">
+        <span class="lh-snap-num">{{ stats.total or 0 }}</span>
+        <span class="lh-snap-label">总记录数</span>
+      </div>
+
+      <div class="lh-snap">
+        <span class="lh-snap-num">{{ stats.unique_names or 0 }}</span>
+        <span class="lh-snap-label">独立企业</span>
+      </div>
+
+      <div class="lh-snap">
+        <span class="lh-snap-num">{{ stats.unique_phones or 0 }}</span>
+        <span class="lh-snap-label">独立电话</span>
+      </div>
+
+      <div class="lh-snap">
+        <span class="lh-snap-num">{{ stats.rows_with_phone or 0 }}</span>
+        <span class="lh-snap-label">含电话记录</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────── 最近查询 ─────────── -->
+  {% if recents %}
+  <section class="lh-section">
+    <h2 class="lh-section-title">最近查询</h2>
+    <div class="lh-recent">
+      {% for r in recents %}
+      <a href="{{ url_for('search', q=r.q) }}" class="lh-recent-row">
+        <span class="lh-recent-icon">
+          {% if r.query_type == 'phone' %}
+            <i data-lucide="phone" aria-hidden="true"></i>
+          {% elif r.query_type == 'credit_code' %}
+            <i data-lucide="hash" aria-hidden="true"></i>
+          {% else %}
+            <i data-lucide="search" aria-hidden="true"></i>
+          {% endif %}
+        </span>
+        <span class="lh-recent-q">{{ r.q }}</span>
+        <span class="lh-recent-meta">
+          <span>{{ r.result_count }} 条</span>
+          <span class="lh-recent-time">{{ r.created_at[11:16] }}</span>
+        </span>
+      </a>
+      {% endfor %}
+      <form action="{{ url_for('recent_clear') }}" method="post" class="lh-recent-clear">
+        <button type="submit" class="lh-recent-clear-btn">清空记录</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- ─────────── Footer ─────────── -->
+  <footer class="lh-foot">
+    <span>EntHub · 本地单机运行 · 端口 5210</span>
+    <span class="lh-foot-sep">·</span>
+    <span>SQLite · Flask</span>
+  </footer>
+
 </div>
-
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-value">{{ stats.total or 0 }}</div>
-        <div class="stat-label">总记录数</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ stats.unique_names or 0 }}</div>
-        <div class="stat-label">独立企业数</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ stats.unique_phones or 0 }}</div>
-        <div class="stat-label">独立电话数</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ stats.rows_with_phone or 0 }}</div>
-        <div class="stat-label">有电话的记录</div>
-    </div>
-</div>
-
-
 {% endblock %}

@@ -1,95 +1,100 @@
 {% extends "base.html" %}
-{% block title %}搜索 · EntHub{% endblock %}
+{% block title %}{% if q %}{{ q }} · 搜索{% else %}搜索 · EntHub{% endif %}{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div class="page-title">搜索</div>
-    {% if q %}
-    <div class="page-subtitle">
-        共 {{ total }} 条结果，关键词 "{{ q }}"
-        {% if query_type == 'phone' %}
-        <span class="badge badge-info" style="margin-left: 8px">电话匹配</span>
-        {% elif query_type == 'credit_code' %}
-        <span class="badge badge-info" style="margin-left: 8px">信用代码匹配</span>
-        {% else %}
-        <span class="badge badge-info" style="margin-left: 8px">多字段匹配</span>
-        {% endif %}
-    </div>
-    {% else %}
-    <div class="page-subtitle">输入企业名称、电话、地址、法人等进行搜索</div>
-    {% endif %}
-</div>
+<div class="page page-search">
 
-<form action="{{ url_for('search') }}" method="get">
-    <div class="search-bar" style="margin-bottom: 16px">
-        <input type="text" name="q" class="search-input" value="{{ q }}"
-               placeholder="企业名称、电话、地址、法人、股东..." autofocus>
-        <button type="submit" class="btn btn-primary">
-            <i data-lucide="search" style="width:16px;height:16px"></i>
-            搜索
-        </button>
-    </div>
-</form>
+  <header class="page-head">
+    <h1 class="page-title">{% if q %}搜索结果{% else %}搜索{% endif %}</h1>
+    <p class="page-sub">
+      {% if q %}
+        <span class="page-sub-num">{{ total }}</span> 条结果
+        <span class="page-sub-sep">·</span>
+        关键词 <code class="page-sub-q">{{ q }}</code>
+        {% set type_label = {'phone': '电话匹配', 'credit_code': '信用代码匹配'}.get(query_type, '多字段匹配') %}
+        <span class="badge badge-soft badge-warm">{{ type_label }}</span>
+      {% else %}
+        输入企业名称、电话、地址、法人进行搜索
+      {% endif %}
+    </p>
+  </header>
 
-{% if rows %}
-<div style="margin-top: 16px">
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th class="col-id">ID</th>
-                    <th>企业名称</th>
-                    <th>匹配字段</th>
-                    <th>法定代表人</th>
-                    <th>经营状态</th>
-                    <th class="col-phone">电话</th>
-                    <th>地区</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in rows %}
-                <tr>
-                    <td class="col-id">#{{ '%08d' % row.id }}</td>
-                    <td class="col-name">
-                        <a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a>
-                    </td>
-                    <td>
-                        <span class="badge badge-secondary">{{ row.matched_field }}</span>
-                    </td>
-                    <td>{{ row.legal_person or '-' }}</td>
-                    <td>
-                        {% if row.business_status %}
-                            <span class="badge {{ 'badge-info' if row.business_status == '存续' else 'badge-warning' }}">{{ row.business_status }}</span>
-                        {% else %}-{% endif %}
-                    </td>
-                    <td class="col-phone">{{ row.phone or '-' }}</td>
-                    <td>{{ (row.province or '') }}{{ (row.city or '') }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+  <form action="{{ url_for('search') }}" method="get" class="search-form" role="search">
+    <div class="lh-search-field">
+      <i data-lucide="search" class="lh-search-icon" aria-hidden="true"></i>
+      <input type="text" name="q" class="lh-search-input"
+             value="{{ q }}" placeholder="企业名称、电话、地址、法人…"
+             autocomplete="off" autofocus>
+      <kbd class="lh-kbd">Enter</kbd>
     </div>
+  </form>
 
-    <div class="pagination">
-        <div class="pagination-info">{{ total }} 条记录，第 {{ page }} / {{ pages }} 页</div>
-        <div class="pagination-links">
-            {% if page > 1 %}
-            <a href="{{ url_for('search', q=q, page=page-1) }}">
-                <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
-            </a>
-            {% endif %}
-            <span class="current">{{ page }}</span>
-            {% if page < pages %}
-            <a href="{{ url_for('search', q=q, page=page+1) }}">
-                <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
-            </a>
-            {% endif %}
+  {% if rows %}
+  <section class="result-list">
+    {% for row in rows %}
+    <a href="{{ url_for('company_detail', company_id=row.id) }}" class="result-card">
+      <div class="result-card-main">
+        <div class="result-card-head">
+          <span class="result-card-name">{{ row.name }}</span>
+          <span class="badge badge-soft badge-warm">{{ row.matched_field }}</span>
         </div>
+        <div class="result-card-meta">
+          {% if row.legal_person %}
+            <span class="result-meta-item">
+              <i data-lucide="user" aria-hidden="true"></i>{{ row.legal_person }}
+            </span>
+          {% endif %}
+          {% if row.phone %}
+            <span class="result-meta-item">
+              <i data-lucide="phone" aria-hidden="true"></i>{{ row.phone }}
+            </span>
+          {% endif %}
+          {% if row.province or row.city %}
+            <span class="result-meta-item">
+              <i data-lucide="map-pin" aria-hidden="true"></i>{{ (row.province or '') }}{{ (row.city or '') }}
+            </span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="result-card-side">
+        {% if row.business_status %}
+          <span class="badge {{ 'badge-soft badge-success' if row.business_status == '存续' else 'badge-soft badge-warn' }}">
+            {{ row.business_status }}
+          </span>
+        {% endif %}
+        <span class="result-card-id">#{{ '%08d' % row.id }}</span>
+        <i data-lucide="arrow-right" class="result-card-arrow" aria-hidden="true"></i>
+      </div>
+    </a>
+    {% endfor %}
+  </section>
+
+  {% if pages > 1 %}
+  <nav class="pagination-bar">
+    <div class="pagination-info">
+      第 <strong>{{ page }}</strong> / {{ pages }} 页 · 共 {{ total }} 条
     </div>
+    <div class="pagination-links">
+      {% if page > 1 %}
+        <a href="{{ url_for('search', q=q, page=page-1) }}" class="page-btn">
+          <i data-lucide="chevron-left" aria-hidden="true"></i>上一页
+        </a>
+      {% endif %}
+      {% if page < pages %}
+        <a href="{{ url_for('search', q=q, page=page+1) }}" class="page-btn page-btn-primary">
+          下一页<i data-lucide="chevron-right" aria-hidden="true"></i>
+        </a>
+      {% endif %}
+    </div>
+  </nav>
+  {% endif %}
+
+  {% elif q %}
+  <div class="empty-state">
+    <div class="empty-icon"><i data-lucide="search-x" aria-hidden="true"></i></div>
+    <div class="empty-title">没有找到匹配 "{{ q }}" 的结果</div>
+    <div class="empty-sub">试试用更短的关键词，或检查拼写</div>
+  </div>
+  {% endif %}
 </div>
-{% elif q %}
-<div class="empty-state">
-    没有找到匹配的结果："{{ q }}"
-</div>
-{% endif %}
 {% endblock %}

@@ -28,6 +28,10 @@
                         <i data-lucide="table" style="width:15px;height:15px"></i>
                         浏览
                     </a>
+                    <a href="{{ url_for('relation_discovery') }}" class="nav-link">
+                        <i data-lucide="git-branch" style="width:15px;height:15px"></i>
+                        关联
+                    </a>
                     <a href="{{ url_for('add_company') }}" class="nav-link">
                         <i data-lucide="plus" style="width:15px;height:15px"></i>
                         录入
@@ -36,10 +40,25 @@
                         <i data-lucide="upload" style="width:15px;height:15px"></i>
                         导入
                     </a>
-                    <a href="{{ url_for('data_management') }}" class="nav-link">
-                        <i data-lucide="settings" style="width:15px;height:15px"></i>
-                        数据管理
-                    </a>
+                    <div class="nav-dropdown" style="position: relative;">
+                        <a href="#" class="nav-link" onclick="toggleDropdown(event)">
+                            <i data-lucide="more-vertical" style="width:15px;height:15px"></i>
+                        </a>
+                        <div class="nav-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 120px; z-index: 1000; margin-top: 4px;">
+                            <a href="{{ url_for('backup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px;">
+                                <i data-lucide="database" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
+                                备份
+                            </a>
+                            <a href="{{ url_for('cleanup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+                                <i data-lucide="trash-2" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
+                                清理
+                            </a>
+                            <a href="{{ url_for('restart_server') }}" class="nav-dropdown-item" onclick="return confirm('确定要重启服务器吗？');" style="display: block; padding: 8px 16px; color: var(--warning); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+                                <i data-lucide="rotate-cw" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
+                                重启
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -57,6 +76,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
     // ── SPA Router ── keep nav + background, only swap content + flash ──
@@ -96,6 +116,11 @@
             // Re-init Lucide icons
             if (window.lucide) lucide.createIcons();
 
+            // Re-init HTMX
+            if (window.htmx) {
+                htmx.process(newMain);
+            }
+
             // Execute page-specific scripts from the new main
             newMain.querySelectorAll('script').forEach(function(s) {
                 const ns = document.createElement('script');
@@ -133,6 +158,52 @@
         else { setTimeout(initIcons, 100); }
     }
     initIcons();
+
+    // 下拉菜单切换
+    function toggleDropdown(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const menu = e.currentTarget.nextElementSibling;
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // 点击其他地方关闭下拉菜单
+    document.addEventListener('click', function(e) {
+        const dropdowns = document.querySelectorAll('.nav-dropdown-menu');
+        dropdowns.forEach(menu => {
+            if (!menu.parentElement.contains(e.target)) {
+                menu.style.display = 'none';
+            }
+        });
+    });
+
+    // 全局复制功能
+    function copyToClipboard(text, btn) {
+        navigator.clipboard.writeText(text).then(() => {
+            if (btn) {
+                const icon = btn.querySelector('i');
+                const originalIcon = icon ? icon.getAttribute('data-lucide') : null;
+                
+                if (icon) {
+                    icon.setAttribute('data-lucide', 'check');
+                    if (window.lucide) lucide.createIcons();
+                }
+                btn.classList.add('copied');
+                btn.style.color = 'var(--success)';
+                
+                setTimeout(() => {
+                    if (icon && originalIcon) {
+                        icon.setAttribute('data-lucide', originalIcon);
+                        if (window.lucide) lucide.createIcons();
+                    }
+                    btn.classList.remove('copied');
+                    btn.style.color = '';
+                }, 1500);
+            }
+        }).catch(err => {
+            console.error('复制失败:', err);
+        });
+    }
     </script>
     {% block scripts %}{% endblock %}
 </body>

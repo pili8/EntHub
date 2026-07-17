@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}服务器重启中 · EntHub{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 80px 20px;">
+    <div style="font-size: 48px; margin-bottom: 24px;">
+        <i data-lucide="rotate-cw" style="width:48px;height:48px;animation: spin 1s linear infinite;"></i>
+    </div>
+    <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 12px;">服务器正在重启</h1>
+    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 32px;">
+        请稍候，页面将在几秒后自动刷新...
+    </p>
+    <div id="countdown" style="font-size: 20px; font-weight: 600; color: var(--accent);">3</div>
+</div>
+
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+// 倒计时
+let countdown = 3;
+const countdownEl = document.getElementById('countdown');
+
+const timer = setInterval(() => {
+    countdown--;
+    if (countdownEl) {
+        countdownEl.textContent = countdown;
+    }
+    
+    if (countdown <= 0) {
+        clearInterval(timer);
+        // 刷新页面
+        window.location.href = '{{ url_for("index") }}';
+    }
+}, 1000);
+</script>
+{% endblock %}

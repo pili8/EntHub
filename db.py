@@ -123,6 +123,15 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_cp_norm_phone ON company_phones(normalized_phone);
         CREATE INDEX IF NOT EXISTS idx_cp_company_id ON company_phones(company_id);
+
+        CREATE TABLE IF NOT EXISTS recent_searches (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            q           TEXT NOT NULL,
+            query_type  TEXT,
+            result_count INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_recent_created ON recent_searches(created_at DESC);
     """)
 
     # Add columns for databases created before the new schema

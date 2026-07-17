@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page">
     <div class="page-header">
-        <h1 class="page-title">数据备份</h1>
+        <h1 class="page-title">💾 数据备份</h1>
         <form method="post" action="{{ url_for('backup_create') }}" style="display:inline">
             <button type="submit" class="btn btn-primary">
                 <i data-lucide="shield-check" style="width:16px;height:16px"></i>
@@ -14,9 +14,47 @@
         </form>
     </div>
 
+    <!-- 数据库状态 -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">数据库状态</h2>
+        </div>
+        <div class="db-stats">
+            <div class="stat-item">
+                <div class="stat-label">数据库大小</div>
+                <div class="stat-value">{{ db_size_mb }} MB</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">企业记录</div>
+                <div class="stat-value">{{ '{:,}'.format(total_records) }} 条</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">电话号码</div>
+                <div class="stat-value">{{ '{:,}'.format(total_phones) }} 条</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">上次备份</div>
+                <div class="stat-value">
+                    {% if last_backup %}
+                        {{ last_backup.time }}
+                    {% else %}
+                        <span style="color: var(--warning);">从未备份</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 备份信息 -->
     <div class="backup-info">
         <p><strong>备份目录：</strong><code>{{ backup_dir }}</code></p>
         <p><strong>保留策略：</strong>最近 7 份备份，更早的自动清理</p>
+        {% if not last_backup %}
+        <p style="color: var(--warning); margin-top: 12px;">
+            <i data-lucide="alert-circle" style="width:14px;height:14px;vertical-align:middle"></i>
+            <strong>建议：</strong>首次使用建议立即备份，以便数据恢复
+        </p>
+        {% endif %}
     </div>
 
     {% if backups %}
@@ -36,7 +74,7 @@
                 </thead>
                 <tbody>
                     {% for b in backups %}
-                    <tr>
+                    <tr {% if loop.first %}style="background: var(--success-light, #d4edda);" {% endif %}>
                         <td><code>{{ b.filename }}</code></td>
                         <td>{{ b.time }}</td>
                         <td>{{ (b.size / 1024)|round(1) }} KB</td>
@@ -81,11 +119,33 @@
     font-weight: 600;
     margin: 0;
 }
+.db-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+.stat-item {
+    background: var(--bg-subtle, #f8f9fa);
+    padding: 16px;
+    border-radius: 8px;
+    text-align: center;
+}
+.stat-label {
+    font-size: 13px;
+    color: var(--text-muted, #666);
+    margin-bottom: 8px;
+}
+.stat-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary, #333);
+}
 .backup-info {
     background: var(--bg-subtle, #f8f9fa);
     border-radius: 8px;
     padding: 16px;
-    margin-bottom: 24px;
+    margin: 24px 0;
 }
 .backup-info p {
     margin: 8px 0;

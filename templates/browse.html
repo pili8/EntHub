@@ -66,20 +66,6 @@
         </div>
     </div>
 
-    <!-- 关联查看 -->
-    <div class="card" style="margin-bottom: 12px; padding: 12px 16px;">
-        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">关联查看</div>
-        <div class="browse-filter-row">
-            <select name="dup_type" class="form-select" onchange="this.form.submit()">
-                <option value="">全部企业</option>
-                <option value="phone" {{ 'selected' if filters.dup_type == 'phone' }}>电话关联 ({{ dup_counts.phone }})</option>
-                <option value="email" {{ 'selected' if filters.dup_type == 'email' }}>邮箱关联 ({{ dup_counts.email }})</option>
-                <option value="legal_person" {{ 'selected' if filters.dup_type == 'legal_person' }}>法人关联 ({{ dup_counts.legal_person }})</option>
-                <option value="shareholders" {{ 'selected' if filters.dup_type == 'shareholders' }}>股东关联 ({{ dup_counts.shareholders }})</option>
-            </select>
-        </div>
-    </div>
-
     {% if filters %}
     <div style="margin-bottom: 12px;">
         <a href="{{ url_for('browse') }}" class="btn btn-secondary btn-sm">清除所有筛选</a>
@@ -125,14 +111,26 @@ function applyRange(select, fromField, toField) {
                         企业名称 {{ '↑' if sort == 'name' and direction == 'asc' else ('↓' if sort == 'name' else '') }}
                     </a>
                 </th>
-                <th class="col-phone">电话</th>
-                <th>法人</th>
+                <th class="col-phone">
+                    <a href="{{ url_for('browse', sort='phone', dir='asc' if sort == 'phone' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
+                        电话 {{ '↑' if sort == 'phone' and direction == 'asc' else ('↓' if sort == 'phone' else '') }}
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ url_for('browse', sort='legal_person', dir='asc' if sort == 'legal_person' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
+                        法人 {{ '↑' if sort == 'legal_person' and direction == 'asc' else ('↓' if sort == 'legal_person' else '') }}
+                    </a>
+                </th>
                 <th>
                     <a href="{{ url_for('browse', sort='city', dir='asc' if sort == 'city' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
                         城市/区县 {{ '↑' if sort == 'city' and direction == 'asc' else ('↓' if sort == 'city' else '') }}
                     </a>
                 </th>
-                <th>注册资本</th>
+                <th>
+                    <a href="{{ url_for('browse', sort='registered_capital', dir='asc' if sort == 'registered_capital' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
+                        注册资本 {{ '↑' if sort == 'registered_capital' and direction == 'asc' else ('↓' if sort == 'registered_capital' else '') }}
+                    </a>
+                </th>
                 <th>
                     <a href="{{ url_for('browse', sort='business_status', dir='asc' if sort == 'business_status' and direction == 'desc' else 'desc', **filters) }}" class="sort-link">
                         状态 {{ '↑' if sort == 'business_status' and direction == 'asc' else ('↓' if sort == 'business_status' else '') }}
@@ -147,12 +145,19 @@ function applyRange(select, fromField, toField) {
         </thead>
         <tbody>
             {% for row in rows %}
-            <tr>
+            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('company_detail', company_id=row.id) }}'">
                 <td class="col-id">#{{ '%08d' % row.id }}</td>
                 <td class="col-name">
-                    <a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a>
+                    <a href="{{ url_for('company_detail', company_id=row.id) }}" onclick="event.stopPropagation()">{{ row.name }}</a>
                 </td>
-                <td class="col-phone">{{ row.phone or '-' }}</td>
+                <td class="col-phone">
+                    {% if row.phone and row.phone != '-' %}
+                    <span class="phone-text">{{ row.phone }}</span>
+                    <button class="copy-btn" onclick="event.stopPropagation(); copyToClipboard('{{ row.phone }}', this)" title="复制">
+                        <i data-lucide="copy" style="width:12px;height:12px"></i>
+                    </button>
+                    {% else %}-{% endif %}
+                </td>
                 <td>{{ row.legal_person or '-' }}</td>
                 <td>{{ row.city or '' }} {{ row.district or '' }}</td>
                 <td>{{ row.registered_capital or '-' }}</td>

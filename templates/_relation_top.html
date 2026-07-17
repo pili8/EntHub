@@ -1,0 +1,51 @@
+<!-- 关联企业 TOP 50 排行 -->
+{% if companies %}
+<div class="table-wrap" style="margin-top: 8px;">
+    <table style="font-size: 13px;">
+        <thead>
+            <tr>
+                <th style="width: 40px;">#</th>
+                <th>企业名称</th>
+                <th>关联强度</th>
+                <th>电话</th>
+                <th>邮箱</th>
+                <th>同法人</th>
+                <th>城市</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in companies %}
+            <tr>
+                <td style="color: var(--text-muted);">{{ loop.index }}</td>
+                <td>
+                    <a href="{{ url_for('company_detail', company_id=c.id) }}" style="font-weight: 500;">
+                        {{ c.name }}
+                    </a>
+                </td>
+                <td>
+                    <span class="dup-count {{ 'dup-high' if c.relation_score >= 5 else 'dup-mid' }}" style="font-size: 12px;">
+                        {{ c.relation_score }}
+                    </span>
+                </td>
+                <td style="color: {{ 'var(--accent)' if c.phone_cnt > 0 else 'var(--text-muted)' }};">
+                    {{ c.phone_cnt if c.phone_cnt > 0 else '-' }}
+                </td>
+                <td style="color: {{ 'var(--accent)' if c.email_cnt > 0 else 'var(--text-muted)' }};">
+                    {{ c.email_cnt if c.email_cnt > 0 else '-' }}
+                </td>
+                <td style="color: {{ 'var(--accent)' if c.lp_cnt > 0 else 'var(--text-muted)' }};">
+                    {{ c.lp_cnt if c.lp_cnt > 0 else '-' }}
+                </td>
+                <td style="color: var(--text-muted); font-size: 12px;">
+                    {{ c.city or '' }} {{ c.district or '' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div style="text-align: center; padding: 40px; color: var(--text-muted);">
+    暂无关联企业数据
+</div>
+{% endif %}

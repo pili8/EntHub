@@ -9,12 +9,24 @@
     <key>CFBundleIdentifier</key>
     <string>com.enthub.app</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>1.2</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.2</string>
     <key>CFBundleExecutable</key>
     <string>launch</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <!-- 应用图标：位于 Contents/Resources/AppIcon.icns
+         macOS 会自动读取；Finder / 应用程序文件夹 / Launchpad 都会显示
+         CFBundleIconName (10.6+) 和 CFBundleIconFile (传统) 都设上保险 -->
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <!-- 设为 YES 后，.app 不会出现在 Dock，也不会出现在 ⌘Tab 切换器中。
+         launch 脚本通过 do shell script 启动后台 Flask + open 浏览器，
+         整个过程完全无终端窗口。 -->
+    <key>LSUIElement</key>
+    <true/>
 </dict>
 </plist>

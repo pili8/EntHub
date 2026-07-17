@@ -2,423 +2,300 @@
 {% block title %}{{ company.name }} · EntHub{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-        <a href="{{ request.referrer or url_for('index') }}" class="btn btn-secondary btn-sm">
-            <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
-            返回
+<div class="page page-detail">
+
+  <!-- ─────────── Hero ─────────── -->
+  <header class="detail-hero">
+    <div class="detail-hero-actions">
+      <a href="{{ request.referrer or url_for('index') }}" class="page-btn">
+        <i data-lucide="arrow-left" aria-hidden="true"></i>返回
+      </a>
+      <div style="display: flex; gap: 8px;">
+        <a href="{{ url_for('edit_company', company_id=company.id) }}" class="page-btn page-btn-primary">
+          <i data-lucide="pencil" aria-hidden="true"></i>编辑
         </a>
-        <a href="{{ url_for('edit_company', company_id=company.id) }}" class="btn btn-primary btn-sm">
-            <i data-lucide="pencil" style="width:14px;height:14px"></i>
-            编辑
-        </a>
+        <form action="{{ url_for('delete_company', company_id=company.id) }}" method="post" style="display: inline;" onsubmit="return confirm('确定要删除这个企业吗？此操作不可恢复。')">
+          <button type="submit" class="page-btn page-btn-danger" style="font-size: 13px; padding: 6px 12px;">
+            <i data-lucide="trash-2" aria-hidden="true" style="width: 14px; height: 14px;"></i>删除
+          </button>
+        </form>
+      </div>
     </div>
-    <div class="page-title">{{ company.name }}</div>
+    <h1 class="detail-name">
+        {{ company.name }}
+        <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.name }}', this)" title="复制公司名">
+            <i data-lucide="copy" aria-hidden="true"></i>
+        </button>
+    </h1>
     {% if company.former_name and company.former_name != '-' %}
-    <div class="page-subtitle">曾用名：{{ company.former_name }}</div>
+      <p class="detail-former">曾用名 · {{ company.former_name }}</p>
     {% endif %}
-</div>
-
-<div class="card">
-    <div class="section-title">基本信息</div>
-    <div class="detail-grid">
-        <div class="detail-item">
-            <div class="detail-label">经营状态</div>
-            <div class="detail-value">
-                {% if company.business_status %}
-                    <span class="badge {{ 'badge-info' if company.business_status == '存续' else 'badge-warning' }}">
-                        {{ company.business_status }}
-                    </span>
-                {% else %}-{% endif %}
-            </div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">法定代表人</div>
-            <div class="detail-value">
-                {% if company.legal_person %}
-                    <a href="{{ url_for('search', q=company.legal_person) }}">{{ company.legal_person }}</a>
-                    {% if field_counts.legal_person and field_counts.legal_person > 1 %}
-                    <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">
-                        {{ field_counts.legal_person }} 家
-                    </span>
-                    <a href="{{ url_for('stats_legal_person') }}" class="stat-link" title="法人统计">
-                        <i data-lucide="bar-chart-2" style="width:12px;height:12px"></i>
-                    </a>
-                    {% endif %}
-                {% else %}-{% endif %}
-            </div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">注册资本</div>
-            <div class="detail-value">{{ company.registered_capital or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">实缴资本</div>
-            <div class="detail-value">{{ company.paid_capital or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">成立日期</div>
-            <div class="detail-value">{{ company.established_date or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">核准日期</div>
-            <div class="detail-value">{{ company.approved_date or '-' }}</div>
-        </div>
-        <div class="detail-item" style="grid-column: 1 / -1">
-            <div class="detail-label">营业期限</div>
-            <div class="detail-value">{{ company.business_term or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">公司类型</div>
-            <div class="detail-value">{{ company.company_type or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">所属行业</div>
-            <div class="detail-value">
-                {% if company.industry %}
-                    <a href="{{ url_for('search', q=company.industry) }}">{{ company.industry }}</a>
-                    {% if field_counts.industry and field_counts.industry > 1 %}
-                    <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">
-                        {{ field_counts.industry }} 家
-                    </span>
-                    <a href="{{ url_for('stats_industry') }}" class="stat-link" title="行业统计">
-                        <i data-lucide="bar-chart-2" style="width:12px;height:12px"></i>
-                    </a>
-                    {% endif %}
-                {% else %}-{% endif %}
-            </div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">参保人数</div>
-            <div class="detail-value">{{ company.insured_count or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">企业规模</div>
-            <div class="detail-value">{{ company.enterprise_scale or '-' }}</div>
-        </div>
-        {% if company.english_name %}
-        <div class="detail-item">
-            <div class="detail-label">英文名</div>
-            <div class="detail-value">{{ company.english_name }}</div>
-        </div>
-        {% endif %}
-        {% if company.tags %}
-        <div class="detail-item">
-            <div class="detail-label">标签</div>
-            <div class="detail-value">{{ company.tags }}</div>
-        </div>
-        {% endif %}
-        {% if company.shareholders %}
-        <div class="detail-item" style="grid-column: 1 / -1">
-            <div class="detail-label">股东</div>
-            <div class="detail-value">
-                <a href="{{ url_for('search', q=company.shareholders) }}">{{ company.shareholders }}</a>
-                {% if field_counts.shareholders and field_counts.shareholders > 1 %}
-                <span class="dup-count {{ 'dup-high' if field_counts.shareholders >= 5 else 'dup-mid' }}">
-                    {{ field_counts.shareholders }} 家
-                </span>
-                <a href="{{ url_for('stats_shareholder') }}" class="stat-link" title="股东统计">
-                    <i data-lucide="bar-chart-2" style="width:12px;height:12px"></i>
-                </a>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
+    <div class="detail-hero-meta">
+      {% if company.business_status %}
+        <span class="badge {{ 'badge-soft badge-success' if company.business_status == '存续' else 'badge-soft badge-warn' }}">
+          {{ company.business_status }}
+        </span>
+      {% endif %}
+      <span class="detail-id">#{{ '%08d' % company.id }}</span>
     </div>
-</div>
+  </header>
 
-<div class="card">
-    <div class="section-title">联系方式</div>
+  <!-- ─────────── 基本信息 ─────────── -->
+  <section class="detail-section">
+    <h2 class="detail-section-title">基本信息</h2>
     <div class="detail-grid">
-        {% if company_phones %}
-        <div class="detail-item" style="grid-column: 1 / -1">
-            <div class="detail-label">关联电话（{{ company_phones|length }}）</div>
-            <div class="phone-list">
-                {% for cp in company_phones %}
-                <div class="phone-row">
-                    <a href="{{ url_for('search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
-                    <button type="button" class="copy-btn" onclick="copyText('{{ cp.phone }}')" title="复制">
-                        <i data-lucide="copy" style="width:12px;height:12px"></i>
-                    </button>
-                    {% if cp.is_primary %}
-                    <span class="badge badge-info" style="font-size:11px">主电话</span>
-                    {% elif cp.is_recommended %}
-                    <span class="badge badge-warning" style="font-size:11px">推荐</span>
-                    {% endif %}
-                    {% if cp.dup_count > 1 %}
-                    <span class="dup-count {{ 'dup-high' if cp.dup_count >= 5 else 'dup-mid' }}">
-                        {{ cp.dup_count }} 家共用
-                    </span>
-                    {% else %}
-                    <span class="phone-unique">唯一</span>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
+      <div class="detail-field">
+        <div class="detail-label">法定代表人</div>
+        <div class="detail-value">
+          {% if company.legal_person %}
+            <a href="{{ url_for('search', q=company.legal_person) }}">{{ company.legal_person }}</a>
+            {% if field_counts.legal_person and field_counts.legal_person > 1 %}
+              <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">{{ field_counts.legal_person }} 家</span>
+            {% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
         </div>
-        {% else %}
-        <div class="detail-item">
-            <div class="detail-label">电话</div>
-            <div class="detail-value col-phone">
-                {% if company.phone %}
-                    <a href="{{ url_for('search', q=company.phone) }}">{{ company.phone }}</a>
-                    <button type="button" class="copy-btn" onclick="copyText('{{ company.phone }}')" title="复制">
-                        <i data-lucide="copy" style="width:12px;height:12px"></i>
-                    </button>
-                {% else %}-{% endif %}
-            </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">注册资本</div>
+        <div class="detail-value">{{ company.registered_capital or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">实缴资本</div>
+        <div class="detail-value">{{ company.paid_capital or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">成立日期</div>
+        <div class="detail-value">{{ company.established_date or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">核准日期</div>
+        <div class="detail-value">{{ company.approved_date or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">营业期限</div>
+        <div class="detail-value">{{ company.business_term or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">公司类型</div>
+        <div class="detail-value">{{ company.company_type or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">所属行业</div>
+        <div class="detail-value">
+          {% if company.industry %}
+            <a href="{{ url_for('search', q=company.industry) }}">{{ company.industry }}</a>
+            {% if field_counts.industry and field_counts.industry > 1 %}
+              <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">{{ field_counts.industry }} 家</span>
+            {% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
         </div>
-        {% endif %}
-        <div class="detail-item">
-            <div class="detail-label">邮箱</div>
-            <div class="detail-value">
-                {% if company.email %}
-                    <a href="{{ url_for('search', q=company.email) }}">{{ company.email }}</a>
-                    {% if field_counts.email and field_counts.email > 1 %}
-                    <span class="dup-count {{ 'dup-high' if field_counts.email >= 5 else 'dup-mid' }}">
-                        {{ field_counts.email }} 家
-                    </span>
-                    {% endif %}
-                {% else %}-{% endif %}
-            </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">参保人数</div>
+        <div class="detail-value">{{ company.insured_count or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">企业规模</div>
+        <div class="detail-value">{{ company.enterprise_scale or '—' }}</div>
+      </div>
+      {% if company.english_name %}
+        <div class="detail-field">
+          <div class="detail-label">英文名</div>
+          <div class="detail-value">{{ company.english_name }}</div>
         </div>
-        <div class="detail-item">
-            <div class="detail-label">其他邮箱</div>
-            <div class="detail-value">
-                {% if company.other_email %}
-                    <a href="{{ url_for('search', q=company.other_email) }}">{{ company.other_email }}</a>
-                {% else %}-{% endif %}
-            </div>
+      {% endif %}
+      {% if company.tags %}
+        <div class="detail-field">
+          <div class="detail-label">标签</div>
+          <div class="detail-value">{{ company.tags }}</div>
         </div>
-        <div class="detail-item">
-            <div class="detail-label">网址</div>
-            <div class="detail-value">
-                {% if company.website and company.website != '-' %}
-                    <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>
-                {% else %}-{% endif %}
-            </div>
+      {% endif %}
+      {% if company.shareholders %}
+        <div class="detail-field detail-field-wide">
+          <div class="detail-label">股东</div>
+          <div class="detail-value">
+            <a href="{{ url_for('search', q=company.shareholders) }}">{{ company.shareholders }}</a>
+            {% if field_counts.shareholders and field_counts.shareholders > 1 %}
+              <span class="dup-count {{ 'dup-high' if field_counts.shareholders >= 5 else 'dup-mid' }}">{{ field_counts.shareholders }} 家</span>
+            {% endif %}
+          </div>
         </div>
+      {% endif %}
     </div>
-</div>
+  </section>
 
-<div class="card">
-    <div class="section-title">地址信息</div>
+  <!-- ─────────── 联系方式 ─────────── -->
+  <section class="detail-section">
+    <h2 class="detail-section-title">联系方式</h2>
+
+    {% if company_phones %}
+      <div class="phone-list">
+        {% for cp in company_phones %}
+        <div class="phone-row">
+          <a href="{{ url_for('search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
+          <button type="button" class="copy-btn" onclick="copyToClipboard('{{ cp.phone }}', this)" title="复制">
+            <i data-lucide="copy" aria-hidden="true"></i>
+          </button>
+          {% if cp.is_primary %}
+            <span class="badge badge-soft badge-info">主电话</span>
+          {% elif cp.is_recommended %}
+            <span class="badge badge-soft badge-warn">推荐</span>
+          {% endif %}
+          {% if cp.dup_count > 1 %}
+            <span class="dup-count {{ 'dup-high' if cp.dup_count >= 5 else 'dup-mid' }}">{{ cp.dup_count }} 家共用</span>
+          {% else %}
+            <span class="phone-unique">唯一</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    {% elif company.phone %}
+      <div class="phone-row">
+        <a href="{{ url_for('search', q=company.phone) }}" class="phone-number">{{ company.phone }}</a>
+        <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.phone }}', this)" title="复制">
+          <i data-lucide="copy" aria-hidden="true"></i>
+        </button>
+      </div>
+    {% else %}
+      <div class="muted">未登记电话</div>
+    {% endif %}
+
+    <div class="detail-grid detail-grid-3">
+      <div class="detail-field">
+        <div class="detail-label">邮箱</div>
+        <div class="detail-value">
+          {% if company.email %}
+            <a href="{{ url_for('search', q=company.email) }}">{{ company.email }}</a>
+            <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.email }}', this)" title="复制邮箱">
+              <i data-lucide="copy" aria-hidden="true"></i>
+            </button>
+            {% if field_counts.email and field_counts.email > 1 %}
+              <span class="dup-count {{ 'dup-high' if field_counts.email >= 5 else 'dup-mid' }}">{{ field_counts.email }} 家</span>
+            {% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">其他邮箱</div>
+        <div class="detail-value">{{ company.other_email or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">网址</div>
+        <div class="detail-value">
+          {% if company.website and company.website != '-' %}
+            <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── 地址信息 ─────────── -->
+  <section class="detail-section">
+    <h2 class="detail-section-title">地址信息</h2>
+    <div class="detail-grid detail-grid-3">
+      <div class="detail-field">
+        <div class="detail-label">省</div>
+        <div class="detail-value">{{ company.province or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">市</div>
+        <div class="detail-value">{{ company.city or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">区/县</div>
+        <div class="detail-value">{{ company.district or '—' }}</div>
+      </div>
+    </div>
     <div class="detail-grid">
-        <div class="detail-item">
-            <div class="detail-label">所属省份</div>
-            <div class="detail-value">{{ company.province or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">所属城市</div>
-            <div class="detail-value">{{ company.city or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">所属区县</div>
-            <div class="detail-value">{{ company.district or '-' }}</div>
-        </div>
-        <div class="detail-item" style="grid-column: 1 / -1">
-            <div class="detail-label">注册地址</div>
-            <div class="detail-value">{{ company.address or '-' }}</div>
-        </div>
-        <div class="detail-item" style="grid-column: 1 / -1">
-            <div class="detail-label">最新年报地址</div>
-            <div class="detail-value">{{ company.annual_report_address or '-' }}</div>
-        </div>
-        {% if company.mailing_address %}
-        <div class="detail-item" style="grid-column: 1 / -1">
-            <div class="detail-label">通信地址</div>
-            <div class="detail-value">{{ company.mailing_address }}</div>
-        </div>
-        {% endif %}
+      <div class="detail-field detail-field-wide">
+        <div class="detail-label">注册地址</div>
+        <div class="detail-value">{{ company.address or '—' }}</div>
+      </div>
+      <div class="detail-field detail-field-wide">
+        <div class="detail-label">最新年报地址</div>
+        <div class="detail-value">{{ company.annual_report_address or '—' }}</div>
+      </div>
+      {% if company.mailing_address %}
+      <div class="detail-field detail-field-wide">
+        <div class="detail-label">通信地址</div>
+        <div class="detail-value">{{ company.mailing_address }}</div>
+      </div>
+      {% endif %}
     </div>
-</div>
+  </section>
 
-<div class="card">
-    <div class="section-title">工商注册信息</div>
+  <!-- ─────────── 工商注册信息 ─────────── -->
+  <section class="detail-section">
+    <h2 class="detail-section-title">工商注册信息</h2>
     <div class="detail-grid">
-        <div class="detail-item">
-            <div class="detail-label">统一社会信用代码</div>
-            <div class="detail-value col-phone">{{ company.credit_code or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">纳税人识别号</div>
-            <div class="detail-value col-phone">{{ company.taxpayer_id or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">注册号</div>
-            <div class="detail-value col-phone">{{ company.registration_no or '-' }}</div>
-        </div>
-        <div class="detail-item">
-            <div class="detail-label">组织机构代码</div>
-            <div class="detail-value col-phone">{{ company.org_code or '-' }}</div>
-        </div>
+      <div class="detail-field">
+        <div class="detail-label">统一社会信用代码</div>
+        <div class="detail-value mono">{{ company.credit_code or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">纳税人识别号</div>
+        <div class="detail-value mono">{{ company.taxpayer_id or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">注册号</div>
+        <div class="detail-value mono">{{ company.registration_no or '—' }}</div>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">组织机构代码</div>
+        <div class="detail-value mono">{{ company.org_code or '—' }}</div>
+      </div>
     </div>
-</div>
+  </section>
 
-{% if company.business_scope and company.business_scope != '-' %}
-<div class="card">
-    <div class="section-title">经营范围</div>
-    <div class="detail-value" style="line-height: 1.8">{{ company.business_scope }}</div>
-</div>
-{% endif %}
+  <!-- ─────────── 经营范围 ─────────── -->
+  {% if company.business_scope and company.business_scope != '-' %}
+  <section class="detail-section">
+    <h2 class="detail-section-title">经营范围</h2>
+    <p class="detail-scope">{{ company.business_scope }}</p>
+  </section>
+  {% endif %}
 
-<div class="card" style="font-size: 12px; color: var(--text-muted);">
-    记录编号 #{{ '%08d' % company.id }} · 来源 {{ company.source }}
+  <!-- ─────────── 关联企业 ─────────── -->
+  {% if related_phones or related_legal_person or related_shareholders or related_industry or related_email %}
+  <section class="detail-section">
+    <h2 class="detail-section-title">关联企业</h2>
+
+    {% macro rel_table(title, items, count) %}
+      <div class="rel-block">
+        <div class="rel-block-title">{{ title }} <span class="rel-count">{{ count or 0 }}</span></div>
+        <div class="rel-list">
+          {% for row in items %}
+          <a href="{{ url_for('company_detail', company_id=row.id) }}" class="rel-item">
+            <span class="rel-name">{{ row.name }}</span>
+            <span class="rel-phone">{{ row.phone or '—' }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endmacro %}
+
+    {% if related_legal_person  %}{{ rel_table('同法人',   related_legal_person,  field_counts.legal_person) }}{% endif %}
+    {% if related_shareholders  %}{{ rel_table('同股东',   related_shareholders,  field_counts.shareholders) }}{% endif %}
+    {% if related_phones        %}{{ rel_table('同电话',   related_phones,        related_phones|length) }}{% endif %}
+    {% if related_email         %}{{ rel_table('同邮箱',   related_email,         field_counts.email) }}{% endif %}
+    {% if related_industry      %}{{ rel_table('同行业',   related_industry,      field_counts.industry) }}{% endif %}
+  </section>
+  {% endif %}
+
+  <!-- ─────────── 元信息 ─────────── -->
+  <footer class="detail-foot">
+    记录编号 #{{ '%08d' % company.id }}
+    · 来源 {{ company.source }}
     {% if company.source_file %} · 源文件 {{ company.source_file }}{% endif %}
     · 创建于 {{ company.created_at }}
     {% if company.updated_at and company.updated_at != company.created_at %}
     · 更新于 {{ company.updated_at }}
     {% endif %}
+  </footer>
+
 </div>
-
-{% if related_phones or related_legal_person or related_shareholders or related_industry or related_email %}
-<div class="card">
-    <div class="section-title">关联企业</div>
-
-    {% if related_legal_person %}
-    <div style="margin-bottom: 20px;">
-        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
-            同法人 ({{ field_counts.legal_person or 0 }})
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>企业名称</th>
-                        <th class="col-phone">电话</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in related_legal_person %}
-                    <tr>
-                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
-                        <td class="col-phone">{{ row.phone or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if related_shareholders %}
-    <div style="margin-bottom: 20px;">
-        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
-            同股东 ({{ field_counts.shareholders or 0 }})
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>企业名称</th>
-                        <th class="col-phone">电话</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in related_shareholders %}
-                    <tr>
-                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
-                        <td class="col-phone">{{ row.phone or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if related_phones %}
-    <div style="margin-bottom: 20px;">
-        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
-            同电话
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>企业名称</th>
-                        <th class="col-phone">电话</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in related_phones %}
-                    <tr>
-                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
-                        <td class="col-phone">{{ row.phone or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if related_email %}
-    <div style="margin-bottom: 20px;">
-        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
-            同邮箱 ({{ field_counts.email or 0 }})
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>企业名称</th>
-                        <th class="col-phone">电话</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in related_email %}
-                    <tr>
-                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
-                        <td class="col-phone">{{ row.phone or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if related_industry %}
-    <div>
-        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">
-            同行业 ({{ field_counts.industry or 0 }})
-        </div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>企业名称</th>
-                        <th class="col-phone">电话</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in related_industry %}
-                    <tr>
-                        <td><a href="{{ url_for('company_detail', company_id=row.id) }}">{{ row.name }}</a></td>
-                        <td class="col-phone">{{ row.phone or '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
-<script>
-function copyText(text) {
-    navigator.clipboard.writeText(text).then(function() {
-        // Find the button that was clicked and show feedback
-        const btn = event.target.closest('.copy-btn');
-        if (btn) {
-            btn.classList.add('copied');
-            setTimeout(function() { btn.classList.remove('copied'); }, 1500);
-        }
-    });
-}
-</script>
 {% endblock %}

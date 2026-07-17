@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}关联发现 · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">🔗 关联发现</div>
+    <div class="page-subtitle">发现企业间的隐藏关系网络</div>
+</div>
+
+<div class="card" style="padding: 16px;">
+    <!-- 关联类型切换 -->
+    <div style="margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">
+                选择关联类型查看分组
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <label style="font-size: 12px; color: var(--text-muted);">排序：</label>
+                <select id="sort-select" class="form-select" style="width: auto; padding: 4px 8px; font-size: 12px;">
+                    <option value="count_desc">关联数量 ↓</option>
+                    <option value="count_asc">关联数量 ↑</option>
+                    <option value="name_asc">名称 A-Z</option>
+                </select>
+            </div>
+        </div>
+        <div class="relation-type-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
+                    data-type="phone"
+                    hx-get="{{ url_for('browse_relation_groups', dup_type='phone', sort='count_desc') }}"
+                    hx-target="#relation-groups-container"
+                    hx-swap="innerHTML">
+                📞 电话关联
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
+                    data-type="email"
+                    hx-get="{{ url_for('browse_relation_groups', dup_type='email', sort='count_desc') }}"
+                    hx-target="#relation-groups-container"
+                    hx-swap="innerHTML">
+                📧 邮箱关联
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
+                    data-type="legal_person"
+                    hx-get="{{ url_for('browse_relation_groups', dup_type='legal_person', sort='count_desc') }}"
+                    hx-target="#relation-groups-container"
+                    hx-swap="innerHTML">
+                👤 法人关联
+            </button>
+        </div>
+    </div>
+
+    <!-- 分组视图容器 -->
+    <div id="relation-groups-container">
+        <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+            <i data-lucide="mouse-pointer-click" style="width:48px;height:48px;margin:0 auto 16px;display:block;opacity:0.3"></i>
+            <p style="margin: 0;">点击上方按钮查看关联分组</p>
+            <p style="font-size: 12px; margin-top: 8px; color: var(--text-muted);">
+                数据量较大，点击后可能需要几秒钟加载
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+// 切换关联类型按钮样式
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('relation-type-btn')) {
+        document.querySelectorAll('.relation-type-btn').forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        
+        // 获取当前排序方式
+        const sort = document.getElementById('sort-select').value;
+        
+        // 更新当前按钮的hx-get参数
+        const type = e.target.getAttribute('data-type');
+        const url = new URL(window.location);
+        url.pathname = '/browse/relation-groups';
+        url.searchParams.set('dup_type', type);
+        url.searchParams.set('sort', sort);
+        e.target.setAttribute('hx-get', url.pathname + '?' + url.searchParams.toString());
+        
+        // 显示加载中
+        document.getElementById('relation-groups-container').innerHTML = 
+            '<div style="text-align: center; padding: 40px; color: var(--text-muted);">加载中，请稍候...</div>';
+    }
+});
+
+// 排序选择器变化时重新加载
+document.getElementById('sort-select').addEventListener('change', function() {
+    const activeBtn = document.querySelector('.relation-type-btn.active');
+    if (activeBtn) {
+        const sort = this.value;
+        const type = activeBtn.getAttribute('data-type');
+        const url = new URL(window.location);
+        url.pathname = '/browse/relation-groups';
+        url.searchParams.set('dup_type', type);
+        url.searchParams.set('sort', sort);
+        
+        // 更新按钮的hx-get参数
+        activeBtn.setAttribute('hx-get', url.pathname + '?' + url.searchParams.toString());
+        
+        // 使用htmx.ajax触发请求
+        htmx.ajax('GET', url.pathname + '?' + url.searchParams.toString(), '#relation-groups-container');
+        
+        // 显示加载中
+        document.getElementById('relation-groups-container').innerHTML = 
+            '<div style="text-align: center; padding: 40px; color: var(--text-muted);">加载中，请稍候...</div>';
+    }
+});
+</script>
+{% endblock %}
