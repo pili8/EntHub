@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header">
     <div style="display: flex; align-items: center; gap: 12px;">
-        <a href="{{ url_for('relation_discovery') }}" class="btn btn-secondary btn-sm">
+        <a href="{{ request.referrer or url_for('relation_discovery') }}" class="btn btn-secondary btn-sm">
             <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
             返回
         </a>
