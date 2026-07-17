@@ -343,34 +343,82 @@ async function batchAddTag() {
         const tagsResponse = await fetch('/api/tags');
         const tags = await tagsResponse.json();
         
-        if (tags.length === 0) {
-            showConfirm('无可用标签', '没有可用的标签，请先创建标签', () => {});
-            return;
-        }
-        
         let content = `
-            <div style="margin-bottom: 16px;">
-                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">为选中的 <strong>${selectedCompanies.size}</strong> 家企业添加标签：</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <div style="margin-bottom: 14px;">
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">为选中的 <strong>${selectedCompanies.size}</strong> 家企业添加标签：</div>
         `;
         
-        tags.forEach(tag => {
-            content += `
-                <button onclick="executeBatchAddTag(${tag.id})" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: ${tag.color}15; color: ${tag.color}; border: 2px solid ${tag.color}40; border-radius: 16px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">
-                    <span style="width: 10px; height: 10px; border-radius: 3px; background: ${tag.color};"></span>
-                    ${tag.name}
-                </button>
-            `;
-        });
+        if (tags.length > 0) {
+            content += `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">`;
+            tags.forEach(tag => {
+                content += `
+                    <button onclick="executeBatchAddTag(${tag.id})" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: ${tag.color}15; color: ${tag.color}; border: 1.5px solid ${tag.color}40; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s;">
+                        <span style="width: 8px; height: 8px; border-radius: 2px; background: ${tag.color};"></span>
+                        ${tag.name}
+                    </button>
+                `;
+            });
+            content += `</div>`;
+        } else {
+            content += `<div style="padding: 16px; text-align: center; color: var(--text-muted); background: var(--bg-secondary); border-radius: 6px; margin-bottom: 12px; font-size: 12px;">暂无可用标签</div>`;
+        }
         
         content += `
-                </div>
+            </div>
+            <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">或创建新标签：</div>
+                <form id="batchCreateTagForm" style="display: flex; gap: 6px;">
+                    <input type="text" id="batchNewTagName" class="form-input" placeholder="标签名称" required style="flex: 1; font-size: 12px; padding: 6px 9px;">
+                    <select id="batchNewTagColor" class="form-select" style="width: 100px; font-size: 12px; padding: 6px 8px;">
+                        <option value="#ef4444">红色</option>
+                        <option value="#f97316">橙色</option>
+                        <option value="#eab308">黄色</option>
+                        <option value="#22c55e">绿色</option>
+                        <option value="#06b6d4">青色</option>
+                        <option value="#3b82f6" selected>蓝色</option>
+                        <option value="#8b5cf6">紫色</option>
+                        <option value="#ec4899">粉色</option>
+                        <option value="#6b7280">灰色</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">创建并添加</button>
+                </form>
             </div>
         `;
         
         showModal('批量添加标签', content, [
             { text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }
         ]);
+        
+        // 绑定创建表单
+        setTimeout(() => {
+            document.getElementById('batchCreateTagForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('batchNewTagName').value;
+                const color = document.getElementById('batchNewTagColor').value;
+                
+                // 创建标签
+                const createResponse = await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, color })
+                });
+                
+                const createResult = await createResponse.json();
+                if (createResult.success) {
+                    // 获取新创建的标签ID
+                    const tagsResponse = await fetch('/api/tags');
+                    const tags = await tagsResponse.json();
+                    const newTag = tags.find(t => t.name === name);
+                    
+                    if (newTag) {
+                        // 添加标签到企业
+                        await executeBatchAddTag(newTag.id);
+                    }
+                } else {
+                    showConfirm('创建失败', createResult.error, () => {});
+                }
+            });
+        }, 100);
     } catch (error) {
         showConfirm('错误', error.message, () => {});
     }

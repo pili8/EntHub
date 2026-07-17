@@ -347,32 +347,32 @@ async function openTagSelector() {
     const availableTags = allTags.filter(t => !companyTagIds.has(t.id));
     
     let content = `
-        <div style="margin-bottom: 20px;">
-            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">选择要添加的标签：</div>
+        <div style="margin-bottom: 14px;">
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">选择要添加的标签：</div>
     `;
     
     if (availableTags.length > 0) {
-        content += `<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">`;
+        content += `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">`;
         availableTags.forEach(tag => {
             content += `
-                <button onclick="addTag(${tag.id})" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: ${tag.color}15; color: ${tag.color}; border: 2px solid ${tag.color}40; border-radius: 16px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">
-                    <span style="width: 10px; height: 10px; border-radius: 3px; background: ${tag.color};"></span>
+                <button onclick="addTag(${tag.id})" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: ${tag.color}15; color: ${tag.color}; border: 1.5px solid ${tag.color}40; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s;">
+                    <span style="width: 8px; height: 8px; border-radius: 2px; background: ${tag.color};"></span>
                     ${tag.name}
                 </button>
             `;
         });
         content += `</div>`;
     } else {
-        content += `<div style="padding: 20px; text-align: center; color: var(--text-muted); background: var(--bg-secondary); border-radius: 8px; margin-bottom: 16px;">暂无可用标签</div>`;
+        content += `<div style="padding: 16px; text-align: center; color: var(--text-muted); background: var(--bg-secondary); border-radius: 6px; margin-bottom: 14px; font-size: 12px;">暂无可用标签</div>`;
     }
     
     content += `
         </div>
-        <div style="border-top: 1px solid var(--border); padding-top: 20px;">
-            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">或创建新标签：</div>
-            <form id="createTagForm" style="display: flex; gap: 8px;">
-                <input type="text" id="newTagName" class="form-input" placeholder="标签名称" required style="flex: 1;">
-                <select id="newTagColor" class="form-select" style="width: 120px;">
+        <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">或创建新标签：</div>
+            <form id="createTagForm" style="display: flex; gap: 6px;">
+                <input type="text" id="newTagName" class="form-input" placeholder="标签名称" required style="flex: 1; font-size: 12px; padding: 6px 9px;">
+                <select id="newTagColor" class="form-select" style="width: 100px; font-size: 12px; padding: 6px 8px;">
                     <option value="#ef4444">红色</option>
                     <option value="#f97316">橙色</option>
                     <option value="#eab308">黄色</option>
@@ -383,7 +383,7 @@ async function openTagSelector() {
                     <option value="#ec4899">粉色</option>
                     <option value="#6b7280">灰色</option>
                 </select>
-                <button type="submit" class="btn btn-primary">创建并添加</button>
+                <button type="submit" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">创建并添加</button>
             </form>
         </div>
     `;
