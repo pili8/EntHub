@@ -816,6 +816,84 @@ def browse_relation_groups():
     return "", 400
 
 
+@app.route("/browse/relation-group-detail")
+def browse_relation_group_detail():
+    """获取单个分组的详细企业列表（HTMX片段）"""
+    dup_type = request.args.get("dup_type")
+    field_value = request.args.get("field_value")
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = min(100, max(10, request.args.get("per_page", 20, type=int)))
+    
+    offset = (page - 1) * per_page
+    
+    if dup_type == "phone":
+        # 查询该电话号码关联的所有企业
+        total = g.db.execute("""
+            SELECT COUNT(DISTINCT company_id) FROM company_phones
+            WHERE normalized_phone = ?
+        """, (field_value,)).fetchone()[0]
+        
+        companies = g.db.execute("""
+            SELECT c.id, c.name
+            FROM companies c
+            INNER JOIN company_phones cp ON c.id = cp.company_id
+            WHERE cp.normalized_phone = ?
+            ORDER BY c.name
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+        
+    elif dup_type == "email":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM companies WHERE email = ?
+        """, (field_value,)).fetchone()[0]
+        
+        companies = g.db.execute("""
+            SELECT id, name FROM companies
+            WHERE email = ?
+            ORDER BY name
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+        
+    elif dup_type == "legal_person":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM companies WHERE legal_person = ?
+        """, (field_value,)).fetchone()[0]
+        
+        companies = g.db.execute("""
+            SELECT id, name FROM companies
+            WHERE legal_person = ?
+            ORDER BY name
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+        
+    elif dup_type == "tag":
+        total = g.db.execute("""
+            SELECT COUNT(DISTINCT ct.company_id)
+            FROM company_tags ct
+            INNER JOIN tags t ON ct.tag_id = t.id
+            WHERE t.name = ?
+        """, (field_value,)).fetchone()[0]
+        
+        companies = g.db.execute("""
+            SELECT c.id, c.name
+            FROM companies c
+            INNER JOIN company_tags ct ON c.id = ct.company_id
+            INNER JOIN tags t ON ct.tag_id = t.id
+            WHERE t.name = ?
+            ORDER BY c.name
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+    else:
+        return "", 400
+    
+    pages = max(1, math.ceil(total / per_page))
+    
+    return render_template("_relation_group_detail.html",
+                         companies=companies, dup_type=dup_type,
+                         field_value=field_value, page=page, pages=pages,
+                         total=total, per_page=per_page)
+
+
 @app.route("/browse/relation-top")
 def browse_relation_top():
     """关联企业最多的TOP 50（HTMX片段）- 简化版，只计算电话关联"""

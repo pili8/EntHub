@@ -1,0 +1,76 @@
+<!-- 分组详细企业列表 -->
+<div style="margin-top: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+        共 {{ total }} 家企业，当前显示第 {{ page }} / {{ pages }} 页
+    </div>
+    
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+        {% for company in companies %}
+        <div style="padding: 8px 10px; background: white; border-radius: 4px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <a href="{{ url_for('company_detail', company_id=company.id) }}" 
+               style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500;"
+               onmouseover="this.style.textDecoration='underline'"
+               onmouseout="this.style.textDecoration='none'">{{ company.name }}</a>
+            <span style="font-size: 11px; color: var(--text-muted);">#{{ '%08d' % company.id }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- 分页 -->
+    {% if pages > 1 %}
+    <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-muted);">每页</span>
+            <select onchange="changeGroupPerPage(this.value, '{{ dup_type }}', '{{ field_value }}')" 
+                    style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">
+                <option value="10" {{ 'selected' if per_page == 10 }}>10</option>
+                <option value="20" {{ 'selected' if per_page == 20 }}>20</option>
+                <option value="50" {{ 'selected' if per_page == 50 }}>50</option>
+                <option value="100" {{ 'selected' if per_page == 100 }}>100</option>
+            </select>
+            <span style="font-size: 12px; color: var(--text-muted);">条</span>
+        </div>
+        
+        <div style="display: flex; gap: 6px; align-items: center;">
+            {% if page > 1 %}
+            <a href="{{ url_for('browse_relation_group_detail', dup_type=dup_type, field_value=field_value, per_page=per_page, page=page-1) }}"
+               hx-get="{{ url_for('browse_relation_group_detail', dup_type=dup_type, field_value=field_value, per_page=per_page, page=page-1) }}"
+               hx-target="#group-detail-{{ field_value|replace(' ', '-')|replace('.', '-') }}"
+               hx-swap="innerHTML"
+               style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; text-decoration: none; color: var(--text-secondary); font-size: 12px;">
+                <i data-lucide="chevron-left" style="width:12px;height:12px"></i>
+            </a>
+            {% endif %}
+            <span style="font-size: 12px; color: var(--text-muted);">{{ page }} / {{ pages }}</span>
+            {% if page < pages %}
+            <a href="{{ url_for('browse_relation_group_detail', dup_type=dup_type, field_value=field_value, per_page=per_page, page=page+1) }}"
+               hx-get="{{ url_for('browse_relation_group_detail', dup_type=dup_type, field_value=field_value, per_page=per_page, page=page+1) }}"
+               hx-target="#group-detail-{{ field_value|replace(' ', '-')|replace('.', '-') }}"
+               hx-swap="innerHTML"
+               style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; text-decoration: none; color: var(--text-secondary); font-size: 12px;">
+                <i data-lucide="chevron-right" style="width:12px;height:12px"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function changeGroupPerPage(val, dupType, fieldValue) {
+    const url = new URL(window.location);
+    url.pathname = '/browse/relation-group-detail';
+    url.searchParams.set('dup_type', dupType);
+    url.searchParams.set('field_value', fieldValue);
+    url.searchParams.set('per_page', val);
+    url.searchParams.set('page', '1');
+    
+    const targetId = 'group-detail-' + fieldValue.replace(/ /g, '-').replace(/\./g, '-');
+    htmx.ajax('GET', url.pathname + '?' + url.searchParams.toString(), '#' + targetId);
+}
+
+// 重新初始化lucide图标
+if (window.lucide) {
+    lucide.createIcons();
+}
+</script>

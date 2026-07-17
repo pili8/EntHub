@@ -8,11 +8,18 @@
         {% for group in groups %}
         {% set company_names_list = group.company_names.split('、') %}
         {% set company_ids_list = group.company_ids.split(',') %}
+        {% set field_id = group.field_value|replace(' ', '-')|replace('.', '-') %}
+        
         <div class="relation-group" style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
+            <!-- 分组标题（可点击展开） -->
+            <div onclick="toggleGroup('{{ field_id }}')" 
+                 style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px;"
+                 onmouseover="this.style.opacity='0.8'"
+                 onmouseout="this.style.opacity='1'">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-primary);">
+                    <i data-lucide="chevron-right" id="icon-{{ field_id }}" style="width: 14px; height: 14px; transition: transform 0.2s;"></i>
                     {% if group.tag_color %}
-                    <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: {{ group.tag_color }}; margin-right: 6px; vertical-align: middle;"></span>
+                    <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: {{ group.tag_color }};"></span>
                     {% endif %}
                     {{ field_icon }} {{ group.field_value or '-' }}
                 </div>
@@ -20,18 +27,23 @@
                     关联 <span style="color: var(--accent); font-weight: 600;">{{ group.cnt }}</span> 家企业
                 </div>
             </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.8;">
-                {% for name in company_names_list[:10] %}
+            
+            <!-- 摘要视图（默认显示） -->
+            <div id="summary-{{ field_id }}" style="font-size: 12px; color: var(--text-secondary); line-height: 1.8;">
+                {% for name in company_names_list[:5] %}
                 <a href="{{ url_for('company_detail', company_id=company_ids_list[loop.index0]) }}" 
                    style="color: var(--accent); text-decoration: none; margin-right: 8px;"
                    onmouseover="this.style.textDecoration='underline'"
                    onmouseout="this.style.textDecoration='none'">{{ name }}</a>
-                {% if not loop.last and loop.index < 10 %}<span style="color: var(--text-muted);">·</span>{% endif %}
+                {% if not loop.last and loop.index < 5 %}<span style="color: var(--text-muted);">·</span>{% endif %}
                 {% endfor %}
-                {% if company_names_list|length > 10 %}
-                <span style="color: var(--text-muted);">... 等{{ company_names_list|length }}家</span>
+                {% if company_names_list|length > 5 %}
+                <span style="color: var(--text-muted);">... 还有{{ company_names_list|length - 5 }}家</span>
                 {% endif %}
             </div>
+            
+            <!-- 详细视图（点击展开后显示） -->
+            <div id="detail-{{ field_id }}" style="display: none;"></div>
         </div>
         {% endfor %}
     </div>
@@ -83,6 +95,38 @@
     </script>
     {% endif %}
 </div>
+
+<script>
+// 展开/折叠分组
+function toggleGroup(fieldId) {
+    const summary = document.getElementById('summary-' + fieldId);
+    const detail = document.getElementById('detail-' + fieldId);
+    const icon = document.getElementById('icon-' + fieldId);
+    
+    if (detail.style.display === 'none') {
+        // 展开
+        summary.style.display = 'none';
+        detail.style.display = 'block';
+        icon.style.transform = 'rotate(90deg)';
+        
+        // 加载详细数据
+        const dupType = '{{ dup_type }}';
+        const fieldValue = document.querySelector('#icon-' + fieldId).parentElement.textContent.trim();
+        // 提取field_value（去掉图标和"关联 X 家企业"）
+        const match = fieldValue.match(/{{ field_icon }}\s+(.+?)\s+关联/);
+        const actualFieldValue = match ? match[1].trim() : fieldValue;
+        
+        const url = `/browse/relation-group-detail?dup_type=${encodeURIComponent(dupType)}&field_value=${encodeURIComponent(actualFieldValue)}&per_page=20&page=1`;
+        
+        htmx.ajax('GET', url, '#detail-' + fieldId);
+    } else {
+        // 折叠
+        summary.style.display = 'block';
+        detail.style.display = 'none';
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+</script>
 {% else %}
 <div style="text-align: center; padding: 40px; color: var(--text-muted);">
     暂无{{ field_label }}关联数据
