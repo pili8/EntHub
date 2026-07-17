@@ -132,6 +132,25 @@ def init_db():
             created_at  TEXT DEFAULT (datetime('now', 'localtime'))
         );
         CREATE INDEX IF NOT EXISTS idx_recent_created ON recent_searches(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS tags (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL UNIQUE,
+            color       TEXT DEFAULT '#3b82f6',
+            created_at  TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_tag_name ON tags(name);
+
+        CREATE TABLE IF NOT EXISTS company_tags (
+            company_id  INTEGER NOT NULL,
+            tag_id      INTEGER NOT NULL,
+            created_at  TEXT DEFAULT (datetime('now', 'localtime')),
+            PRIMARY KEY (company_id, tag_id),
+            FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_ct_company ON company_tags(company_id);
+        CREATE INDEX IF NOT EXISTS idx_ct_tag ON company_tags(tag_id);
     """)
 
     # Add columns for databases created before the new schema

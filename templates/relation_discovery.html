@@ -45,6 +45,13 @@
                     hx-swap="innerHTML">
                 👤 法人关联
             </button>
+            <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
+                    data-type="tag"
+                    hx-get="{{ url_for('browse_relation_groups', dup_type='tag', sort='count_desc') }}"
+                    hx-target="#relation-groups-container"
+                    hx-swap="innerHTML">
+                🏷️ 标签关联
+            </button>
         </div>
     </div>
 

@@ -96,11 +96,32 @@ function applyRange(select, fromField, toField) {
 }
 </script>
 
+<!-- 批量操作工具栏 -->
+<div id="batch-toolbar" style="display: none; background: var(--accent-light); padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; align-items: center; gap: 12px;">
+    <span style="font-size: 13px; color: var(--text-secondary);">
+        已选择 <strong id="selected-count">0</strong> 家企业
+    </span>
+    <button onclick="batchDelete()" class="btn btn-danger btn-sm" style="margin-left: auto;">
+        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+        批量删除
+    </button>
+    <button onclick="batchAddTag()" class="btn btn-secondary btn-sm">
+        <i data-lucide="tag" style="width: 14px; height: 14px;"></i>
+        添加标签
+    </button>
+    <button onclick="clearSelection()" class="btn btn-secondary btn-sm">
+        取消选择
+    </button>
+</div>
+
 <!-- 数据表 -->
 <div class="table-wrap">
     <table>
         <thead>
             <tr>
+                <th style="width: 40px;">
+                    <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width: 16px; height: 16px; cursor: pointer;" title="全选当前页">
+                </th>
                 <th class="col-id">
                     <a href="{{ url_for('browse', sort='id', dir='desc' if sort == 'id' and direction == 'asc' else 'asc', **filters) }}" class="sort-link">
                         ID {{ '↑' if sort == 'id' and direction == 'asc' else ('↓' if sort == 'id' else '') }}
@@ -146,6 +167,9 @@ function applyRange(select, fromField, toField) {
         <tbody>
             {% for row in rows %}
             <tr style="cursor: pointer;" onclick="window.location='{{ url_for('company_detail', company_id=row.id) }}'">
+                <td onclick="event.stopPropagation()">
+                    <input type="checkbox" class="row-checkbox" value="{{ row.id }}" onchange="updateSelection()" style="width: 16px; height: 16px; cursor: pointer;">
+                </td>
                 <td class="col-id">#{{ '%08d' % row.id }}</td>
                 <td class="col-name">
                     <a href="{{ url_for('company_detail', company_id=row.id) }}" onclick="event.stopPropagation()">{{ row.name }}</a>
@@ -211,6 +235,139 @@ function changePerPage(val) {
     url.searchParams.set('per_page', val);
     url.searchParams.set('page', '1');
     window.location.href = url.toString();
+}
+
+// 批量操作相关
+let selectedCompanies = new Set();
+
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    if (checkbox.checked) {
+        checkboxes.forEach(cb => {
+            cb.checked = true;
+            selectedCompanies.add(parseInt(cb.value));
+        });
+    } else {
+        checkboxes.forEach(cb => {
+            cb.checked = false;
+        });
+        selectedCompanies.clear();
+    }
+    updateSelection();
+}
+
+function updateSelection() {
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    selectedCompanies.clear();
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            selectedCompanies.add(parseInt(cb.value));
+        }
+    });
+    
+    const toolbar = document.getElementById('batch-toolbar');
+    const countEl = document.getElementById('selected-count');
+    if (selectedCompanies.size > 0) {
+        toolbar.style.display = 'flex';
+        countEl.textContent = selectedCompanies.size;
+    } else {
+        toolbar.style.display = 'none';
+    }
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    document.getElementById('select-all').checked = false;
+    selectedCompanies.clear();
+    updateSelection();
+}
+
+async function batchDelete() {
+    if (selectedCompanies.size === 0) return;
+    
+    const count = selectedCompanies.size;
+    let message = `确定要删除选中的 ${count} 家企业吗？`;
+    
+    if (count > 100) {
+        message += `\n\n⚠️ 警告：删除数量较大（${count}家），可能需要较长时间，请确认是否继续？`;
+    }
+    
+    if (!confirm(message)) return;
+    
+    // 二次确认
+    if (count > 50) {
+        const confirmText = prompt(`请输入"删除"以确认删除 ${count} 家企业：`);
+        if (confirmText !== '删除') {
+            alert('已取消删除');
+            return;
+        }
+    }
+    
+    try {
+        const response = await fetch('/api/companies/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: Array.from(selectedCompanies) })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`成功删除 ${result.deleted} 家企业`);
+            location.reload();
+        } else {
+            alert('删除失败：' + result.error);
+        }
+    } catch (error) {
+        alert('删除失败：' + error.message);
+    }
+}
+
+async function batchAddTag() {
+    if (selectedCompanies.size === 0) return;
+    
+    // 获取所有标签
+    try {
+        const tagsResponse = await fetch('/api/tags');
+        const tags = await tagsResponse.json();
+        
+        if (tags.length === 0) {
+            alert('没有可用的标签，请先创建标签');
+            return;
+        }
+        
+        const tagOptions = tags.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
+        const selection = prompt(`请选择要添加的标签（输入序号）：\n\n${tagOptions}`);
+        
+        if (!selection) return;
+        
+        const tagIndex = parseInt(selection) - 1;
+        if (tagIndex < 0 || tagIndex >= tags.length) {
+            alert('无效的选择');
+            return;
+        }
+        
+        const tagId = tags[tagIndex].id;
+        
+        const response = await fetch('/api/companies/batch-add-tag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                ids: Array.from(selectedCompanies),
+                tag_id: tagId
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`成功为 ${result.updated} 家企业添加标签`);
+            location.reload();
+        } else {
+            alert('添加标签失败：' + result.error);
+        }
+    } catch (error) {
+        alert('添加标签失败：' + error.message);
+    }
 }
 </script>
 {% endif %}

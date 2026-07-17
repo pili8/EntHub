@@ -38,6 +38,19 @@
       {% endif %}
       <span class="detail-id">#{{ '%08d' % company.id }}</span>
     </div>
+    
+    <!-- 标签区域 -->
+    <div id="companyTags" style="margin-top: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <span style="font-size: 12px; color: var(--text-muted);">标签：</span>
+        <div id="tagsList" style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <!-- 标签将通过JS动态加载 -->
+        </div>
+        <button type="button" onclick="openTagSelector()" style="padding: 4px 8px; font-size: 12px; border: 1px dashed var(--border); background: transparent; color: var(--text-muted); border-radius: 4px; cursor: pointer;">
+          <i data-lucide="plus" style="width: 12px; height: 12px; vertical-align: middle;"></i> 添加标签
+        </button>
+      </div>
+    </div>
   </header>
 
   <!-- ─────────── 基本信息 ─────────── -->
@@ -298,4 +311,91 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+const companyId = {{ company.id }};
+
+// 加载企业标签
+async function loadCompanyTags() {
+    const response = await fetch(`/api/companies/${companyId}/tags`);
+    const tags = await response.json();
+    
+    const tagsList = document.getElementById('tagsList');
+    if (tags.length === 0) {
+        tagsList.innerHTML = '<span style="font-size: 12px; color: var(--text-muted);">暂无标签</span>';
+    } else {
+        tagsList.innerHTML = tags.map(tag => `
+            <span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: ${tag.color}20; color: ${tag.color}; border-radius: 12px; font-size: 12px; font-weight: 500;">
+                ${tag.name}
+                <button onclick="removeTag(${tag.id})" style="background: none; border: none; color: ${tag.color}; cursor: pointer; padding: 0; display: flex; align-items: center;">
+                    <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                </button>
+            </span>
+        `).join('');
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+// 打开标签选择器
+async function openTagSelector() {
+    const response = await fetch('/api/tags');
+    const allTags = await response.json();
+    
+    const companyTagsResponse = await fetch(`/api/companies/${companyId}/tags`);
+    const companyTags = await companyTagsResponse.json();
+    const companyTagIds = new Set(companyTags.map(t => t.id));
+    
+    const availableTags = allTags.filter(t => !companyTagIds.has(t.id));
+    
+    if (availableTags.length === 0) {
+        alert('没有可用的标签了，请先创建新标签');
+        return;
+    }
+    
+    const tagName = prompt('选择要添加的标签：\n\n' + 
+        availableTags.map((t, i) => `${i + 1}. ${t.name}`).join('\n') + 
+        '\n\n请输入标签序号：');
+    
+    if (tagName) {
+        const index = parseInt(tagName) - 1;
+        if (index >= 0 && index < availableTags.length) {
+            await addTag(availableTags[index].id);
+        }
+    }
+}
+
+// 添加标签
+async function addTag(tagId) {
+    const response = await fetch(`/api/companies/${companyId}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_id: tagId })
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+        loadCompanyTags();
+    } else {
+        alert(result.error);
+    }
+}
+
+// 删除标签
+async function removeTag(tagId) {
+    if (!confirm('确定要删除这个标签吗？')) return;
+    
+    const response = await fetch(`/api/companies/${companyId}/tags/${tagId}`, {
+        method: 'DELETE'
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+        loadCompanyTags();
+    } else {
+        alert(result.error);
+    }
+}
+
+// 页面加载时加载标签
+document.addEventListener('DOMContentLoaded', loadCompanyTags);
+</script>
 {% endblock %}

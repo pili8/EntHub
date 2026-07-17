@@ -777,6 +777,42 @@ def browse_relation_groups():
                              page=1, pages=1, total=0,
                              field_label="股东", field_icon="🏢")
 
+    elif dup_type == "tag":
+        # 标签关联分组
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT tag_id FROM company_tags
+                GROUP BY tag_id HAVING COUNT(DISTINCT company_id) > 0
+            )
+        """).fetchone()[0]
+
+        if sort == "name_asc":
+            order_clause = f"{order_by}, t.name"
+        else:
+            order_clause = f"{order_by}, t.name"
+
+        groups = g.db.execute(f"""
+            SELECT
+                t.name as field_value,
+                t.color as tag_color,
+                COUNT(DISTINCT ct.company_id) as cnt,
+                GROUP_CONCAT(c.name, '、') as company_names,
+                GROUP_CONCAT(c.id, ',') as company_ids
+            FROM tags t
+            INNER JOIN company_tags ct ON t.id = ct.tag_id
+            INNER JOIN companies c ON c.id = ct.company_id
+            GROUP BY t.id
+            {order_clause}
+            LIMIT ? OFFSET ?
+        """, [per_page, offset]).fetchall()
+
+        pages = max(1, math.ceil(total / per_page))
+
+        return render_template("_relation_groups.html",
+                             groups=groups, dup_type=dup_type, sort=sort,
+                             page=page, pages=pages, total=total, per_page=per_page,
+                             field_label="标签", field_icon="🏷️")
+
     return "", 400
 
 
@@ -1905,6 +1941,176 @@ def _startup_backup_check():
 
 
 _startup_backup_check()
+
+
+# --------------------------------------------------------------------------- #
+#  标签管理
+# --------------------------------------------------------------------------- #
+
+@app.route("/tags")
+def tags_page():
+    """标签管理页面"""
+    tags = g.db.execute("""
+        SELECT t.*, COUNT(ct.company_id) as company_count
+        FROM tags t
+        LEFT JOIN company_tags ct ON t.id = ct.tag_id
+        GROUP BY t.id
+        ORDER BY company_count DESC, t.name
+    """).fetchall()
+    return render_template("tags.html", tags=tags)
+
+
+@app.route("/api/tags", methods=["POST"])
+def create_tag():
+    """创建标签"""
+    name = request.json.get("name", "").strip()
+    color = request.json.get("color", "#3b82f6")
+    
+    if not name:
+        return jsonify({"error": "标签名称不能为空"}), 400
+    
+    try:
+        g.db.execute("INSERT INTO tags (name, color) VALUES (?, ?)", (name, color))
+        g.db.commit()
+        return jsonify({"success": True, "message": "标签创建成功"})
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "标签名称已存在"}), 400
+
+
+@app.route("/api/tags", methods=["GET"])
+def get_all_tags():
+    """获取所有标签"""
+    tags = g.db.execute("SELECT * FROM tags ORDER BY name").fetchall()
+    return jsonify([dict(tag) for tag in tags])
+
+
+@app.route("/api/tags/<int:tag_id>", methods=["PUT"])
+def update_tag(tag_id):
+    """更新标签"""
+    name = request.json.get("name", "").strip()
+    color = request.json.get("color", "#3b82f6")
+    
+    if not name:
+        return jsonify({"error": "标签名称不能为空"}), 400
+    
+    try:
+        g.db.execute("UPDATE tags SET name=?, color=? WHERE id=?", (name, color, tag_id))
+        g.db.commit()
+        return jsonify({"success": True, "message": "标签更新成功"})
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "标签名称已存在"}), 400
+
+
+@app.route("/api/tags/<int:tag_id>", methods=["DELETE"])
+def delete_tag(tag_id):
+    """删除标签"""
+    g.db.execute("DELETE FROM tags WHERE id=?", (tag_id,))
+    g.db.commit()
+    return jsonify({"success": True, "message": "标签删除成功"})
+
+
+@app.route("/api/companies/<int:company_id>/tags", methods=["GET"])
+def get_company_tags(company_id):
+    """获取企业标签"""
+    tags = g.db.execute("""
+        SELECT t.id, t.name, t.color
+        FROM tags t
+        JOIN company_tags ct ON t.id = ct.tag_id
+        WHERE ct.company_id = ?
+        ORDER BY t.name
+    """, (company_id,)).fetchall()
+    return jsonify([dict(tag) for tag in tags])
+
+
+@app.route("/api/companies/<int:company_id>/tags", methods=["POST"])
+def add_company_tag(company_id):
+    """为企业添加标签"""
+    tag_id = request.json.get("tag_id")
+    if not tag_id:
+        return jsonify({"error": "标签ID不能为空"}), 400
+    
+    try:
+        g.db.execute("INSERT INTO company_tags (company_id, tag_id) VALUES (?, ?)", 
+                    (company_id, tag_id))
+        g.db.commit()
+        return jsonify({"success": True, "message": "标签添加成功"})
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "标签已存在"}), 400
+
+
+@app.route("/api/companies/<int:company_id>/tags/<int:tag_id>", methods=["DELETE"])
+def remove_company_tag(company_id, tag_id):
+    """删除企业标签"""
+    g.db.execute("DELETE FROM company_tags WHERE company_id=? AND tag_id=?", 
+                (company_id, tag_id))
+    g.db.commit()
+    return jsonify({"success": True, "message": "标签删除成功"})
+
+
+@app.route("/api/companies/batch-delete", methods=["POST"])
+def batch_delete_companies():
+    """批量删除企业"""
+    ids = request.json.get("ids", [])
+    if not ids:
+        return jsonify({"error": "未选择企业"}), 400
+    
+    # 限制一次最多删除1000家，防止性能问题
+    if len(ids) > 1000:
+        return jsonify({"error": "一次最多删除1000家企业"}), 400
+    
+    try:
+        # 删除企业标签关联
+        g.db.execute(f"DELETE FROM company_tags WHERE company_id IN ({','.join('?' * len(ids))})", ids)
+        # 删除企业电话关联
+        g.db.execute(f"DELETE FROM company_phones WHERE company_id IN ({','.join('?' * len(ids))})", ids)
+        # 删除企业
+        g.db.execute(f"DELETE FROM companies WHERE id IN ({','.join('?' * len(ids))})", ids)
+        g.db.commit()
+        
+        return jsonify({
+            "success": True, 
+            "message": "批量删除成功",
+            "deleted": len(ids)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/companies/batch-add-tag", methods=["POST"])
+def batch_add_tag():
+    """批量添加标签"""
+    ids = request.json.get("ids", [])
+    tag_id = request.json.get("tag_id")
+    
+    if not ids:
+        return jsonify({"error": "未选择企业"}), 400
+    if not tag_id:
+        return jsonify({"error": "未选择标签"}), 400
+    
+    # 限制一次最多操作1000家
+    if len(ids) > 1000:
+        return jsonify({"error": "一次最多操作1000家企业"}), 400
+    
+    try:
+        added = 0
+        for company_id in ids:
+            try:
+                g.db.execute("INSERT INTO company_tags (company_id, tag_id) VALUES (?, ?)", 
+                           (company_id, tag_id))
+                added += 1
+            except sqlite3.IntegrityError:
+                # 标签已存在，跳过
+                pass
+        
+        g.db.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": "批量添加标签成功",
+            "updated": added
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
