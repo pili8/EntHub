@@ -28,28 +28,32 @@
                     data-type="phone"
                     hx-get="{{ url_for('browse_relation_groups', dup_type='phone', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML">
+                    hx-swap="innerHTML"
+                    hx-push-url="true">
                 📞 电话关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="email"
                     hx-get="{{ url_for('browse_relation_groups', dup_type='email', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML">
+                    hx-swap="innerHTML"
+                    hx-push-url="true">
                 📧 邮箱关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="legal_person"
                     hx-get="{{ url_for('browse_relation_groups', dup_type='legal_person', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML">
+                    hx-swap="innerHTML"
+                    hx-push-url="true">
                 👤 法人关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="tag"
                     hx-get="{{ url_for('browse_relation_groups', dup_type='tag', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML">
+                    hx-swap="innerHTML"
+                    hx-push-url="true">
                 🏷️ 标签关联
             </button>
         </div>
@@ -68,6 +72,28 @@
 </div>
 
 <script>
+// 页面加载时检查URL参数，自动加载对应的关联类型
+(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const dupType = urlParams.get('dup_type');
+    const sort = urlParams.get('sort') || 'count_desc';
+    
+    if (dupType) {
+        // 设置排序选择器
+        document.getElementById('sort-select').value = sort;
+        
+        // 激活对应的按钮
+        const activeBtn = document.querySelector(`.relation-type-btn[data-type="${dupType}"]`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            
+            // 自动加载数据
+            const url = `/browse/relation-groups?dup_type=${dupType}&sort=${sort}`;
+            htmx.ajax('GET', url, '#relation-groups-container');
+        }
+    }
+})();
+
 // 切换关联类型按钮样式
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('relation-type-btn')) {

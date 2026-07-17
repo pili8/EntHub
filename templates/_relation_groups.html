@@ -56,7 +56,8 @@
             <a href="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
                hx-get="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
                hx-target="#relation-groups-container"
-               hx-swap="innerHTML">
+               hx-swap="innerHTML"
+               hx-push-url="true">
                 <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
             </a>
             {% endif %}
@@ -65,7 +66,8 @@
             <a href="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
                hx-get="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
                hx-target="#relation-groups-container"
-               hx-swap="innerHTML">
+               hx-swap="innerHTML"
+               hx-push-url="true">
                 <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
             </a>
             {% endif %}
@@ -77,6 +79,9 @@
         url.searchParams.set('per_page', val);
         url.searchParams.set('page', '1');
         htmx.ajax('GET', url.pathname + '?' + url.searchParams.toString(), '#relation-groups-container');
+        
+        // 更新URL
+        window.history.pushState({}, '', url.pathname + '?' + url.searchParams.toString());
     }
     
     // 重新初始化lucide图标
