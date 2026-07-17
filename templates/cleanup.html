@@ -149,7 +149,7 @@
     {% if stats.total_to_clean > 0 %}
     <div style="text-align: center; margin: 24px 0;">
         <button type="submit" class="btn btn-danger" style="padding: 10px 32px; font-size: 15px;"
-                onclick="return confirm('确定要执行数据清理吗？建议先备份。')">
+                onclick="return confirmSubmit(event, '数据清理', '确定要执行数据清理吗？建议先备份。')">
             <i data-lucide="trash-2" style="width:16px;height:16px"></i>
             开始清理
         </button>

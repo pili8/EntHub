@@ -155,7 +155,64 @@ const colors = [
 
 ## 🔧 交互规范
 
-### 1. 复制功能
+### 1. 弹窗使用规范
+
+**强制规则：**
+- ✅ **所有弹窗必须使用页面内弹窗**（_modal.html组件）
+- ❌ **禁止使用浏览器原生弹窗**（alert/confirm/prompt）
+
+**原因：**
+- 原生弹窗样式无法定制，与系统风格不统一
+- 原生弹窗会阻塞JavaScript执行
+- 原生弹窗在不同浏览器中表现不一致
+- 页面内弹窗可以提供更好的用户体验
+
+**替换方案：**
+
+| 原生方法 | 替换方法 | 使用场景 |
+|---------|---------|---------|
+| `alert('消息')` | `showConfirm('标题', '消息', () => {})` | 提示消息 |
+| `confirm('消息')` | `showConfirm('标题', '消息', callback)` | 确认操作 |
+| `prompt('消息')` | `showInput('标题', '消息', 'placeholder', callback)` | 输入内容 |
+
+**表单确认替换：**
+```html
+<!-- ❌ 错误 -->
+<form onsubmit="return confirm('确定要删除吗？')">
+
+<!-- ✅ 正确 -->
+<form onsubmit="return confirmSubmit(event, '删除确认', '确定要删除吗？')">
+```
+
+**链接确认替换：**
+```html
+<!-- ❌ 错误 -->
+<a href="/delete" onclick="return confirm('确定要删除吗？')">
+
+<!-- ✅ 正确 -->
+<a href="/delete" onclick="return confirmLink(event, '/delete', '删除确认', '确定要删除吗？')">
+```
+
+**JavaScript中的确认：**
+```javascript
+// ❌ 错误
+if (!confirm('确定要停止吗？')) return;
+doStop();
+
+// ✅ 正确
+showConfirm('停止确认', '确定要停止吗？', () => {
+    doStop();
+});
+```
+
+**可用函数：**
+- `showModal(title, content, buttons)` - 自定义弹窗
+- `showConfirm(title, message, onConfirm)` - 确认弹窗
+- `showInput(title, message, placeholder, onConfirm)` - 输入弹窗
+- `confirmSubmit(event, title, message)` - 表单确认
+- `confirmLink(event, url, title, message)` - 链接确认
+
+### 2. 复制功能
 
 **复制按钮样式：**
 ```html

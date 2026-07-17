@@ -151,10 +151,11 @@
     };
 
     window.doStop = function() {
-        if (!confirm('确定要停止清理吗？已执行的步骤不会回滚。')) return;
-        document.getElementById('stop-btn').disabled = true;
-        document.getElementById('stop-btn').textContent = '正在停止…';
-        fetch(stopUrl, {method: 'POST'});
+        showConfirm('停止清理', '确定要停止清理吗？已执行的步骤不会回滚。', () => {
+            document.getElementById('stop-btn').disabled = true;
+            document.getElementById('stop-btn').textContent = '正在停止…';
+            fetch(stopUrl, {method: 'POST'});
+        });
     };
 
     if (window.lucide) lucide.createIcons();

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ field_label }}关联：{{ field_value }} · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="{{ url_for('relation_discovery') }}" class="btn btn-secondary btn-sm">
+            <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
+            返回
+        </a>
+        <div>
+            <div class="page-title" style="margin-bottom: 4px;">{{ field_icon }} {{ field_label }}关联：{{ field_value }}</div>
+            <div class="page-subtitle">共 {{ total }} 家企业</div>
+        </div>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th class="col-id">
+                    <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort='id', dir='desc' if sort == 'id' and direction == 'asc' else 'asc', per_page=per_page) }}" class="sort-link">
+                        ID {{ '↑' if sort == 'id' and direction == 'asc' else ('↓' if sort == 'id' else '') }}
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort='name', dir='asc' if sort == 'name' and direction == 'desc' else 'desc', per_page=per_page) }}" class="sort-link">
+                        企业名称 {{ '↑' if sort == 'name' and direction == 'asc' else ('↓' if sort == 'name' else '') }}
+                    </a>
+                </th>
+                <th>法人</th>
+                <th>城市/区县</th>
+                <th>状态</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for company in companies %}
+            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('company_detail', company_id=company.id) }}'">
+                <td class="col-id">#{{ '%08d' % company.id }}</td>
+                <td class="col-name">
+                    <a href="{{ url_for('company_detail', company_id=company.id) }}" onclick="event.stopPropagation()">{{ company.name }}</a>
+                </td>
+                <td>{{ company.legal_person or '-' }}</td>
+                <td>{{ company.city or '' }} {{ company.district or '' }}</td>
+                <td>
+                    {% if company.business_status %}
+                    <span class="badge {{ 'badge-info' if company.business_status == '存续' else 'badge-warning' }}">
+                        {{ company.business_status }}
+                    </span>
+                    {% else %}-{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not companies %}
+            <tr><td colspan="5" class="empty-state">没有符合条件的记录</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 分页 -->
+{% if pages > 1 %}
+<div class="pagination">
+    <div class="pagination-info">
+        第 {{ page }} / {{ pages }} 页
+        <select onchange="changePerPage(this.value)" style="margin-left: 8px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">
+            <option value="10" {{ 'selected' if per_page == 10 }}>10条/页</option>
+            <option value="25" {{ 'selected' if per_page == 25 }}>25条/页</option>
+            <option value="50" {{ 'selected' if per_page == 50 }}>50条/页</option>
+            <option value="100" {{ 'selected' if per_page == 100 }}>100条/页</option>
+        </select>
+    </div>
+    <div class="pagination-links">
+        {% if page > 1 %}
+        <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort=sort, dir=direction, per_page=per_page, page=page-1) }}">
+            <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
+        </a>
+        {% endif %}
+        <span class="current">{{ page }}</span>
+        {% if page < pages %}
+        <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort=sort, dir=direction, per_page=per_page, page=page+1) }}">
+            <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+<script>
+function changePerPage(val) {
+    const url = new URL(window.location);
+    url.searchParams.set('per_page', val);
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+</script>
+{% endif %}
+{% endblock %}

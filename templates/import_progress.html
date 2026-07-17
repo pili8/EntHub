@@ -153,10 +153,11 @@
     };
 
     window.doStop = function() {
-        if (!confirm('确定要停止导入吗？已处理的数据不会回滚。')) return;
-        document.getElementById('stop-btn').disabled = true;
-        document.getElementById('stop-btn').textContent = '正在停止…';
-        fetch(stopUrl, {method: 'POST'});
+        showConfirm('停止导入', '确定要停止导入吗？已处理的数据不会回滚。', () => {
+            document.getElementById('stop-btn').disabled = true;
+            document.getElementById('stop-btn').textContent = '正在停止…';
+            fetch(stopUrl, {method: 'POST'});
+        });
     };
 
     // Re-init lucide icons

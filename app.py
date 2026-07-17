@@ -816,6 +816,114 @@ def browse_relation_groups():
     return "", 400
 
 
+@app.route("/relation-group")
+def relation_group_detail():
+    """关联分组详情页面"""
+    dup_type = request.args.get("dup_type")
+    field_value = request.args.get("field_value")
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = min(100, max(10, request.args.get("per_page", 25, type=int)))
+    sort = request.args.get("sort", "name")
+    direction = request.args.get("dir", "asc")
+    
+    offset = (page - 1) * per_page
+    
+    # 根据关联类型查询
+    if dup_type == "phone":
+        total = g.db.execute("""
+            SELECT COUNT(DISTINCT company_id) FROM company_phones
+            WHERE normalized_phone = ?
+        """, (field_value,)).fetchone()[0]
+        
+        sort_col = "c.name" if sort == "name" else "c.id"
+        dir_sql = "ASC" if direction == "asc" else "DESC"
+        
+        companies = g.db.execute(f"""
+            SELECT c.id, c.name, c.legal_person, c.city, c.district, c.business_status
+            FROM companies c
+            INNER JOIN company_phones cp ON c.id = cp.company_id
+            WHERE cp.normalized_phone = ?
+            ORDER BY {sort_col} {dir_sql}
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+        
+        field_label = "电话"
+        field_icon = "📞"
+        
+    elif dup_type == "email":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM companies WHERE email = ?
+        """, (field_value,)).fetchone()[0]
+        
+        sort_col = "name" if sort == "name" else "id"
+        dir_sql = "ASC" if direction == "asc" else "DESC"
+        
+        companies = g.db.execute(f"""
+            SELECT id, name, legal_person, city, district, business_status
+            FROM companies
+            WHERE email = ?
+            ORDER BY {sort_col} {dir_sql}
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+        
+        field_label = "邮箱"
+        field_icon = "📧"
+        
+    elif dup_type == "legal_person":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM companies WHERE legal_person = ?
+        """, (field_value,)).fetchone()[0]
+        
+        sort_col = "name" if sort == "name" else "id"
+        dir_sql = "ASC" if direction == "asc" else "DESC"
+        
+        companies = g.db.execute(f"""
+            SELECT id, name, legal_person, city, district, business_status
+            FROM companies
+            WHERE legal_person = ?
+            ORDER BY {sort_col} {dir_sql}
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+        
+        field_label = "法人"
+        field_icon = "👤"
+        
+    elif dup_type == "tag":
+        total = g.db.execute("""
+            SELECT COUNT(DISTINCT ct.company_id)
+            FROM company_tags ct
+            INNER JOIN tags t ON ct.tag_id = t.id
+            WHERE t.name = ?
+        """, (field_value,)).fetchone()[0]
+        
+        sort_col = "c.name" if sort == "name" else "c.id"
+        dir_sql = "ASC" if direction == "asc" else "DESC"
+        
+        companies = g.db.execute(f"""
+            SELECT c.id, c.name, c.legal_person, c.city, c.district, c.business_status
+            FROM companies c
+            INNER JOIN company_tags ct ON c.id = ct.company_id
+            INNER JOIN tags t ON ct.tag_id = t.id
+            WHERE t.name = ?
+            ORDER BY {sort_col} {dir_sql}
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+        
+        field_label = "标签"
+        field_icon = "🏷️"
+    else:
+        abort(404)
+    
+    pages = max(1, math.ceil(total / per_page))
+    
+    return render_template("relation_group.html",
+                         companies=companies, dup_type=dup_type,
+                         field_value=field_value, field_label=field_label,
+                         field_icon=field_icon, page=page, pages=pages,
+                         total=total, per_page=per_page, sort=sort,
+                         direction=direction)
+
+
 @app.route("/browse/relation-group-detail")
 def browse_relation_group_detail():
     """获取单个分组的详细企业列表（HTMX片段）"""

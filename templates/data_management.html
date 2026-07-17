@@ -50,7 +50,7 @@
                             <a href="{{ url_for('backup_download', filename=b.filename) }}" class="btn btn-secondary btn-sm">
                                 <i data-lucide="download" style="width:12px;height:12px"></i>
                             </a>
-                            <form action="{{ url_for('backup_delete', filename=b.filename) }}" method="post" style="display: inline;" onsubmit="return confirm('确定要删除这个备份吗？')">
+                            <form action="{{ url_for('backup_delete', filename=b.filename) }}" method="post" style="display: inline;" onsubmit="return confirmSubmit(event, '删除备份', '确定要删除这个备份吗？')">
                                 <button type="submit" class="btn btn-danger btn-sm">
                                     <i data-lucide="trash-2" style="width:12px;height:12px"></i>
                                 </button>
@@ -138,7 +138,7 @@
             </table>
 
             <div style="margin-top: 16px;">
-                <button type="submit" class="btn btn-danger" onclick="return confirm('确定要执行数据清理吗？建议先备份。')">
+                <button type="submit" class="btn btn-danger" onclick="return confirmSubmit(event, '数据清理', '确定要执行数据清理吗？建议先备份。')">
                     <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                     开始清理
                 </button>

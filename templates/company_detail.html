@@ -14,7 +14,7 @@
         <a href="{{ url_for('edit_company', company_id=company.id) }}" class="page-btn page-btn-primary">
           <i data-lucide="pencil" aria-hidden="true"></i>编辑
         </a>
-        <form action="{{ url_for('delete_company', company_id=company.id) }}" method="post" style="display: inline;" onsubmit="return confirm('确定要删除这个企业吗？此操作不可恢复。')">
+        <form action="{{ url_for('delete_company', company_id=company.id) }}" method="post" style="display: inline;" onsubmit="return confirmSubmit(event, '删除企业', '确定要删除这个企业吗？此操作不可恢复。')">
           <button type="submit" class="page-btn page-btn-danger" style="font-size: 13px; padding: 6px 12px;">
             <i data-lucide="trash-2" aria-hidden="true" style="width: 14px; height: 14px;"></i>删除
           </button>

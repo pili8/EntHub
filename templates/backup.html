@@ -85,7 +85,7 @@
                             </a>
                             <form method="post" action="{{ url_for('backup_delete', filename=b.filename) }}"
                                   style="display:inline"
-                                  onsubmit="return confirm('确定删除备份 {{ b.filename }}？')">
+                                  onsubmit="return confirmSubmit(event, '删除备份', '确定删除备份 {{ b.filename }}？')">
                                 <button type="submit" class="btn btn-sm btn-danger">
                                     <i data-lucide="trash-2" style="width:14px;height:14px"></i>
                                     删除

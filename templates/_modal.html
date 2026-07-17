@@ -106,4 +106,27 @@ document.addEventListener('keydown', (e) => {
         closeModal();
     }
 });
+
+// 表单确认（用于替换 onsubmit="return confirm(...)"）
+function confirmSubmit(event, title, message) {
+    event.preventDefault();
+    const form = event.target;
+    
+    showConfirm(title, message, () => {
+        form.submit();
+    });
+    
+    return false;
+}
+
+// 链接确认（用于替换 onclick="return confirm(...)"）
+function confirmLink(event, url, title, message) {
+    event.preventDefault();
+    
+    showConfirm(title, message, () => {
+        window.location.href = url;
+    });
+    
+    return false;
+}
 </script>
