@@ -7,35 +7,50 @@
     <div class="page-subtitle">管理企业标签，方便分类和筛选</div>
 </div>
 
-<div class="card" style="padding: 16px; margin-bottom: 20px;">
-    <h3 style="margin: 0 0 16px 0; font-size: 16px;">创建新标签</h3>
-    <form id="createTagForm" style="display: flex; gap: 12px; align-items: end;">
-        <div style="flex: 1;">
-            <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">标签名称</label>
-            <input type="text" id="tagName" class="form-input" placeholder="输入标签名称" required style="width: 100%;">
+<div class="card" style="padding: 20px; margin-bottom: 24px;">
+    <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">创建新标签</h3>
+    <form id="createTagForm">
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">标签名称</label>
+            <input type="text" id="tagName" class="form-input" placeholder="输入标签名称" required style="width: 100%; max-width: 400px;">
         </div>
-        <div>
-            <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">颜色</label>
-            <input type="color" id="tagColor" value="#3b82f6" style="width: 60px; height: 36px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">选择颜色</label>
+            <div id="colorPicker" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <div class="color-option" data-color="#ef4444" style="width: 36px; height: 36px; border-radius: 6px; background: #ef4444; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="红色"></div>
+                <div class="color-option" data-color="#f97316" style="width: 36px; height: 36px; border-radius: 6px; background: #f97316; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="橙色"></div>
+                <div class="color-option" data-color="#eab308" style="width: 36px; height: 36px; border-radius: 6px; background: #eab308; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="黄色"></div>
+                <div class="color-option" data-color="#22c55e" style="width: 36px; height: 36px; border-radius: 6px; background: #22c55e; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="绿色"></div>
+                <div class="color-option" data-color="#06b6d4" style="width: 36px; height: 36px; border-radius: 6px; background: #06b6d4; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="青色"></div>
+                <div class="color-option selected" data-color="#3b82f6" style="width: 36px; height: 36px; border-radius: 6px; background: #3b82f6; cursor: pointer; border: 3px solid var(--text-primary); transition: all 0.2s;" title="蓝色"></div>
+                <div class="color-option" data-color="#8b5cf6" style="width: 36px; height: 36px; border-radius: 6px; background: #8b5cf6; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="紫色"></div>
+                <div class="color-option" data-color="#ec4899" style="width: 36px; height: 36px; border-radius: 6px; background: #ec4899; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="粉色"></div>
+                <div class="color-option" data-color="#6b7280" style="width: 36px; height: 36px; border-radius: 6px; background: #6b7280; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="灰色"></div>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary">创建标签</button>
+        <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">
+            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            创建标签
+        </button>
     </form>
 </div>
 
 {% if tags %}
-<div class="card" style="padding: 16px;">
-    <h3 style="margin: 0 0 16px 0; font-size: 16px;">标签列表（{{ tags|length }} 个）</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px;">
+<div class="card" style="padding: 20px;">
+    <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">标签列表（{{ tags|length }} 个）</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
         {% for tag in tags %}
-        <div class="tag-item" style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
-                <span style="display: inline-block; width: 16px; height: 16px; border-radius: 4px; background: {{ tag.color }};"></span>
-                <span style="font-weight: 500;">{{ tag.name }}</span>
-                <span style="font-size: 12px; color: var(--text-muted);">({{ tag.company_count }} 家)</span>
+        <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                <span style="display: inline-block; width: 20px; height: 20px; border-radius: 5px; background: {{ tag.color }}; flex-shrink: 0;"></span>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 500; margin-bottom: 2px;">{{ tag.name }}</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">{{ tag.company_count }} 家企业</div>
+                </div>
             </div>
-            <div style="display: flex; gap: 6px;">
-                <button onclick="editTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;">编辑</button>
-                <button onclick="deleteTag({{ tag.id }}, '{{ tag.name }}')" class="btn btn-danger btn-sm" style="padding: 4px 8px; font-size: 12px;">删除</button>
+            <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                <button onclick="editTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px;">编辑</button>
+                <button onclick="deleteTag({{ tag.id }}, '{{ tag.name }}')" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-size: 12px;">删除</button>
             </div>
         </div>
         {% endfor %}
@@ -43,110 +58,140 @@
 </div>
 {% else %}
 <div class="card" style="padding: 60px 20px; text-align: center;">
-    <i data-lucide="tag" style="width: 48px; height: 48px; color: var(--text-muted); opacity: 0.3; margin-bottom: 16px;"></i>
-    <p style="color: var(--text-muted); margin: 0;">还没有创建任何标签</p>
-    <p style="color: var(--text-muted); font-size: 13px; margin-top: 8px;">在上方创建第一个标签开始使用</p>
+    <i data-lucide="tag" style="width: 64px; height: 64px; color: var(--text-muted); opacity: 0.3; margin-bottom: 20px;"></i>
+    <p style="color: var(--text-secondary); margin: 0; font-size: 16px; font-weight: 500;">还没有创建任何标签</p>
+    <p style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">在上方创建第一个标签开始使用</p>
 </div>
 {% endif %}
 
-<!-- 编辑标签弹窗 -->
-<div id="editTagModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-    <div style="background: white; padding: 24px; border-radius: 12px; width: 400px; max-width: 90%;">
-        <h3 style="margin: 0 0 20px 0;">编辑标签</h3>
-        <form id="editTagForm">
-            <input type="hidden" id="editTagId">
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">标签名称</label>
-                <input type="text" id="editTagName" class="form-input" required style="width: 100%;">
-            </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 6px;">颜色</label>
-                <input type="color" id="editTagColor" style="width: 60px; height: 36px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;">
-            </div>
-            <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                <button type="button" onclick="closeEditModal()" class="btn btn-secondary">取消</button>
-                <button type="submit" class="btn btn-primary">保存</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <script>
+// 颜色选择
+let selectedColor = '#3b82f6';
+
+document.querySelectorAll('.color-option').forEach(option => {
+    option.addEventListener('click', function() {
+        document.querySelectorAll('.color-option').forEach(o => {
+            o.style.border = '3px solid transparent';
+            o.classList.remove('selected');
+        });
+        this.style.border = '3px solid var(--text-primary)';
+        this.classList.add('selected');
+        selectedColor = this.dataset.color;
+    });
+});
+
 // 创建标签
 document.getElementById('createTagForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('tagName').value;
-    const color = document.getElementById('tagColor').value;
     
     const response = await fetch('/api/tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, color })
+        body: JSON.stringify({ name, color: selectedColor })
     });
     
     const result = await response.json();
     if (result.success) {
-        location.reload();
+        showConfirm('创建成功', '标签创建成功，是否刷新页面？', () => {
+            location.reload();
+        });
     } else {
-        alert(result.error);
+        showConfirm('创建失败', result.error, () => {});
     }
 });
 
 // 编辑标签
 function editTag(id, name, color) {
-    document.getElementById('editTagId').value = id;
-    document.getElementById('editTagName').value = name;
-    document.getElementById('editTagColor').value = color;
-    document.getElementById('editTagModal').style.display = 'flex';
-}
-
-function closeEditModal() {
-    document.getElementById('editTagModal').style.display = 'none';
-}
-
-document.getElementById('editTagForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('editTagId').value;
-    const name = document.getElementById('editTagName').value;
-    const color = document.getElementById('editTagColor').value;
+    const content = `
+        <form id="editTagForm">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">标签名称</label>
+                <input type="text" id="editTagName" class="form-input" value="${name}" required style="width: 100%;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">选择颜色</label>
+                <div id="editColorPicker" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div class="edit-color-option" data-color="#ef4444" style="width: 36px; height: 36px; border-radius: 6px; background: #ef4444; cursor: pointer; border: 3px solid ${color === '#ef4444' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#f97316" style="width: 36px; height: 36px; border-radius: 6px; background: #f97316; cursor: pointer; border: 3px solid ${color === '#f97316' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#eab308" style="width: 36px; height: 36px; border-radius: 6px; background: #eab308; cursor: pointer; border: 3px solid ${color === '#eab308' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#22c55e" style="width: 36px; height: 36px; border-radius: 6px; background: #22c55e; cursor: pointer; border: 3px solid ${color === '#22c55e' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#06b6d4" style="width: 36px; height: 36px; border-radius: 6px; background: #06b6d4; cursor: pointer; border: 3px solid ${color === '#06b6d4' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#3b82f6" style="width: 36px; height: 36px; border-radius: 6px; background: #3b82f6; cursor: pointer; border: 3px solid ${color === '#3b82f6' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#8b5cf6" style="width: 36px; height: 36px; border-radius: 6px; background: #8b5cf6; cursor: pointer; border: 3px solid ${color === '#8b5cf6' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#ec4899" style="width: 36px; height: 36px; border-radius: 6px; background: #ec4899; cursor: pointer; border: 3px solid ${color === '#ec4899' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    <div class="edit-color-option" data-color="#6b7280" style="width: 36px; height: 36px; border-radius: 6px; background: #6b7280; cursor: pointer; border: 3px solid ${color === '#6b7280' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                </div>
+            </div>
+        </form>
+    `;
     
-    const response = await fetch(`/api/tags/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, color })
-    });
+    let editColor = color;
     
-    const result = await response.json();
-    if (result.success) {
-        location.reload();
-    } else {
-        alert(result.error);
-    }
-});
+    const buttons = [
+        { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' },
+        { text: '保存', class: 'btn btn-primary', action: '' }
+    ];
+    
+    showModal('编辑标签', content, buttons);
+    
+    // 绑定颜色选择
+    setTimeout(() => {
+        document.querySelectorAll('.edit-color-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.edit-color-option').forEach(o => {
+                    o.style.border = '3px solid transparent';
+                });
+                this.style.border = '3px solid var(--text-primary)';
+                editColor = this.dataset.color;
+            });
+        });
+    }, 100);
+    
+    // 绑定保存按钮
+    const saveBtn = document.querySelector('#modal-footer .btn-primary');
+    saveBtn.onclick = async () => {
+        const name = document.getElementById('editTagName').value;
+        
+        const response = await fetch(`/api/tags/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, color: editColor })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            closeModal();
+            showConfirm('更新成功', '标签更新成功，是否刷新页面？', () => {
+                location.reload();
+            });
+        } else {
+            closeModal();
+            showConfirm('更新失败', result.error, () => {});
+        }
+    };
+}
 
 // 删除标签
-async function deleteTag(id, name) {
-    if (!confirm(`确定要删除标签"${name}"吗？\n此操作会同时删除所有企业上的该标签。`)) {
-        return;
-    }
-    
-    const response = await fetch(`/api/tags/${id}`, {
-        method: 'DELETE'
-    });
-    
-    const result = await response.json();
-    if (result.success) {
-        location.reload();
-    } else {
-        alert(result.error);
-    }
+function deleteTag(id, name) {
+    showConfirm(
+        '删除标签',
+        `确定要删除标签"${name}"吗？<br><br><span style="color: var(--text-muted); font-size: 13px;">此操作会同时删除所有企业上的该标签。</span>`,
+        async () => {
+            const response = await fetch(`/api/tags/${id}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                showConfirm('删除成功', '标签删除成功，是否刷新页面？', () => {
+                    location.reload();
+                });
+            } else {
+                showConfirm('删除失败', result.error, () => {});
+            }
+        }
+    );
 }
-
-// 点击弹窗外部关闭
-document.getElementById('editTagModal').addEventListener('click', (e) => {
-    if (e.target.id === 'editTagModal') {
-        closeEditModal();
-    }
-});
 </script>
 {% endblock %}

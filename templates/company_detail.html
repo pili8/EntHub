@@ -346,21 +346,84 @@ async function openTagSelector() {
     
     const availableTags = allTags.filter(t => !companyTagIds.has(t.id));
     
-    if (availableTags.length === 0) {
-        alert('没有可用的标签了，请先创建新标签');
-        return;
+    let content = `
+        <div style="margin-bottom: 20px;">
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">选择要添加的标签：</div>
+    `;
+    
+    if (availableTags.length > 0) {
+        content += `<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">`;
+        availableTags.forEach(tag => {
+            content += `
+                <button onclick="addTag(${tag.id})" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: ${tag.color}15; color: ${tag.color}; border: 2px solid ${tag.color}40; border-radius: 16px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">
+                    <span style="width: 10px; height: 10px; border-radius: 3px; background: ${tag.color};"></span>
+                    ${tag.name}
+                </button>
+            `;
+        });
+        content += `</div>`;
+    } else {
+        content += `<div style="padding: 20px; text-align: center; color: var(--text-muted); background: var(--bg-secondary); border-radius: 8px; margin-bottom: 16px;">暂无可用标签</div>`;
     }
     
-    const tagName = prompt('选择要添加的标签：\n\n' + 
-        availableTags.map((t, i) => `${i + 1}. ${t.name}`).join('\n') + 
-        '\n\n请输入标签序号：');
+    content += `
+        </div>
+        <div style="border-top: 1px solid var(--border); padding-top: 20px;">
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">或创建新标签：</div>
+            <form id="createTagForm" style="display: flex; gap: 8px;">
+                <input type="text" id="newTagName" class="form-input" placeholder="标签名称" required style="flex: 1;">
+                <select id="newTagColor" class="form-select" style="width: 120px;">
+                    <option value="#ef4444">红色</option>
+                    <option value="#f97316">橙色</option>
+                    <option value="#eab308">黄色</option>
+                    <option value="#22c55e">绿色</option>
+                    <option value="#06b6d4">青色</option>
+                    <option value="#3b82f6" selected>蓝色</option>
+                    <option value="#8b5cf6">紫色</option>
+                    <option value="#ec4899">粉色</option>
+                    <option value="#6b7280">灰色</option>
+                </select>
+                <button type="submit" class="btn btn-primary">创建并添加</button>
+            </form>
+        </div>
+    `;
     
-    if (tagName) {
-        const index = parseInt(tagName) - 1;
-        if (index >= 0 && index < availableTags.length) {
-            await addTag(availableTags[index].id);
-        }
-    }
+    showModal('添加标签', content, [
+        { text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }
+    ]);
+    
+    // 绑定创建表单
+    setTimeout(() => {
+        document.getElementById('createTagForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('newTagName').value;
+            const color = document.getElementById('newTagColor').value;
+            
+            // 创建标签
+            const createResponse = await fetch('/api/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, color })
+            });
+            
+            const createResult = await createResponse.json();
+            if (createResult.success) {
+                // 获取新创建的标签ID
+                const tagsResponse = await fetch('/api/tags');
+                const tags = await tagsResponse.json();
+                const newTag = tags.find(t => t.name === name);
+                
+                if (newTag) {
+                    // 添加标签到企业
+                    await addTag(newTag.id);
+                    closeModal();
+                    showConfirm('创建成功', `标签"${name}"已创建并添加`, () => {});
+                }
+            } else {
+                showConfirm('创建失败', createResult.error, () => {});
+            }
+        });
+    }, 100);
 }
 
 // 添加标签
@@ -374,25 +437,30 @@ async function addTag(tagId) {
     const result = await response.json();
     if (result.success) {
         loadCompanyTags();
+        closeModal();
     } else {
-        alert(result.error);
+        showConfirm('添加失败', result.error, () => {});
     }
 }
 
 // 删除标签
 async function removeTag(tagId) {
-    if (!confirm('确定要删除这个标签吗？')) return;
-    
-    const response = await fetch(`/api/companies/${companyId}/tags/${tagId}`, {
-        method: 'DELETE'
-    });
-    
-    const result = await response.json();
-    if (result.success) {
-        loadCompanyTags();
-    } else {
-        alert(result.error);
-    }
+    showConfirm(
+        '删除标签',
+        '确定要删除这个标签吗？',
+        async () => {
+            const response = await fetch(`/api/companies/${companyId}/tags/${tagId}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                loadCompanyTags();
+            } else {
+                showConfirm('删除失败', result.error, () => {});
+            }
+        }
+    );
 }
 
 // 页面加载时加载标签

@@ -287,23 +287,34 @@ async function batchDelete() {
     if (selectedCompanies.size === 0) return;
     
     const count = selectedCompanies.size;
-    let message = `确定要删除选中的 ${count} 家企业吗？`;
+    let message = `确定要删除选中的 <strong>${count}</strong> 家企业吗？<br><br><span style="color: var(--text-muted); font-size: 13px;">此操作不可恢复，建议先备份数据。</span>`;
     
     if (count > 100) {
-        message += `\n\n⚠️ 警告：删除数量较大（${count}家），可能需要较长时间，请确认是否继续？`;
+        message += `<br><br><span style="color: var(--danger); font-weight: 500;">⚠️ 警告：删除数量较大（${count}家），可能需要较长时间。</span>`;
     }
     
-    if (!confirm(message)) return;
-    
-    // 二次确认
-    if (count > 50) {
-        const confirmText = prompt(`请输入"删除"以确认删除 ${count} 家企业：`);
-        if (confirmText !== '删除') {
-            alert('已取消删除');
-            return;
+    showConfirm('批量删除', message, async () => {
+        // 二次确认
+        if (count > 50) {
+            showInput(
+                '二次确认',
+                `请输入"删除"以确认删除 ${count} 家企业：`,
+                '输入"删除"',
+                async (value) => {
+                    if (value !== '删除') {
+                        showConfirm('已取消', '删除操作已取消', () => {});
+                        return;
+                    }
+                    await executeBatchDelete();
+                }
+            );
+        } else {
+            await executeBatchDelete();
         }
-    }
-    
+    });
+}
+
+async function executeBatchDelete() {
     try {
         const response = await fetch('/api/companies/batch-delete', {
             method: 'POST',
@@ -313,13 +324,14 @@ async function batchDelete() {
         
         const result = await response.json();
         if (result.success) {
-            alert(`成功删除 ${result.deleted} 家企业`);
-            location.reload();
+            showConfirm('删除成功', `成功删除 ${result.deleted} 家企业，是否刷新页面？`, () => {
+                location.reload();
+            });
         } else {
-            alert('删除失败：' + result.error);
+            showConfirm('删除失败', result.error, () => {});
         }
     } catch (error) {
-        alert('删除失败：' + error.message);
+        showConfirm('删除失败', error.message, () => {});
     }
 }
 
@@ -332,23 +344,40 @@ async function batchAddTag() {
         const tags = await tagsResponse.json();
         
         if (tags.length === 0) {
-            alert('没有可用的标签，请先创建标签');
+            showConfirm('无可用标签', '没有可用的标签，请先创建标签', () => {});
             return;
         }
         
-        const tagOptions = tags.map((t, i) => `${i + 1}. ${t.name}`).join('\n');
-        const selection = prompt(`请选择要添加的标签（输入序号）：\n\n${tagOptions}`);
+        let content = `
+            <div style="margin-bottom: 16px;">
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">为选中的 <strong>${selectedCompanies.size}</strong> 家企业添加标签：</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        `;
         
-        if (!selection) return;
+        tags.forEach(tag => {
+            content += `
+                <button onclick="executeBatchAddTag(${tag.id})" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: ${tag.color}15; color: ${tag.color}; border: 2px solid ${tag.color}40; border-radius: 16px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;">
+                    <span style="width: 10px; height: 10px; border-radius: 3px; background: ${tag.color};"></span>
+                    ${tag.name}
+                </button>
+            `;
+        });
         
-        const tagIndex = parseInt(selection) - 1;
-        if (tagIndex < 0 || tagIndex >= tags.length) {
-            alert('无效的选择');
-            return;
-        }
+        content += `
+                </div>
+            </div>
+        `;
         
-        const tagId = tags[tagIndex].id;
-        
+        showModal('批量添加标签', content, [
+            { text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }
+        ]);
+    } catch (error) {
+        showConfirm('错误', error.message, () => {});
+    }
+}
+
+async function executeBatchAddTag(tagId) {
+    try {
         const response = await fetch('/api/companies/batch-add-tag', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -360,13 +389,17 @@ async function batchAddTag() {
         
         const result = await response.json();
         if (result.success) {
-            alert(`成功为 ${result.updated} 家企业添加标签`);
-            location.reload();
+            closeModal();
+            showConfirm('添加成功', `成功为 ${result.updated} 家企业添加标签，是否刷新页面？`, () => {
+                location.reload();
+            });
         } else {
-            alert('添加标签失败：' + result.error);
+            closeModal();
+            showConfirm('添加失败', result.error, () => {});
         }
     } catch (error) {
-        alert('添加标签失败：' + error.message);
+        closeModal();
+        showConfirm('添加失败', error.message, () => {});
     }
 }
 </script>

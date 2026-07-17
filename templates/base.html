@@ -28,6 +28,10 @@
                         <i data-lucide="table" style="width:15px;height:15px"></i>
                         浏览
                     </a>
+                    <a href="{{ url_for('tags_page') }}" class="nav-link">
+                        <i data-lucide="tag" style="width:15px;height:15px"></i>
+                        标签
+                    </a>
                     <a href="{{ url_for('relation_discovery') }}" class="nav-link">
                         <i data-lucide="git-branch" style="width:15px;height:15px"></i>
                         关联
@@ -45,11 +49,7 @@
                             <i data-lucide="more-vertical" style="width:15px;height:15px"></i>
                         </a>
                         <div class="nav-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 120px; z-index: 1000; margin-top: 4px;">
-                            <a href="{{ url_for('tags_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px;">
-                                <i data-lucide="tag" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
-                                标签
-                            </a>
-                            <a href="{{ url_for('backup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+                            <a href="{{ url_for('backup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px;">
                                 <i data-lucide="database" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
                                 备份
                             </a>
@@ -209,6 +209,7 @@
         });
     }
     </script>
+    {% include "_modal.html" %}
     {% block scripts %}{% endblock %}
 </body>
 </html>
