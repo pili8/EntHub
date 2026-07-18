@@ -1381,11 +1381,11 @@ def company_detail(company_id):
     ).fetchall()
 
     # Find related records via company_phones
-    phone_norms = [r["normalized_phone"] for r in company_phones] if company_phones else [row["normalized_phone"]]
+    phone_norms = [r["normalized_phone"] for r in company_phones] if company_phones else []
     phone_placeholders = ",".join(["?"] * len(phone_norms)) if phone_norms else "''"
 
     related_phones = g.db.execute(f"""
-        SELECT DISTINCT c.id, c.name, c.phone, c.address
+        SELECT DISTINCT c.id, c.name, c.city, c.business_status
         FROM companies c
         JOIN company_phones cp ON cp.company_id = c.id
         WHERE c.id <> ? AND cp.normalized_phone IN ({phone_placeholders})
@@ -1393,52 +1393,83 @@ def company_detail(company_id):
         ORDER BY c.name LIMIT 10
     """, [company_id] + phone_norms).fetchall()
 
-    # Find related records by other fields
+    # Find related records by normalized legal person
     related_legal_person = []
-    if row["legal_person"] and row["legal_person"] != '-':
+    if row["normalized_legal_person"]:
         related_legal_person = g.db.execute("""
-            SELECT id, name, phone, address
+            SELECT id, name, city, business_status
             FROM companies
-            WHERE id <> ? AND legal_person = ? AND legal_person <> ''
-            ORDER BY name LIMIT 10
-        """, [company_id, row["legal_person"]]).fetchall()
+            WHERE normalized_legal_person = ? AND id != ?
+            ORDER BY normalized_legal_person
+            LIMIT 10
+        """, [row["normalized_legal_person"], company_id]).fetchall()
 
+    # Find related records via company_shareholders (同股东关联企业)
     related_shareholders = []
-    if row["shareholders"] and row["shareholders"] != '-':
-        related_shareholders = g.db.execute("""
-            SELECT id, name, phone, address
-            FROM companies
-            WHERE id <> ? AND shareholders = ? AND shareholders <> ''
-            ORDER BY name LIMIT 10
-        """, [company_id, row["shareholders"]]).fetchall()
+    shareholders = g.db.execute("""
+        SELECT s.name, s.normalized_name
+        FROM company_shareholders s
+        WHERE s.company_id = ?
+    """, [company_id]).fetchall()
+    if shareholders:
+        norm_names = [s["normalized_name"] for s in shareholders]
+        placeholders = ",".join(["?"] * len(norm_names))
+        related_shareholders = g.db.execute(f"""
+            SELECT DISTINCT c.id, c.name, c.city, c.business_status
+            FROM company_shareholders s2
+            JOIN companies c ON s2.company_id = c.id
+            WHERE s2.normalized_name IN ({placeholders})
+              AND s2.company_id != ?
+            ORDER BY s2.normalized_name
+            LIMIT 10
+        """, norm_names + [company_id]).fetchall()
 
+    # Find related records by normalized email
+    related_email = []
+    if row["normalized_email"]:
+        related_email = g.db.execute("""
+            SELECT id, name, city, business_status
+            FROM companies
+            WHERE normalized_email = ? AND id != ? AND normalized_email != ''
+            ORDER BY normalized_email
+            LIMIT 10
+        """, [row["normalized_email"], company_id]).fetchall()
+
+    # Find related records by industry
     related_industry = []
     if row["industry"] and row["industry"] != '-':
         related_industry = g.db.execute("""
-            SELECT id, name, phone, address
+            SELECT id, name, city, business_status
             FROM companies
-            WHERE id <> ? AND industry = ? AND industry <> ''
-            ORDER BY name LIMIT 10
-        """, [company_id, row["industry"]]).fetchall()
-
-    related_email = []
-    if row["email"] and row["email"] != '-' and '@' in row["email"]:
-        related_email = g.db.execute("""
-            SELECT id, name, phone, address
-            FROM companies
-            WHERE id <> ? AND email = ? AND email <> ''
-            ORDER BY name LIMIT 10
-        """, [company_id, row["email"]]).fetchall()
+            WHERE industry = ? AND id != ? AND industry != ''
+            ORDER BY industry
+            LIMIT 10
+        """, [row["industry"], company_id]).fetchall()
 
     # 统计关联数量：法人 / 股东 / 行业 / 邮箱
     field_counts = {}
-    for f in ("legal_person", "shareholders", "industry", "email"):
-        val = row[f] if row[f] else None
-        if val and val != '-':
+    norm_field_map = {
+        "legal_person": "normalized_legal_person",
+        "shareholders": None,  # handled separately via company_shareholders
+        "industry": "industry",
+        "email": "normalized_email",
+    }
+    for f, norm_f in norm_field_map.items():
+        if norm_f is None:
+            # shareholders count via company_shareholders table
             cnt = g.db.execute(
-                f"SELECT COUNT(*) FROM companies WHERE {f} = ?", [val]
+                "SELECT COUNT(DISTINCT company_id) FROM company_shareholders WHERE company_id = ?",
+                [company_id]
             ).fetchone()[0]
-            field_counts[f] = cnt
+            if cnt:
+                field_counts[f] = cnt
+        else:
+            val = row[norm_f] if row[norm_f] else None
+            if val and val != '-':
+                cnt = g.db.execute(
+                    f"SELECT COUNT(*) FROM companies WHERE {norm_f} = ?", [val]
+                ).fetchone()[0]
+                field_counts[f] = cnt
 
     return render_template("company_detail.html", company=row,
                            related_phones=related_phones,
