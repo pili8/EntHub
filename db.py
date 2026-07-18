@@ -176,6 +176,39 @@ def init_db():
     _migrate(conn, "companies", "normalized_legal_person", "TEXT")
     _migrate(conn, "companies", "normalized_email", "TEXT")
 
+    conn.execute("""
+        CREATE VIEW IF NOT EXISTS company_export AS
+        SELECT 
+            c.id, c.name, c.normalized_name, c.credit_code,
+            c.legal_person, c.normalized_legal_person,
+            c.email, c.normalized_email, c.other_email,
+            c.address, c.annual_report_address, c.mailing_address,
+            c.province, c.city, c.district,
+            c.registered_capital, c.paid_capital,
+            c.established_date, c.approved_date, c.business_term,
+            c.insured_count, c.enterprise_scale, c.company_type,
+            c.industry, c.business_status,
+            c.former_name, c.english_name, c.website, c.business_scope,
+            c.source_file, c.status, c.source,
+            c.created_at, c.updated_at,
+            
+            (SELECT group_concat(phone, '; ') 
+             FROM company_phones p 
+             WHERE p.company_id = c.id 
+             ORDER BY p.is_primary DESC, p.is_recommended DESC) AS phone_all,
+            
+            (SELECT group_concat(name, '; ') 
+             FROM company_shareholders s 
+             WHERE s.company_id = c.id) AS shareholder_all,
+            
+            (SELECT group_concat(t.name, '; ') 
+             FROM company_tags ct 
+             JOIN tags t ON ct.tag_id = t.id 
+             WHERE ct.company_id = c.id) AS tag_all
+        
+        FROM companies c;
+    """)
+
     conn.commit()
     conn.close()
 
