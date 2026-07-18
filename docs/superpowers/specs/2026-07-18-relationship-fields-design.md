@@ -28,6 +28,7 @@ EntHub 目前对"电话"字段采用了**双轨存储**模式：
 3. **基于真实数据特征设计**：不凭空设计字段，依据工商源文件实际数据形态
 4. **简化导入逻辑**：字段识别、拆分、合并规则清晰可复用
 5. **支持增量合并**：导入重复企业时，新值追加到关联表（去重），不丢失历史数据
+6. **全新初始化**：原数据库数据不做迁移，由用户重新导入（数据无需保留）
 
 ---
 
@@ -93,13 +94,15 @@ CREATE INDEX IF NOT EXISTS idx_norm_legal_person ON companies(normalized_legal_p
 CREATE INDEX IF NOT EXISTS idx_norm_email        ON companies(normalized_email);
 ```
 
-#### 3.2.3 废弃字段（数据迁移后移除）
+#### 3.2.3 不再创建的字段（全新初始化）
 
-`companies` 主表中的以下字段在数据迁移到 `company_phones` 后删除：
+`companies` 主表中的以下字段在**新 Schema 中不再创建**（原数据库会被全新初始化，不存在迁移问题）：
 
 - `companies.phone`
 - `companies.normalized_phone`
 - `companies.other_phone`
+
+电话数据全部存放在 `company_phones` 表中。
 
 ### 3.3 归一化规则
 
@@ -270,35 +273,30 @@ df.to_excel("export.xlsx", index=False)
 
 ---
 
-## 四、数据迁移方案
+## 四、数据库初始化（全新部署）
 
-### 4.1 迁移步骤
+**重要前提**：本方案采用全新初始化，**不需要对原数据库做任何迁移**。原数据后续由用户重新从 Excel 导入即可。
 
-1. **备份数据库**：`cp data/enthub.db data/enthub.db.backup.YYYYMMDD`
-2. **新增表和字段**：执行 schema 变更
-3. **回填 normalized 字段**：
-   ```sql
-   UPDATE companies SET normalized_legal_person = ... WHERE legal_person IS NOT NULL;
-   UPDATE companies SET normalized_email = ... WHERE email IS NOT NULL;
-   ```
-   （通过 Python 脚本调用 normalize 函数后 UPDATE）
-4. **迁移股东数据**：遍历 companies，对每行的 `shareholders` 字段调用 `sync_shareholders()`
-5. **删除废弃字段**（可选，建议保留观察期 1-2 周）：
-   ```sql
-   -- 验证 company_phones 数据完整后执行
-   ALTER TABLE companies DROP COLUMN phone;
-   ALTER TABLE companies DROP COLUMN normalized_phone;
-   ALTER TABLE companies DROP COLUMN other_phone;
-   ```
-6. **创建导出 VIEW**：执行 `CREATE VIEW company_export AS ...`
+### 4.1 初始化步骤
 
-### 4.2 迁移验证
+1. **停服并清空旧数据库**（可选）：删除 `data/enthub.db`（已确认数据无需保留）
+2. **应用新 Schema**：执行 `init_db()`，自动创建以下新内容：
+   - `company_shareholders` 表 + 索引
+   - `companies.normalized_legal_person` 列 + 索引
+   - `companies.normalized_email` 列 + 索引
+   - 不再创建 `companies.phone` / `companies.normalized_phone` / `companies.other_phone` 字段（从 Schema 移除）
+3. **创建导出 VIEW**：执行 `CREATE VIEW company_export AS ...`
+4. **从 Excel 重新导入**：使用现有导入流程，新 Schema 自动按本方案处理字段
 
-迁移后进行以下检查：
-- [ ] `SELECT COUNT(*) FROM company_phones` 与原主表电话总数一致
-- [ ] `SELECT COUNT(*) FROM company_shareholders` 与原股东总数合理（拆分后变多）
-- [ ] 详情页展示无降级回退（不再走主表 phone 字段）
-- [ ] 导出 Excel 列数和格式与原导入文件对应
+### 4.2 初始化验证
+
+全新导入完成后进行以下检查：
+- [ ] 导入 14 万行数据无错（参考工商总库 `(工商总库)ALL.xlsx`）
+- [ ] `SELECT COUNT(*) FROM company_phones` 合理（远大于企业总数，因有多电话）
+- [ ] `SELECT COUNT(*) FROM company_shareholders` 合理（多股东企业比例约 68.8%）
+- [ ] `SELECT COUNT(*) FROM companies WHERE normalized_legal_person != ''` 与 `legal_person IS NOT NULL` 数量一致
+- [ ] 详情页 6 个字段全部正确展示
+- [ ] 关联查询（同电话/同股东/同法人/同邮箱/同行业）能正常返回结果
 
 ---
 
@@ -369,19 +367,21 @@ df.to_excel("export.xlsx", index=False)
 | 3 | 单值字段冲突策略 | 新值覆盖 | 用户确认，无历史追溯需求 |
 | 4 | 邮箱是否多值 | 单值 | 用户确认，"其他邮箱"保留但不参与关联 |
 | 5 | 股东表是否扩展 | 极简结构 | 真实数据仅含姓名，无出资比例 |
-| 6 | 主表电话字段 | 迁移后删除 | 单一数据源，消除双轨 |
+| 6 | 主表电话字段 | Schema 中不再创建 | 单一数据源，消除双轨（全新初始化）|
 | 7 | 导出方案 | SQL VIEW 封装 | 对外保持"一行一企业"，导出代码简洁 |
+| 8 | 原数据库数据 | 不做迁移，重新导入 | 用户确认数据无需保留，避免迁移成本 |
 
 ---
 
 ## 七、风险与缓解
 
-### 7.1 数据迁移风险
+### 7.1 全新初始化的数据丢失风险
 
-**风险**：删除主表电话字段后，发现 `company_phones` 数据不完整
+**风险**：删除旧数据库前未确认，导致用户实际需要的数据丢失
 **缓解**：
-- 迁移后保留旧字段观察 1-2 周
-- 提供回滚脚本（从主表恢复到 `company_phones`）
+- 删除前**强制备份**到 `~/.enthub/backups/YYYYMMDD-pre-migration.db`
+- 在 `start.sh` 中加入数据库版本检测，避免误用旧版本启动
+- 首次启动新版本时打印提示："检测到旧数据库，已自动备份到 ..."
 
 ### 7.2 关联查询性能
 
