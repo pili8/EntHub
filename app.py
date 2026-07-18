@@ -162,6 +162,51 @@ def merge_phones(db, company_id, phone_str, other_phone_str,
                     existing_norms.add(norm)
 
 
+def split_shareholders(shareholders_str):
+    """Split shareholders string into list of (raw, normalized)."""
+    from utils import normalize_person_name
+    if not shareholders_str:
+        return []
+    parts = str(shareholders_str).replace("；", ";").replace(",", ";").replace("，", ";").split(";")
+    result = []
+    for p in parts:
+        raw = p.strip()
+        if raw and raw != "-":
+            norm = normalize_person_name(raw)
+            if norm:
+                result.append((raw, norm))
+    return result
+
+
+def sync_shareholders(db, company_id, shareholders_str):
+    """Full rebuild: delete all shareholders then insert (for edit/create)."""
+    db.execute("DELETE FROM company_shareholders WHERE company_id = ?", [company_id])
+    for raw, norm in split_shareholders(shareholders_str):
+        if norm:
+            db.execute(
+                "INSERT INTO company_shareholders (company_id, name, normalized_name) VALUES (?, ?, ?)",
+                [company_id, raw, norm]
+            )
+
+
+def merge_shareholders(db, company_id, shareholders_str):
+    """Merge new shareholders into existing ones (accumulate, don't replace)."""
+    from utils import normalize_person_name
+    existing = db.execute(
+        "SELECT normalized_name FROM company_shareholders WHERE company_id = ?",
+        [company_id]
+    ).fetchall()
+    existing_norms = {row["normalized_name"] for row in existing}
+
+    for raw, norm in split_shareholders(shareholders_str):
+        if norm and norm not in existing_norms:
+            db.execute(
+                "INSERT INTO company_shareholders (company_id, name, normalized_name) VALUES (?, ?, ?)",
+                [company_id, raw, norm]
+            )
+            existing_norms.add(norm)
+
+
 # --------------------------------------------------------------------------- #
 #  首页
 # --------------------------------------------------------------------------- #
