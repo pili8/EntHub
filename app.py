@@ -1861,6 +1861,8 @@ def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
                             merge_phones(db, existing_id,
                                 rec.get("phone", ""), rec.get("other_phone", ""),
                                 rec.get("_recommended_phone", ""))
+                            merge_shareholders(db, existing_id,
+                                rec.get("shareholders", ""))
                             phones_merged += 1
                             if (i + 1) % report_every == 0:
                                 send("progress", {
@@ -1875,6 +1877,8 @@ def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
                         merge_phones(db, existing_id,
                             rec.get("phone", ""), rec.get("other_phone", ""),
                             rec.get("_recommended_phone", ""))
+                        merge_shareholders(db, existing_id,
+                            rec.get("shareholders", ""))
                         phones_merged += 1
                         if (i + 1) % report_every == 0:
                             send("progress", {
@@ -1892,7 +1896,16 @@ def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
                         fields[f_name] = val
                 if fields:
                     fields["normalized_name"] = rec.get("normalized_name", "")
-                    fields["normalized_phone"] = rec.get("normalized_phone", "")
+                    # normalized 字段：法人、邮箱
+                    lp = fields.get("legal_person", "")
+                    fields["normalized_legal_person"] = normalize_person_name(lp) if lp else ""
+                    em = fields.get("email", "")
+                    fields["normalized_email"] = normalize_email(em) if em else ""
+                    # 电话/股东/其他邮箱 不写入 companies 主表
+                    phone_val = fields.pop("phone", "")
+                    other_phone_val = fields.pop("other_phone", "")
+                    shareholders_val = fields.pop("shareholders", "")
+                    other_email_val = fields.pop("other_email", "")
                     if file_date:
                         fields["updated_at"] = file_date
                     set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
@@ -1901,8 +1914,19 @@ def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
                         list(fields.values()) + [existing_id]
                     )
                     merge_phones(db, existing_id,
-                        rec.get("phone", ""), rec.get("other_phone", ""),
+                        phone_val, other_phone_val,
                         rec.get("_recommended_phone", ""))
+                    merge_shareholders(db, existing_id, shareholders_val)
+                    # 合并其他邮箱（分号去重）
+                    if other_email_val:
+                        existing_oe = db.execute(
+                            "SELECT other_email FROM companies WHERE id = ?",
+                            [existing_id]).fetchone()["other_email"] or ""
+                        merged_oe = set(p.strip() for p in existing_oe.split(";") if p.strip())
+                        merged_oe.update(p.strip() for p in other_email_val.replace(",", ";").split(";")
+                                         if p.strip() and p.strip() != "-")
+                        db.execute("UPDATE companies SET other_email = ? WHERE id = ?",
+                                   ["; ".join(sorted(merged_oe)), existing_id])
                     updated += 1
             else:
                 # INSERT
@@ -1912,7 +1936,15 @@ def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
                     if val:
                         fields[f_name] = val
                 fields["normalized_name"] = rec.get("normalized_name", "")
-                fields["normalized_phone"] = rec.get("normalized_phone", "")
+                # normalized 字段：法人、邮箱
+                lp = fields.get("legal_person", "")
+                fields["normalized_legal_person"] = normalize_person_name(lp) if lp else ""
+                em = fields.get("email", "")
+                fields["normalized_email"] = normalize_email(em) if em else ""
+                # 电话/股东字段仅存入关联表，不在 companies 表中
+                phone_val = fields.pop("phone", "")
+                other_phone_val = fields.pop("other_phone", "")
+                shareholders_val = fields.pop("shareholders", "")
                 fields["status"] = "active"
                 fields["source"] = "import"
                 if file_date:
@@ -1924,8 +1956,9 @@ def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
                     list(fields.values())
                 )
                 sync_phones(db, cursor.lastrowid,
-                    rec.get("phone", ""), rec.get("other_phone", ""),
+                    phone_val, other_phone_val,
                     rec.get("_recommended_phone", ""))
+                sync_shareholders(db, cursor.lastrowid, shareholders_val)
                 # 更新索引
                 if rec.get("credit_code"):
                     existing_by_code[rec["credit_code"]] = (cursor.lastrowid, file_date)
