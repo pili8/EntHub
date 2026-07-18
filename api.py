@@ -33,16 +33,16 @@ def companies():
         clauses = []
         params = []
 
-        # 文本搜索（名称/法人/信用代码/电话）
+        # 文本搜索（名称/法人/信用代码）
         q = request.args.get('q', '').strip()
         if q:
             like_q = f"%{q}%"
             norm_q = f"%{normalize_name(q)}%"
             clauses.append(
                 "(normalized_name LIKE ? OR legal_person LIKE ? "
-                "OR credit_code = ? OR phone = ?)"
+                "OR credit_code = ?)"
             )
-            params.extend([norm_q, like_q, q, q])
+            params.extend([norm_q, like_q, q])
 
         # 精确筛选
         for f in ('city', 'district', 'business_status', 'industry'):
@@ -92,26 +92,30 @@ def companies():
             "id": "id", "name": "normalized_name", "province": "province",
             "city": "city", "established_date": "established_date",
             "business_status": "business_status", "created_at": "created_at",
-            "phone": "phone", "legal_person": "legal_person",
+            "legal_person": "legal_person",
             "registered_capital": "registered_capital"
         }
         sort = request.args.get('sort', 'id')
         dir_param = request.args.get('dir', 'desc')
         sort_col = allowed_sorts.get(sort, "id")
         dir_sql = "ASC" if dir_param == "asc" else "DESC"
-
+        
         # 总数
         total = g.db.execute(
             f"SELECT COUNT(*) FROM companies {where}", params
         ).fetchone()[0]
         pages = max(1, math.ceil(total / per_page))
         offset = (page - 1) * per_page
-
+        
         # 查询
         rows = g.db.execute(f"""
-            SELECT id, name, phone, credit_code, legal_person, city, district,
+            SELECT id, name, credit_code, legal_person, city, district,
                    business_status, established_date, registered_capital,
-                   industry, enterprise_scale
+                   industry, enterprise_scale,
+                   (SELECT group_concat(phone, '; ')
+                    FROM company_phones
+                    WHERE company_id = companies.id
+                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
             FROM companies {where}
             ORDER BY {sort_col} {dir_sql}
             LIMIT ? OFFSET ?
@@ -161,7 +165,11 @@ def company_detail(company_id):
     if phone_norms:
         placeholders = ','.join(['?'] * len(phone_norms))
         related = g.db.execute(f"""
-            SELECT DISTINCT c.id, c.name, c.phone, c.address
+            SELECT DISTINCT c.id, c.name, c.address,
+                   (SELECT group_concat(cp2.phone, '; ')
+                    FROM company_phones cp2
+                    WHERE cp2.company_id = c.id
+                    ORDER BY cp2.is_primary DESC, cp2.is_recommended DESC) AS phone
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE c.id <> ? AND cp.normalized_phone IN ({placeholders})

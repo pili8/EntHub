@@ -480,6 +480,37 @@ tr:hover td { background: #f8fafc; }
     color: var(--accent);
 }
 
+/* Browse table - 单行紧凑 */
+.browse-table-wrap {
+    overflow-x: auto;
+}
+.browse-table {
+    table-layout: fixed;
+    width: 100%;
+}
+.browse-table th,
+.browse-table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 6px 8px;
+    vertical-align: middle;
+}
+.browse-table tbody td {
+    line-height: 1.6;
+}
+/* 列宽分配 */
+.col-check   { width: 40px;  }
+.col-id      { width: 90px;  }
+.col-name    { width: 220px; }
+.col-phone   { width: 140px; }
+.col-legal   { width: 80px;  }
+.col-city    { width: 130px; }
+.col-status  { width: 70px;  }
+.col-date    { width: 110px; }
+.col-capital { width: 120px; }
+.col-industry{ width: 160px; }
+
 /* ----------------------------------------------------------------------- */
 /*  Badges                                                                 */
 /* ----------------------------------------------------------------------- */

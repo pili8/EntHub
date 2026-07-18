@@ -124,6 +124,43 @@ curl "http://127.0.0.1:5210/api/stats/industry?min_count=5"
 
 > 详细文档见 [docs/API.md](docs/API.md)
 
+### MCP Server（AI 工具集成）
+
+让 AI 工具（Claude、Cursor 等）能用自然语言查询企业工商信息。
+
+**启动 MCP Server**：
+
+```bash
+# 安装依赖（已包含在 requirements.txt）
+pip install "mcp[cli]>=1.27,<2"
+
+# 启动服务
+python mcp_server.py
+```
+
+服务监听 `http://localhost:8000/mcp`
+
+**可用工具**：
+
+| 工具名 | 功能 |
+|--------|------|
+| `search_companies` | 搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站） |
+| `get_company_detail` | 获取企业详情（含关联企业+标签） |
+| `find_relations` | 查找关联企业（按电话/邮箱/法人/股东） |
+| `get_companies_list` | 企业列表（支持筛选/排序/分页） |
+| `get_stats` | 统计查询（法人/股东/行业） |
+
+**使用示例**（在 AI 工具中）：
+
+```
+"帮我找所有叫科技的公司"
+"查一下 ID 为 2 的企业详情"
+"找和张三有关联的企业"
+"统计出现 5 次以上的法人"
+```
+
+在 AI 工具中配置 MCP Server 地址后即可使用。
+
 ## 技术架构
 
 ### 存储方案
