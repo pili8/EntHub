@@ -39,9 +39,6 @@ def init_db():
             id                    INTEGER PRIMARY KEY AUTOINCREMENT,
             name                  TEXT NOT NULL,
             normalized_name       TEXT,
-            phone                 TEXT,
-            normalized_phone      TEXT,
-            other_phone           TEXT,
             address               TEXT,
             annual_report_address TEXT,
             credit_code           TEXT,
@@ -63,6 +60,8 @@ def init_db():
             former_name           TEXT,
             website               TEXT,
             email                 TEXT,
+            normalized_email      TEXT,
+            normalized_legal_person TEXT,
             other_email           TEXT,
             business_scope        TEXT,
             business_status       TEXT,
@@ -80,7 +79,6 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_name            ON companies(name);
         CREATE INDEX IF NOT EXISTS idx_normalized_name ON companies(normalized_name);
-        CREATE INDEX IF NOT EXISTS idx_phone           ON companies(normalized_phone);
         CREATE INDEX IF NOT EXISTS idx_credit_code     ON companies(credit_code);
         CREATE INDEX IF NOT EXISTS idx_status          ON companies(status);
         CREATE INDEX IF NOT EXISTS idx_province        ON companies(province);
@@ -90,6 +88,8 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_industry        ON companies(industry);
         CREATE INDEX IF NOT EXISTS idx_enterprise_scale ON companies(enterprise_scale);
         CREATE INDEX IF NOT EXISTS idx_email           ON companies(email);
+        CREATE INDEX IF NOT EXISTS idx_norm_email        ON companies(normalized_email);
+        CREATE INDEX IF NOT EXISTS idx_norm_legal_person ON companies(normalized_legal_person);
         CREATE INDEX IF NOT EXISTS idx_registered_capital ON companies(registered_capital);
         CREATE INDEX IF NOT EXISTS idx_insured_count   ON companies(insured_count);
 
@@ -123,6 +123,17 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_cp_norm_phone ON company_phones(normalized_phone);
         CREATE INDEX IF NOT EXISTS idx_cp_company_id ON company_phones(company_id);
+
+        CREATE TABLE IF NOT EXISTS company_shareholders (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id        INTEGER NOT NULL,
+            name              TEXT NOT NULL,
+            normalized_name   TEXT NOT NULL,
+            FOREIGN KEY (company_id) REFERENCES companies(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_csh_norm_name   ON company_shareholders(normalized_name);
+        CREATE INDEX IF NOT EXISTS idx_csh_company_id  ON company_shareholders(company_id);
 
         CREATE TABLE IF NOT EXISTS recent_searches (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,6 +173,8 @@ def init_db():
     _migrate(conn, "companies", "source_file", "TEXT")
     _migrate(conn, "company_phones", "is_recommended", "INTEGER DEFAULT 0")
     _migrate(conn, "import_preview", "will_update", "INTEGER DEFAULT 0")
+    _migrate(conn, "companies", "normalized_legal_person", "TEXT")
+    _migrate(conn, "companies", "normalized_email", "TEXT")
 
     conn.commit()
     conn.close()
