@@ -162,13 +162,6 @@
         </div>
         {% endfor %}
       </div>
-    {% elif company.phone %}
-      <div class="phone-row">
-        <a href="{{ url_for('search', q=company.phone) }}" class="phone-number">{{ company.phone }}</a>
-        <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.phone }}', this)" title="复制">
-          <i data-lucide="copy" aria-hidden="true"></i>
-        </button>
-      </div>
     {% else %}
       <div class="muted">未登记电话</div>
     {% endif %}
@@ -202,6 +195,18 @@
       </div>
     </div>
   </section>
+
+  <!-- ─────────── 股东信息 ─────────── -->
+  {% if shareholders %}
+  <section class="detail-section">
+    <h2 class="detail-section-title">💼 股东信息（{{ shareholders|length }}）</h2>
+    <div class="shareholder-tags">
+      {% for s in shareholders %}
+      <a href="{{ url_for('search', q=s.name) }}" class="shareholder-tag">{{ s.name }}</a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
   <!-- ─────────── 地址信息 ─────────── -->
   <section class="detail-section">
@@ -281,7 +286,7 @@
           {% for row in items %}
           <a href="{{ url_for('company_detail', company_id=row.id) }}" class="rel-item">
             <span class="rel-name">{{ row.name }}</span>
-            <span class="rel-phone">{{ row.phone or '—' }}</span>
+            <span class="rel-meta">{{ row.city or '—' }} · {{ row.business_status or '—' }}</span>
           </a>
           {% endfor %}
         </div>

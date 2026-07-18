@@ -1511,7 +1511,9 @@ def company_detail(company_id):
                            related_shareholders=related_shareholders,
                            related_industry=related_industry,
                            related_email=related_email,
-                           company_phones=company_phones, field_counts=field_counts)
+                           company_phones=company_phones,
+                           shareholders=shareholders,
+                           field_counts=field_counts)
 
 
 @app.route("/company/<int:company_id>/edit", methods=["GET", "POST"])
