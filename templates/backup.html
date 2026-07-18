@@ -45,6 +45,74 @@
         </div>
     </div>
 
+    <!-- 数据库维护 -->
+    <div class="card maintenance-card">
+        <div class="card-header maintenance-header">
+            <h2 class="card-title">🗜️ 数据库压缩</h2>
+            {% if fragmentation >= 30 %}
+                <span class="badge badge-danger">碎片率 {{ fragmentation }}% · 建议立即压缩</span>
+            {% elif fragmentation >= 10 %}
+                <span class="badge badge-warning">碎片率 {{ fragmentation }}% · 可以压缩</span>
+            {% else %}
+                <span class="badge badge-success">碎片率 {{ fragmentation }}% · 状态良好</span>
+            {% endif %}
+        </div>
+        <div class="maintenance-body">
+            <div class="maintenance-info">
+                <p><strong>当前大小：</strong>{{ db_size_mb }} MB</p>
+                <p><strong>预计可释放：</strong>
+                    {% if reclaimable_mb > 0 %}
+                        {{ reclaimable_mb }} MB
+                    {% else %}
+                        <span style="color: var(--text-muted);">无明显碎片</span>
+                    {% endif %}
+                </p>
+                <p style="color: var(--text-muted); font-size: 13px; margin-top: 8px;">
+                    压缩会清理历次导入/删除遗留的空闲页。压缩前会自动创建备份，操作完成后可通过备份列表回滚。
+                </p>
+            </div>
+            <form method="post" action="{{ url_for('backup_vacuum') }}" id="vacuum-form">
+                <button type="submit" id="vacuum-btn"
+                    {% if fragmentation < 5 %}
+                        class="btn btn-secondary" disabled
+                        title="碎片率低于 5%，无需压缩"
+                    {% else %}
+                        class="btn {% if fragmentation >= 30 %}btn-danger{% elif fragmentation >= 10 %}btn-primary{% else %}btn-primary{% endif %}"
+                    {% endif %}>
+                    <i data-lucide="archive" style="width:16px;height:16px"></i>
+                    {% if fragmentation < 5 %}暂无需压缩{% else %}立即压缩{% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const form = document.getElementById('vacuum-form');
+        const btn = document.getElementById('vacuum-btn');
+        if (!form || !btn || btn.disabled) return;
+
+        form.addEventListener('submit', function(e) {
+            // 如果已经确认过，直接提交
+            if (form.dataset.confirmed === 'true') {
+                return true;
+            }
+
+            // 第一次点击：阻止默认，弹出确认框
+            e.preventDefault();
+            showConfirm('压缩数据库', '确定执行压缩？此操作会先创建备份，预计需要几十秒。', function() {
+                // 确认后：禁用按钮，显示 loading
+                btn.disabled = true;
+                btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> 压缩中...';
+
+                // 标记已确认，提交表单
+                form.dataset.confirmed = 'true';
+                form.submit();
+            });
+        });
+    })();
+    </script>
+
     <!-- 备份信息 -->
     <div class="backup-info">
         <p><strong>备份目录：</strong><code>{{ backup_dir }}</code></p>
@@ -156,6 +224,47 @@
     padding: 2px 6px;
     border-radius: 4px;
     font-size: 13px;
+}
+.maintenance-card {
+    margin-top: 24px;
+}
+.maintenance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px;
+    line-height: 1.5;
+}
+.badge-success { background: var(--success-light, #d4edda); color: var(--success, #28a745); }
+.badge-warning { background: var(--warning-light, #fff3cd); color: var(--warning, #d39e00); }
+.badge-danger  { background: var(--danger-light, #f8d7da);  color: var(--danger, #dc3545); }
+.maintenance-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 8px;
+}
+.maintenance-info {
+    flex: 1;
+    min-width: 240px;
+}
+.maintenance-info p {
+    margin: 6px 0;
+    font-size: 14px;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 .card-header {
     margin-bottom: 16px;

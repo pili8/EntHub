@@ -128,6 +128,132 @@ def cleanup_old_backups(keep_count: int = 7):
     return {"deleted": deleted, "kept": keep_count}
 
 
+def get_db_stats(db_path: Path) -> dict:
+    """获取数据库统计信息：大小、总页数、空闲页数、碎片率、可回收空间。"""
+    if not db_path.exists():
+        return {
+            "size": 0,
+            "page_count": 0,
+            "freelist_count": 0,
+            "page_size": 0,
+            "fragmentation": 0.0,
+            "reclaimable_bytes": 0,
+        }
+
+    size = db_path.stat().st_size
+    conn = sqlite3.connect(str(db_path))
+    page_count = conn.execute("PRAGMA page_count").fetchone()[0]
+    freelist_count = conn.execute("PRAGMA freelist_count").fetchone()[0]
+    page_size = conn.execute("PRAGMA page_size").fetchone()[0]
+    conn.close()
+
+    fragmentation = round(freelist_count * 100.0 / page_count, 2) if page_count else 0.0
+    reclaimable_bytes = freelist_count * page_size
+
+    return {
+        "size": size,
+        "page_count": page_count,
+        "freelist_count": freelist_count,
+        "page_size": page_size,
+        "fragmentation": fragmentation,
+        "reclaimable_bytes": reclaimable_bytes,
+    }
+
+
+def vacuum_database(db_path: Path) -> dict:
+    """压缩数据库，回收空闲页空间。
+
+    步骤：
+      1. 自动创建一份备份（保险，失败可恢复）
+      2. VACUUM INTO 到临时文件（不锁原库，不影响读）
+      3. 校验临时文件记录数与原库一致
+      4. os.replace 原子替换原文件 + 清理旧的 -wal/-shm
+    """
+    import os
+
+    if not db_path.exists():
+        return {"success": False, "error": "数据库文件不存在"}
+
+    before_size = db_path.stat().st_size
+
+    # 步骤 1: 创建备份
+    backup_result = create_backup(db_path, reason="压缩前自动备份")
+    if not backup_result["success"]:
+        return {
+            "success": False,
+            "error": f"压缩前备份失败：{backup_result.get('error')}",
+        }
+
+    # 步骤 2: VACUUM INTO 到临时文件
+    temp_path = db_path.parent / f"{db_path.stem}_vacuuming.db"
+    if temp_path.exists():
+        temp_path.unlink()
+
+    try:
+        # 用独立连接执行 VACUUM INTO（不影响 Flask 的 g.db）
+        src_conn = sqlite3.connect(str(db_path), timeout=30.0)
+        src_conn.execute(f"VACUUM INTO '{temp_path}'")
+        src_conn.close()
+
+        # 步骤 3: 校验临时文件记录数与原库一致
+        orig_conn = sqlite3.connect(str(db_path))
+        orig_count = orig_conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        orig_conn.close()
+
+        verify_conn = sqlite3.connect(str(temp_path))
+        new_count = verify_conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        integrity = verify_conn.execute("PRAGMA integrity_check").fetchone()[0]
+        verify_conn.close()
+
+        if orig_count != new_count:
+            temp_path.unlink()
+            return {
+                "success": False,
+                "error": f"校验失败：记录数不一致（原库 {orig_count} / 新库 {new_count}）",
+            }
+        if integrity != "ok":
+            temp_path.unlink()
+            return {
+                "success": False,
+                "error": f"完整性检查未通过：{integrity}",
+            }
+
+        # 步骤 4: 原子替换原文件 + 清理 WAL/SHM
+        wal_path = db_path.parent / f"{db_path.name}-wal"
+        shm_path = db_path.parent / f"{db_path.name}-shm"
+
+        os.replace(str(temp_path), str(db_path))
+
+        for p in [wal_path, shm_path]:
+            if p.exists():
+                try:
+                    p.unlink()
+                except Exception:
+                    pass
+
+        after_size = db_path.stat().st_size
+        freed = before_size - after_size
+
+        # 走 7 份保留策略，避免备份无限堆积
+        cleanup_old_backups(keep_count=7)
+
+        return {
+            "success": True,
+            "before_size": before_size,
+            "after_size": after_size,
+            "freed": freed,
+            "backup_filename": backup_result["filename"],
+        }
+    except Exception as e:
+        # 清理临时文件
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+        return {"success": False, "error": str(e)}
+
+
 def check_daily_backup(db_path: Path) -> dict:
     """检查是否需要每日备份（距离上次超过24小时）"""
     backups = list_backups()

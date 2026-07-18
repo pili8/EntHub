@@ -70,12 +70,59 @@ cd ~/AI/EntHub && ./start.sh
 
 ### JSON API
 
-为将来 MCP / AI 集成预留：
+完整的 REST API 接口，供其他应用、AI 工具、MCP Server 调用。
 
+**统一响应格式**：
+
+```json
+{
+  "code": 0,        // 0=成功，1001=参数错误，1002=资源不存在，2001=服务器错误
+  "message": "ok",  // 中文提示信息
+  "data": { ... }   // 业务数据
+}
 ```
-GET /api/search?q=关键词&type=company|phone&limit=20
-GET /api/phone_stats?limit=20
+
+**API 列表**：
+
+| 方法 | 路由 | 说明 |
+|------|------|------|
+| GET | `/api/companies` | 企业列表（支持筛选/排序/分页/搜索） |
+| GET | `/api/companies/<id>` | 企业详情（含关联+标签） |
+| GET | `/api/search?q=关键词` | 统一搜索（自动识别类型） |
+| GET | `/api/relations?type=xxx&value=yyy` | 关联查询（电话/邮箱/法人/股东） |
+| GET | `/api/stats/legal_person` | 法人统计 |
+| GET | `/api/stats/shareholder` | 股东统计 |
+| GET | `/api/stats/industry` | 行业统计 |
+| GET | `/api/phone_stats` | 电话重复统计 |
+| GET | `/api/tags` | 标签列表 |
+| POST | `/api/tags` | 创建标签 |
+| PUT | `/api/tags/<id>` | 修改标签 |
+| DELETE | `/api/tags/<id>` | 删除标签 |
+| POST | `/api/companies/<id>/tags` | 企业添加标签 |
+| DELETE | `/api/companies/<id>/tags/<tag_id>` | 企业移除标签 |
+| POST | `/api/companies/batch-delete` | 批量删除企业 |
+| POST | `/api/companies/batch-add-tag` | 批量添加标签 |
+
+**使用示例**：
+
+```bash
+# 企业列表（筛选+分页）
+curl "http://127.0.0.1:5210/api/companies?city=杭州市&per_page=10&page=2"
+
+# 企业详情
+curl "http://127.0.0.1:5210/api/companies/2"
+
+# 搜索
+curl "http://127.0.0.1:5210/api/search?q=科技"
+
+# 关联查询
+curl "http://127.0.0.1:5210/api/relations?type=legal_person&value=张三"
+
+# 行业统计
+curl "http://127.0.0.1:5210/api/stats/industry?min_count=5"
 ```
+
+> 详细文档见 [docs/API.md](docs/API.md)
 
 ## 技术架构
 

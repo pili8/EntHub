@@ -9,3 +9,8 @@ venv/
 
 # Data
 data/
+
+# Backup files
+*.bak
+*.bak[0-9]
+.restart_trigger

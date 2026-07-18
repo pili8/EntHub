@@ -26,6 +26,10 @@ app = Flask(__name__)
 app.secret_key = "enthub-dev-key"
 PER_PAGE = 25
 
+# 注册 API 蓝图
+from api import api_bp
+app.register_blueprint(api_bp)
+
 # 导入任务跟踪（SSE 异步导入）
 _import_tasks = {}  # batch_id -> {queue, stop_event, status}
 
@@ -1958,72 +1962,82 @@ def api_search():
     limit = min(50, request.args.get("limit", 20, type=int))
 
     if not q:
-        return jsonify({"results": []})
+        return jsonify({"code": 0, "message": "ok", "data": {"query": "", "type": "text", "count": 0, "results": []}})
 
     query_type = _detect_query_type(q)
 
     if query_type == "phone":
         norm_q = normalize_phone(q)
         rows = g.db.execute(
-            """SELECT c.id, c.name, c.phone, c.address, c.credit_code, '电话' AS matched_field
+            """SELECT c.id, c.name, c.phone, c.address, c.credit_code,
+                      c.legal_person, c.city, '电话' AS matched_field
                FROM company_phones cp
                JOIN companies c ON cp.company_id = c.id
                WHERE cp.normalized_phone = ?
                ORDER BY c.name LIMIT ?""",
             [norm_q, limit]
         ).fetchall()
-        return jsonify({
+        return jsonify({"code": 0, "message": "ok", "data": {
             "query": q, "type": "phone",
             "count": len(rows), "results": [dict(r) for r in rows]
-        })
+        }})
     elif query_type == "credit_code":
         norm_q = normalize_credit_code(q)
         rows = g.db.execute(
-            """SELECT id, name, phone, address, credit_code, '信用代码' AS matched_field
+            """SELECT id, name, phone, address, credit_code,
+                      legal_person, city, '信用代码' AS matched_field
                FROM companies WHERE credit_code = ?
                LIMIT ?""",
             [norm_q, limit]
         ).fetchall()
-        return jsonify({
+        return jsonify({"code": 0, "message": "ok", "data": {
             "query": q, "type": "credit_code",
             "count": len(rows), "results": [dict(r) for r in rows]
-        })
+        }})
     else:
         norm_q_name = normalize_name(q)
         like_q = "%" + q + "%"
         like_name = "%" + norm_q_name + "%"
         rows = g.db.execute(
-            """SELECT id, name, phone, address, credit_code, matched_field
+            """SELECT id, name, phone, address, credit_code,
+                      legal_person, city, matched_field
                FROM (
                    SELECT id, name, phone, address, credit_code,
+                          legal_person, city,
                           '名称' AS matched_field, 1 AS priority
                    FROM companies WHERE normalized_name LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code, '曾用名', 2
+                   SELECT id, name, phone, address, credit_code,
+                          legal_person, city, '曾用名', 2
                    FROM companies WHERE former_name LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code, '地址', 3
+                   SELECT id, name, phone, address, credit_code,
+                          legal_person, city, '地址', 3
                    FROM companies WHERE address LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code, '法人', 4
+                   SELECT id, name, phone, address, credit_code,
+                          legal_person, city, '法人', 4
                    FROM companies WHERE legal_person LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code, '股东', 5
+                   SELECT id, name, phone, address, credit_code,
+                          legal_person, city, '股东', 5
                    FROM companies WHERE shareholders LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code, '邮箱', 6
+                   SELECT id, name, phone, address, credit_code,
+                          legal_person, city, '邮箱', 6
                    FROM companies WHERE email LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code, '网站', 7
+                   SELECT id, name, phone, address, credit_code,
+                          legal_person, city, '网站', 7
                    FROM companies WHERE website LIKE ?
                )
                GROUP BY id ORDER BY priority, name LIMIT ?""",
             [like_name, like_q, like_q, like_q, like_q, like_q, like_q, limit]
         ).fetchall()
-        return jsonify({
+        return jsonify({"code": 0, "message": "ok", "data": {
             "query": q, "type": "text",
             "count": len(rows), "results": [dict(r) for r in rows]
-        })
+        }})
 
 
 @app.route("/api/phone_stats")
@@ -2043,7 +2057,8 @@ def api_phone_stats():
         ORDER BY cnt DESC
         LIMIT ?
     """, [limit]).fetchall()
-    return jsonify({"results": [dict(r) for r in rows]})
+    return jsonify({"code": 0, "message": "ok",
+                    "data": {"results": [dict(r) for r in rows]}})
 
 
 # --------------------------------------------------------------------------- #
@@ -2063,6 +2078,11 @@ def backup_page():
     db_size = db_path.stat().st_size if db_path.exists() else 0
     db_size_mb = round(db_size / 1024 / 1024, 2)
     
+    # 碎片率统计
+    db_stats = backup.get_db_stats(db_path)
+    fragmentation = db_stats["fragmentation"]
+    reclaimable_mb = round(db_stats["reclaimable_bytes"] / 1024 / 1024, 2)
+    
     # 数据统计
     total_records = g.db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
     total_phones = g.db.execute("SELECT COUNT(*) FROM company_phones").fetchone()[0]
@@ -2078,7 +2098,9 @@ def backup_page():
                          db_size_mb=db_size_mb,
                          total_records=total_records,
                          total_phones=total_phones,
-                         last_backup=last_backup)
+                         last_backup=last_backup,
+                         fragmentation=fragmentation,
+                         reclaimable_mb=reclaimable_mb)
 
 
 @app.route("/backup/create", methods=["POST"])
@@ -2112,6 +2134,24 @@ def backup_delete(filename):
         flash(f"已删除备份：{filename}", "success")
     else:
         flash(f"删除失败：{result.get('error', '未知错误')}", "error")
+    return redirect(url_for("backup_page"))
+
+
+@app.route("/backup/vacuum", methods=["POST"])
+def backup_vacuum():
+    """压缩数据库，回收空闲页空间。"""
+    result = backup.vacuum_database(DB_PATH)
+    if result["success"]:
+        before_mb = round(result["before_size"] / 1024 / 1024, 2)
+        after_mb = round(result["after_size"] / 1024 / 1024, 2)
+        freed_mb = round(result["freed"] / 1024 / 1024, 2)
+        flash(
+            f"压缩成功：{before_mb} MB → {after_mb} MB，释放 {freed_mb} MB"
+            f"（已自动创建备份 {result['backup_filename']}）",
+            "success"
+        )
+    else:
+        flash(f"压缩失败：{result.get('error', '未知错误')}", "error")
     return redirect(url_for("backup_page"))
 
 
@@ -2153,21 +2193,22 @@ def create_tag():
     color = request.json.get("color", "#3b82f6")
     
     if not name:
-        return jsonify({"error": "标签名称不能为空"}), 400
+        return jsonify({"code": 1001, "message": "标签名称不能为空", "data": None}), 400
     
     try:
         g.db.execute("INSERT INTO tags (name, color) VALUES (?, ?)", (name, color))
         g.db.commit()
-        return jsonify({"success": True, "message": "标签创建成功"})
+        return jsonify({"code": 0, "message": "标签创建成功", "data": None})
     except sqlite3.IntegrityError:
-        return jsonify({"error": "标签名称已存在"}), 400
+        return jsonify({"code": 1001, "message": "标签名称已存在", "data": None}), 400
 
 
 @app.route("/api/tags", methods=["GET"])
 def get_all_tags():
     """获取所有标签"""
     tags = g.db.execute("SELECT * FROM tags ORDER BY name").fetchall()
-    return jsonify([dict(tag) for tag in tags])
+    return jsonify({"code": 0, "message": "ok",
+                    "data": {"results": [dict(tag) for tag in tags]}})
 
 
 @app.route("/api/tags/<int:tag_id>", methods=["PUT"])
@@ -2177,14 +2218,14 @@ def update_tag(tag_id):
     color = request.json.get("color", "#3b82f6")
     
     if not name:
-        return jsonify({"error": "标签名称不能为空"}), 400
+        return jsonify({"code": 1001, "message": "标签名称不能为空", "data": None}), 400
     
     try:
         g.db.execute("UPDATE tags SET name=?, color=? WHERE id=?", (name, color, tag_id))
         g.db.commit()
-        return jsonify({"success": True, "message": "标签更新成功"})
+        return jsonify({"code": 0, "message": "标签更新成功", "data": None})
     except sqlite3.IntegrityError:
-        return jsonify({"error": "标签名称已存在"}), 400
+        return jsonify({"code": 1001, "message": "标签名称已存在", "data": None}), 400
 
 
 @app.route("/api/tags/<int:tag_id>", methods=["DELETE"])
@@ -2192,7 +2233,7 @@ def delete_tag(tag_id):
     """删除标签"""
     g.db.execute("DELETE FROM tags WHERE id=?", (tag_id,))
     g.db.commit()
-    return jsonify({"success": True, "message": "标签删除成功"})
+    return jsonify({"code": 0, "message": "标签删除成功", "data": None})
 
 
 @app.route("/api/companies/<int:company_id>/tags", methods=["GET"])
@@ -2205,7 +2246,8 @@ def get_company_tags(company_id):
         WHERE ct.company_id = ?
         ORDER BY t.name
     """, (company_id,)).fetchall()
-    return jsonify([dict(tag) for tag in tags])
+    return jsonify({"code": 0, "message": "ok",
+                    "data": {"results": [dict(tag) for tag in tags]}})
 
 
 @app.route("/api/companies/<int:company_id>/tags", methods=["POST"])
@@ -2213,15 +2255,15 @@ def add_company_tag(company_id):
     """为企业添加标签"""
     tag_id = request.json.get("tag_id")
     if not tag_id:
-        return jsonify({"error": "标签ID不能为空"}), 400
+        return jsonify({"code": 1001, "message": "标签ID不能为空", "data": None}), 400
     
     try:
         g.db.execute("INSERT INTO company_tags (company_id, tag_id) VALUES (?, ?)", 
                     (company_id, tag_id))
         g.db.commit()
-        return jsonify({"success": True, "message": "标签添加成功"})
+        return jsonify({"code": 0, "message": "标签添加成功", "data": None})
     except sqlite3.IntegrityError:
-        return jsonify({"error": "标签已存在"}), 400
+        return jsonify({"code": 1001, "message": "标签已存在", "data": None}), 400
 
 
 @app.route("/api/companies/<int:company_id>/tags/<int:tag_id>", methods=["DELETE"])
@@ -2230,7 +2272,7 @@ def remove_company_tag(company_id, tag_id):
     g.db.execute("DELETE FROM company_tags WHERE company_id=? AND tag_id=?", 
                 (company_id, tag_id))
     g.db.commit()
-    return jsonify({"success": True, "message": "标签删除成功"})
+    return jsonify({"code": 0, "message": "标签删除成功", "data": None})
 
 
 @app.route("/api/companies/batch-delete", methods=["POST"])
@@ -2238,11 +2280,11 @@ def batch_delete_companies():
     """批量删除企业"""
     ids = request.json.get("ids", [])
     if not ids:
-        return jsonify({"error": "未选择企业"}), 400
+        return jsonify({"code": 1001, "message": "未选择企业", "data": None}), 400
     
     # 限制一次最多删除1000家，防止性能问题
     if len(ids) > 1000:
-        return jsonify({"error": "一次最多删除1000家企业"}), 400
+        return jsonify({"code": 1001, "message": "一次最多删除1000家企业", "data": None}), 400
     
     try:
         # 删除企业标签关联
@@ -2254,12 +2296,12 @@ def batch_delete_companies():
         g.db.commit()
         
         return jsonify({
-            "success": True, 
+            "code": 0,
             "message": "批量删除成功",
-            "deleted": len(ids)
+            "data": {"deleted": len(ids)}
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"code": 2001, "message": str(e), "data": None}), 500
 
 
 @app.route("/api/companies/batch-add-tag", methods=["POST"])
@@ -2269,13 +2311,13 @@ def batch_add_tag():
     tag_id = request.json.get("tag_id")
     
     if not ids:
-        return jsonify({"error": "未选择企业"}), 400
+        return jsonify({"code": 1001, "message": "未选择企业", "data": None}), 400
     if not tag_id:
-        return jsonify({"error": "未选择标签"}), 400
+        return jsonify({"code": 1001, "message": "未选择标签", "data": None}), 400
     
     # 限制一次最多操作1000家
     if len(ids) > 1000:
-        return jsonify({"error": "一次最多操作1000家企业"}), 400
+        return jsonify({"code": 1001, "message": "一次最多操作1000家企业", "data": None}), 400
     
     try:
         added = 0
@@ -2291,12 +2333,12 @@ def batch_add_tag():
         g.db.commit()
         
         return jsonify({
-            "success": True,
+            "code": 0,
             "message": "批量添加标签成功",
-            "updated": added
+            "data": {"updated": added}
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"code": 2001, "message": str(e), "data": None}), 500
 
 
 if __name__ == "__main__":
