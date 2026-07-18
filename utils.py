@@ -44,6 +44,25 @@ def normalize_phone(phone):
     return digits
 
 
+def normalize_person_name(name):
+    """Normalize a person name: trim, full-width to half-width."""
+    import unicodedata
+    if not name:
+        return ""
+    s = str(name).strip()
+    # 全角转半角（NFKC 同时规范化 Unicode 兼容字符）
+    s = unicodedata.normalize('NFKC', s)
+    s = s.replace("\u3000", " ").strip()  # 全角空格处理
+    return s
+
+
+def normalize_email(email):
+    """Normalize email: lowercase and strip."""
+    if not email:
+        return ""
+    return str(email).strip().lower()
+
+
 def normalize_credit_code(code):
     """Normalize credit code: uppercase, strip whitespace."""
     if not code:
