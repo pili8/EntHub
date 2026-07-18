@@ -63,6 +63,7 @@ class EntHubMenuBar(rumps.App):
             rumps.MenuItem("打开控制台", callback=self.on_open_console),
             rumps.MenuItem("数据管理", callback=self.on_open_data),
             rumps.MenuItem("电话统计", callback=self.on_open_stats),
+            rumps.MenuItem("股东统计", callback=self.on_open_stats_shareholder),
             None,
             rumps.MenuItem("在 Finder 中查看数据", callback=self.on_open_data_dir),
             rumps.MenuItem("打开日志", callback=self.on_open_log),
@@ -74,6 +75,7 @@ class EntHubMenuBar(rumps.App):
     def on_open_console(self, _):  _open("/")
     def on_open_data(self, _):     _open("/data")
     def on_open_stats(self, _):    _open("/stats/phone")
+    def on_open_stats_shareholder(self, _): _open("/stats/shareholder")
 
     def on_open_data_dir(self, _):
         data_dir = Path(__file__).parent / "data"

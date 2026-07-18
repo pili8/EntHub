@@ -198,10 +198,12 @@ def vacuum_database(db_path: Path) -> dict:
         # 步骤 3: 校验临时文件记录数与原库一致
         orig_conn = sqlite3.connect(str(db_path))
         orig_count = orig_conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        total_shareholders = orig_conn.execute("SELECT COUNT(*) FROM company_shareholders").fetchone()[0]
         orig_conn.close()
 
         verify_conn = sqlite3.connect(str(temp_path))
         new_count = verify_conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        new_shareholders = verify_conn.execute("SELECT COUNT(*) FROM company_shareholders").fetchone()[0]
         integrity = verify_conn.execute("PRAGMA integrity_check").fetchone()[0]
         verify_conn.close()
 
@@ -210,6 +212,12 @@ def vacuum_database(db_path: Path) -> dict:
             return {
                 "success": False,
                 "error": f"校验失败：记录数不一致（原库 {orig_count} / 新库 {new_count}）",
+            }
+        if total_shareholders != new_shareholders:
+            temp_path.unlink()
+            return {
+                "success": False,
+                "error": f"校验失败：股东数不一致（原库 {total_shareholders} / 新库 {new_shareholders}）",
             }
         if integrity != "ok":
             temp_path.unlink()
