@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}股东关联统计 · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">股东关联企业统计</div>
+    <div class="page-subtitle">投资多家企业的股东，按关联企业数排序</div>
+</div>
+
+<form action="{{ url_for('stats_shareholder') }}" method="get" style="margin-bottom: 16px">
+    <div class="search-mode">
+        <label>最少关联企业数：
+            <select name="min" class="form-select" style="width:auto; display:inline-block" onchange="this.form.submit()">
+                <option value="2" {{ 'selected' if min_count == 2 }}>2+</option>
+                <option value="3" {{ 'selected' if min_count == 3 }}>3+</option>
+                <option value="5" {{ 'selected' if min_count == 5 }}>5+</option>
+                <option value="10" {{ 'selected' if min_count == 10 }}>10+</option>
+            </select>
+        </label>
+    </div>
+</form>
+
+{% if rows %}
+<div class="table-wrap">
+    <table class="stats-table">
+        <thead>
+            <tr>
+                <th>股东姓名</th>
+                <th>关联企业数</th>
+                <th>关联企业</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="col-name">
+                    <a href="{{ url_for('search', q=row.display_name) }}">
+                        {{ row.display_name }}
+                    </a>
+                </td>
+                <td>
+                    <span class="dup-count {% if row.cnt >= 5 %}dup-high{% elif row.cnt >= 3 %}dup-mid{% endif %}">
+                        {{ row.cnt }}
+                    </span>
+                </td>
+                <td>{{ row.company_names|truncate(80) }}</td>
+                <td>
+                    <a href="{{ url_for('search', q=row.display_name) }}" class="btn btn-secondary btn-sm">
+                        <i data-lucide="search" style="width:13px;height:13px"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="pagination">
+    <div class="pagination-info">共 {{ total }} 个股东投资了 {{ min_count }} 家以上企业，第 {{ page }} / {{ pages }} 页</div>
+    <div class="pagination-links">
+        {% if page > 1 %}
+        <a href="{{ url_for('stats_shareholder', min=min_count, page=page-1) }}">
+            <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
+        </a>
+        {% endif %}
+        <span class="current">{{ page }}</span>
+        {% if page < pages %}
+        <a href="{{ url_for('stats_shareholder', min=min_count, page=page+1) }}">
+            <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    没有投资 {{ min_count }} 家以上企业的股东。
+</div>
+{% endif %}
+{% endblock %}
