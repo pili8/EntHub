@@ -114,16 +114,17 @@ CREATE INDEX IF NOT EXISTS idx_norm_email        ON companies(normalized_email);
 `normalize_name()` 函数定义（utils.py 新增）：
 
 ```python
+import unicodedata
+
 def normalize_name(name):
     """Normalize a person/company name: trim, full-width to half-width."""
     if not name:
         return ""
     s = str(name).strip()
-    # 全角转半角
-    s = s.translate(str.maketrans('　', ' ',
-                                    '０１２３４５６７８９'
-                                    'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ'
-                                    'ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｺ'))
+    # 全角转半角（NFKC 同时会规范化各种 Unicode 兼容字符）
+    s = unicodedata.normalize('NFKC', s)
+    # 全角空格额外处理（NFKC 已转，这里再保险一下）
+    s = s.replace("　", " ").strip()
     return s
 ```
 
