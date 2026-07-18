@@ -288,7 +288,8 @@ def cleanup_page():
 
     # 新增：数据质量指标
     stats["with_phone"] = g.db.execute(
-        "SELECT COUNT(*) FROM companies WHERE phone IS NOT NULL AND phone <> '' AND phone <> '-'"
+        """SELECT COUNT(DISTINCT company_id) FROM company_phones
+           WHERE phone IS NOT NULL AND phone <> '' AND phone <> '-'"""
     ).fetchone()[0]
     stats["with_legal_person"] = g.db.execute(
         "SELECT COUNT(*) FROM companies WHERE legal_person IS NOT NULL AND legal_person <> '' AND legal_person <> '-'"
@@ -435,25 +436,26 @@ def _dedup_by_field(db, field):
         # 读取这些记录
         placeholders = ",".join(["?"] * len(ids))
         rows = db.execute(f"""
-            SELECT id, name, phone, other_phone, credit_code, legal_person,
-                   address, province, city, industry, business_status, email,
-                   updated_at, registered_capital, paid_capital,
-                   established_date, approved_date, business_term,
-                   district, insured_count, company_type, former_name,
-                   website, other_email, business_scope, enterprise_scale,
-                   shareholders, mailing_address, english_name, tags,
-                   annual_report_address, taxpayer_id, registration_no, org_code,
-                   (CASE WHEN name <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN phone <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN credit_code <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN legal_person <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN address <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN province <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN city <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN industry <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN business_status <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN email <> '' THEN 1 ELSE 0 END) AS completeness
-            FROM companies WHERE id IN ({placeholders})
+            SELECT c.id, c.name, c.credit_code, c.legal_person,
+                   c.address, c.province, c.city, c.industry, c.business_status, c.email,
+                   c.updated_at, c.registered_capital, c.paid_capital,
+                   c.established_date, c.approved_date, c.business_term,
+                   c.district, c.insured_count, c.company_type, c.former_name,
+                   c.website, c.other_email, c.business_scope, c.enterprise_scale,
+                   c.shareholders, c.mailing_address, c.english_name, c.tags,
+                   c.annual_report_address, c.taxpayer_id, c.registration_no, c.org_code,
+                   (SELECT COUNT(*) FROM company_phones WHERE company_id = c.id) AS phone_count,
+                   (CASE WHEN c.name <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN (SELECT COUNT(*) FROM company_phones WHERE company_id = c.id) > 0 THEN 1 ELSE 0 END +
+                    CASE WHEN c.credit_code <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN c.legal_person <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN c.address <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN c.province <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN c.city <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN c.industry <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN c.business_status <> '' THEN 1 ELSE 0 END +
+                    CASE WHEN c.email <> '' THEN 1 ELSE 0 END) AS completeness
+            FROM companies c WHERE c.id IN ({placeholders})
         """, ids).fetchall()
 
         # 排序：完整度降序 > updated_at 降序 > id 升序
@@ -466,13 +468,25 @@ def _dedup_by_field(db, field):
         # 从被删记录中合并数据到保留记录
         updates = {}
         for r in rows[1:]:
-            # 电话累加（merge_phones 自动按 normalized_phone 去重）
-            if r["phone"] or r["other_phone"]:
-                merge_phones(db, keep_id, r["phone"] or "", r["other_phone"] or "")
+            # 电话累加：从被删企业的 company_phones 表读取所有电话，合并到保留企业
+            dup_phone_rows = db.execute(
+                "SELECT phone FROM company_phones WHERE company_id = ?", [r["id"]]
+            ).fetchall()
+            if dup_phone_rows:
+                dup_phones_str = ";".join([p["phone"] for p in dup_phone_rows])
+                merge_phones(db, keep_id, dup_phones_str, "", "")
+
+            # 股东累加：从被删企业的 company_shareholders 表读取所有股东，合并到保留企业
+            dup_sh_rows = db.execute(
+                "SELECT name FROM company_shareholders WHERE company_id = ?", [r["id"]]
+            ).fetchall()
+            if dup_sh_rows:
+                dup_shs_str = ";".join([s["name"] for s in dup_sh_rows])
+                merge_shareholders(db, keep_id, dup_shs_str)
 
             # 其他字段：保留记录为空时，从被删记录补全
             for f in IMPORT_FIELDS:
-                if f in ("name", "phone", "other_phone", "source_file", "tags"):
+                if f in ("name", "phone", "other_phone", "shareholders", "source_file", "tags"):
                     continue  # 这些字段特殊处理或不合并
                 kept_val = updates.get(f) or keep[f]
                 dup_val = r[f] if f in r.keys() else ""
@@ -489,9 +503,11 @@ def _dedup_by_field(db, field):
             params.append(keep_id)
             db.execute(f"UPDATE companies SET {', '.join(set_parts)} WHERE id = ?", params)
 
-        # 删除被合并的记录
+        # 删除被合并的记录（含关联表数据）
         delete_ids = [r["id"] for r in rows[1:]]
         del_placeholders = ",".join(["?"] * len(delete_ids))
+        db.execute(f"DELETE FROM company_phones WHERE company_id IN ({del_placeholders})", delete_ids)
+        db.execute(f"DELETE FROM company_shareholders WHERE company_id IN ({del_placeholders})", delete_ids)
         db.execute(f"DELETE FROM companies WHERE id IN ({del_placeholders})", delete_ids)
         deleted += len(delete_ids)
 
@@ -601,7 +617,7 @@ def browse():
         "id": "id", "name": "normalized_name", "province": "province",
         "city": "city", "established_date": "established_date",
         "business_status": "business_status", "created_at": "created_at",
-        "phone": "phone", "legal_person": "legal_person", 
+        "legal_person": "legal_person",
         "registered_capital": "registered_capital"
     }
     sort_col = allowed_sorts.get(sort, "id")
@@ -616,9 +632,14 @@ def browse():
     offset = (page - 1) * per_page
 
     rows = g.db.execute(f"""
-        SELECT id, name, phone, credit_code, legal_person, city, district,
-               business_status, established_date, registered_capital, industry, enterprise_scale
-        FROM companies {where}
+        SELECT c.id, c.name, c.credit_code, c.legal_person, c.city, c.district,
+               c.business_status, c.established_date, c.registered_capital,
+               c.industry, c.enterprise_scale,
+               (SELECT group_concat(phone, '; ')
+                FROM company_phones
+                WHERE company_id = c.id
+                ORDER BY is_primary DESC, is_recommended DESC) AS phone
+        FROM companies c {where}
         ORDER BY {sort_col} {dir_sql}
         LIMIT ? OFFSET ?
     """, filter_params + [per_page, offset]).fetchall()
@@ -1311,8 +1332,12 @@ def search():
         pages = max(1, math.ceil(total / PER_PAGE))
         offset = (page - 1) * PER_PAGE
         rows = g.db.execute(
-            """SELECT c.id, c.name, c.phone, c.address, c.credit_code,
+            """SELECT c.id, c.name, c.address, c.credit_code,
                       c.legal_person, c.business_status, c.province, c.city,
+                      (SELECT group_concat(phone, '; ')
+                       FROM company_phones
+                       WHERE company_id = c.id
+                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
                       '电话' AS matched_field
                FROM company_phones cp
                JOIN companies c ON cp.company_id = c.id
@@ -1330,10 +1355,14 @@ def search():
         pages = max(1, math.ceil(total / PER_PAGE))
         offset = (page - 1) * PER_PAGE
         rows = g.db.execute(
-            """SELECT id, name, phone, address, credit_code,
-                      legal_person, business_status, province, city,
+            """SELECT c.id, c.name, c.address, c.credit_code,
+                      c.legal_person, c.business_status, c.province, c.city,
+                      (SELECT group_concat(phone, '; ')
+                       FROM company_phones
+                       WHERE company_id = c.id
+                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
                       '信用代码' AS matched_field
-               FROM companies WHERE credit_code = ?
+               FROM companies c WHERE c.credit_code = ?
                LIMIT ? OFFSET ?""",
             [norm_q, PER_PAGE, offset]
         ).fetchall()
@@ -1370,46 +1399,31 @@ def search():
 
         # Ranked query using UNION ALL with priority ordering
         ranked_sql = """
-            SELECT id, name, phone, address, credit_code,
-                   legal_person, business_status, province, city, matched_field
+            SELECT c.id, c.name, c.address, c.credit_code,
+                   c.legal_person, c.business_status, c.province, c.city,
+                   (SELECT group_concat(phone, '; ')
+                    FROM company_phones
+                    WHERE company_id = c.id
+                    ORDER BY is_primary DESC, is_recommended DESC) AS phone,
+                   m.matched_field
             FROM (
-                SELECT id, name, phone, address, credit_code,
-                       legal_person, business_status, province, city,
-                       '名称' AS matched_field, 1 AS priority
-                FROM companies WHERE normalized_name LIKE ?
+                SELECT id, '名称' AS matched_field, 1 AS priority FROM companies WHERE normalized_name LIKE ?
                 UNION ALL
-                SELECT id, name, phone, address, credit_code,
-                       legal_person, business_status, province, city,
-                       '曾用名', 2
-                FROM companies WHERE former_name LIKE ?
+                SELECT id, '曾用名', 2 FROM companies WHERE former_name LIKE ?
                 UNION ALL
-                SELECT id, name, phone, address, credit_code,
-                       legal_person, business_status, province, city,
-                       '地址', 3
-                FROM companies WHERE address LIKE ?
+                SELECT id, '地址', 3 FROM companies WHERE address LIKE ?
                 UNION ALL
-                SELECT id, name, phone, address, credit_code,
-                       legal_person, business_status, province, city,
-                       '法人', 4
-                FROM companies WHERE legal_person LIKE ?
+                SELECT id, '法人', 4 FROM companies WHERE legal_person LIKE ?
                 UNION ALL
-                SELECT id, name, phone, address, credit_code,
-                       legal_person, business_status, province, city,
-                       '股东', 5
-                FROM companies WHERE shareholders LIKE ?
+                SELECT id, '股东', 5 FROM companies WHERE shareholders LIKE ?
                 UNION ALL
-                SELECT id, name, phone, address, credit_code,
-                       legal_person, business_status, province, city,
-                       '邮箱', 6
-                FROM companies WHERE email LIKE ?
+                SELECT id, '邮箱', 6 FROM companies WHERE email LIKE ?
                 UNION ALL
-                SELECT id, name, phone, address, credit_code,
-                       legal_person, business_status, province, city,
-                       '网站', 7
-                FROM companies WHERE website LIKE ?
-            )
-            GROUP BY id
-            ORDER BY priority, name
+                SELECT id, '网站', 7 FROM companies WHERE website LIKE ?
+            ) m
+            JOIN companies c ON c.id = m.id
+            GROUP BY c.id
+            ORDER BY MIN(m.priority), c.name
             LIMIT ? OFFSET ?
         """
         rows = g.db.execute(ranked_sql, [
@@ -1741,6 +1755,20 @@ def edit_company(company_id):
 
         flash(f"已更新：{fields.get('name', '')}", "success")
         return redirect(url_for("company_detail", company_id=company_id))
+
+    # 从 company_phones 表回填 phone/other_phone 用于表单展示
+    phones = g.db.execute(
+        """SELECT phone, is_primary FROM company_phones
+           WHERE company_id = ? ORDER BY is_primary DESC, id""",
+        [company_id]
+    ).fetchall()
+    if phones:
+        primary = [p["phone"] for p in phones if p["is_primary"]]
+        others = [p["phone"] for p in phones if not p["is_primary"]]
+        row_dict = dict(row)
+        row_dict["phone"] = primary[0] if primary else ""
+        row_dict["other_phone"] = ";".join(others)
+        return render_template("edit.html", company=row_dict)
 
     return render_template("edit.html", company=dict(row))
 
@@ -2314,8 +2342,13 @@ def api_search():
     if query_type == "phone":
         norm_q = normalize_phone(q)
         rows = g.db.execute(
-            """SELECT c.id, c.name, c.phone, c.address, c.credit_code,
-                      c.legal_person, c.city, '电话' AS matched_field
+            """SELECT c.id, c.name, c.address, c.credit_code,
+                      c.legal_person, c.city,
+                      (SELECT group_concat(phone, '; ')
+                       FROM company_phones
+                       WHERE company_id = c.id
+                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
+                      '电话' AS matched_field
                FROM company_phones cp
                JOIN companies c ON cp.company_id = c.id
                WHERE cp.normalized_phone = ?
@@ -2329,9 +2362,14 @@ def api_search():
     elif query_type == "credit_code":
         norm_q = normalize_credit_code(q)
         rows = g.db.execute(
-            """SELECT id, name, phone, address, credit_code,
-                      legal_person, city, '信用代码' AS matched_field
-               FROM companies WHERE credit_code = ?
+            """SELECT c.id, c.name, c.address, c.credit_code,
+                      c.legal_person, c.city,
+                      (SELECT group_concat(phone, '; ')
+                       FROM company_phones
+                       WHERE company_id = c.id
+                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
+                      '信用代码' AS matched_field
+               FROM companies c WHERE c.credit_code = ?
                LIMIT ?""",
             [norm_q, limit]
         ).fetchall()
@@ -2344,39 +2382,30 @@ def api_search():
         like_q = "%" + q + "%"
         like_name = "%" + norm_q_name + "%"
         rows = g.db.execute(
-            """SELECT id, name, phone, address, credit_code,
-                      legal_person, city, matched_field
+            """SELECT c.id, c.name, c.address, c.credit_code,
+                      c.legal_person, c.city,
+                      (SELECT group_concat(phone, '; ')
+                       FROM company_phones
+                       WHERE company_id = c.id
+                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
+                      m.matched_field
                FROM (
-                   SELECT id, name, phone, address, credit_code,
-                          legal_person, city,
-                          '名称' AS matched_field, 1 AS priority
-                   FROM companies WHERE normalized_name LIKE ?
+                   SELECT id, '名称' AS matched_field, 1 AS priority FROM companies WHERE normalized_name LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code,
-                          legal_person, city, '曾用名', 2
-                   FROM companies WHERE former_name LIKE ?
+                   SELECT id, '曾用名', 2 FROM companies WHERE former_name LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code,
-                          legal_person, city, '地址', 3
-                   FROM companies WHERE address LIKE ?
+                   SELECT id, '地址', 3 FROM companies WHERE address LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code,
-                          legal_person, city, '法人', 4
-                   FROM companies WHERE legal_person LIKE ?
+                   SELECT id, '法人', 4 FROM companies WHERE legal_person LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code,
-                          legal_person, city, '股东', 5
-                   FROM companies WHERE shareholders LIKE ?
+                   SELECT id, '股东', 5 FROM companies WHERE shareholders LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code,
-                          legal_person, city, '邮箱', 6
-                   FROM companies WHERE email LIKE ?
+                   SELECT id, '邮箱', 6 FROM companies WHERE email LIKE ?
                    UNION ALL
-                   SELECT id, name, phone, address, credit_code,
-                          legal_person, city, '网站', 7
-                   FROM companies WHERE website LIKE ?
-               )
-               GROUP BY id ORDER BY priority, name LIMIT ?""",
+                   SELECT id, '网站', 7 FROM companies WHERE website LIKE ?
+               ) m
+               JOIN companies c ON c.id = m.id
+               GROUP BY c.id ORDER BY MIN(m.priority), c.name LIMIT ?""",
             [like_name, like_q, like_q, like_q, like_q, like_q, like_q, limit]
         ).fetchall()
         return jsonify({"code": 0, "message": "ok", "data": {

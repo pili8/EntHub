@@ -178,9 +178,14 @@ def company_detail(company_id):
         val = row[field] if row[field] else None
         if val and val != '-' and (field != 'email' or '@' in val):
             related = g.db.execute(f"""
-                SELECT id, name, phone, address FROM companies
-                WHERE id <> ? AND {field} = ? AND {field} <> ''
-                ORDER BY name LIMIT 10
+                SELECT c.id, c.name, c.address,
+                       (SELECT group_concat(phone, '; ')
+                        FROM company_phones
+                        WHERE company_id = c.id
+                        ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                FROM companies c
+                WHERE c.id <> ? AND c.{field} = ? AND c.{field} <> ''
+                ORDER BY c.name LIMIT 10
             """, [company_id, val]).fetchall()
             relations[key] = [dict(r) for r in related]
             cnt = g.db.execute(
@@ -223,7 +228,11 @@ def relations():
     if rel_type == 'phone':
         norm_value = normalize_phone(value)
         rows = g.db.execute("""
-            SELECT DISTINCT c.id, c.name, c.phone, c.address
+            SELECT DISTINCT c.id, c.name, c.address,
+                   (SELECT group_concat(phone, '; ')
+                    FROM company_phones
+                    WHERE company_id = c.id
+                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE cp.normalized_phone = ?
@@ -231,9 +240,14 @@ def relations():
         """, [norm_value, limit]).fetchall()
     else:
         rows = g.db.execute(f"""
-            SELECT id, name, phone, address FROM companies
-            WHERE {rel_type} = ?
-            ORDER BY name LIMIT ?
+            SELECT c.id, c.name, c.address,
+                   (SELECT group_concat(phone, '; ')
+                    FROM company_phones
+                    WHERE company_id = c.id
+                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+            FROM companies c
+            WHERE c.{rel_type} = ?
+            ORDER BY c.name LIMIT ?
         """, [value, limit]).fetchall()
 
     return _ok({
