@@ -1468,9 +1468,10 @@ def edit_company(company_id):
         if fields.get("credit_code"):
             fields["credit_code"] = normalize_credit_code(fields["credit_code"])
 
-        # 电话字段仅存入关联表，不在 companies 表中
+        # 电话/股东字段仅存入关联表，不在 companies 表中
         phone_val = fields.pop("phone", "")
         other_phone_val = fields.pop("other_phone", "")
+        shareholders_val = fields.pop("shareholders", "")
 
         set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
         g.db.execute(f"UPDATE companies SET {set_clause} WHERE id = ?",
@@ -1479,7 +1480,7 @@ def edit_company(company_id):
         # 更新电话关联表
         sync_phones(g.db, company_id, phone_val, other_phone_val)
         # 更新股东关联表
-        sync_shareholders(g.db, company_id, fields.get("shareholders", ""))
+        sync_shareholders(g.db, company_id, shareholders_val)
         g.db.commit()
 
         flash(f"已更新：{fields.get('name', '')}", "success")
@@ -1528,9 +1529,10 @@ def add_company():
         fields["status"] = request.form.get("status", "active")
         fields["source"] = "manual"
 
-        # 电话字段仅存入关联表，不在 companies 表中
+        # 电话/股东字段仅存入关联表，不在 companies 表中
         phone_val = fields.pop("phone", "")
         other_phone_val = fields.pop("other_phone", "")
+        shareholders_val = fields.pop("shareholders", "")
 
         cols = ", ".join(fields.keys())
         placeholders = ", ".join(["?"] * len(fields))
@@ -1539,7 +1541,7 @@ def add_company():
             list(fields.values())
         )
         sync_phones(g.db, cursor.lastrowid, phone_val, other_phone_val)
-        sync_shareholders(g.db, cursor.lastrowid, fields.get("shareholders", ""))
+        sync_shareholders(g.db, cursor.lastrowid, shareholders_val)
         g.db.commit()
         flash(f"已录入：{name}", "success")
         return redirect(url_for("add_company"))
