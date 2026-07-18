@@ -1297,6 +1297,47 @@ def stats_phone():
 
 
 # --------------------------------------------------------------------------- #
+#  股东关联统计
+# --------------------------------------------------------------------------- #
+
+@app.route("/stats/shareholder")
+def stats_shareholder():
+    """股东关联统计 - 按股东分组，显示关联企业数"""
+    page = max(1, request.args.get("page", 1, type=int))
+    min_count = max(2, request.args.get("min", 2, type=int))
+
+    total = g.db.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT normalized_name FROM company_shareholders
+            WHERE normalized_name IS NOT NULL AND normalized_name <> ''
+            GROUP BY normalized_name
+            HAVING COUNT(DISTINCT company_id) >= ?
+        )
+    """, [min_count]).fetchone()[0]
+
+    pages = max(1, math.ceil(total / PER_PAGE))
+    offset = (page - 1) * PER_PAGE
+
+    rows = g.db.execute("""
+        SELECT cs.normalized_name,
+               MIN(cs.name) AS display_name,
+               COUNT(DISTINCT cs.company_id) AS cnt,
+               GROUP_CONCAT(DISTINCT c.name, '; ') AS company_names
+        FROM company_shareholders cs
+        JOIN companies c ON cs.company_id = c.id
+        WHERE cs.normalized_name IS NOT NULL AND cs.normalized_name <> ''
+        GROUP BY cs.normalized_name
+        HAVING cnt >= ?
+        ORDER BY cnt DESC
+        LIMIT ? OFFSET ?
+    """, [min_count, PER_PAGE, offset]).fetchall()
+
+    return render_template("stats_shareholder.html", rows=rows,
+                           total=total, min_count=min_count,
+                           page=page, pages=pages)
+
+
+# --------------------------------------------------------------------------- #
 #  通用字段统计（法人 / 股东 / 行业）
 # --------------------------------------------------------------------------- #
 
@@ -1341,13 +1382,6 @@ def _stats_generic(field, title, subtitle, min_default=2, endpoint=None):
 def stats_legal_person():
     return _stats_generic("legal_person", "法定代表人统计",
                           "担任多家企业法人的记录，按企业数量排序")
-
-
-@app.route("/stats/shareholder")
-def stats_shareholder():
-    return _stats_generic("shareholders", "股东统计",
-                          "出现多次的股东记录，按关联企业数量排序",
-                          endpoint="stats_shareholder")
 
 
 @app.route("/stats/industry")
