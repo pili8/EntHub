@@ -18,6 +18,7 @@ from db import get_db, init_db, DB_PATH
 import backup
 from utils import (
     normalize_name, normalize_phone, normalize_credit_code,
+    normalize_person_name, normalize_email,
     map_columns, clean_val, is_industrial_park_file,
     extract_date_from_filename,
 )
@@ -1462,17 +1463,23 @@ def edit_company(company_id):
 
         # 更新 normalized 字段
         fields["normalized_name"] = normalize_name(fields.get("name", ""))
-        fields["normalized_phone"] = normalize_phone(fields.get("phone", ""))
+        fields["normalized_legal_person"] = normalize_person_name(fields.get("legal_person", ""))
+        fields["normalized_email"] = normalize_email(fields.get("email", ""))
         if fields.get("credit_code"):
             fields["credit_code"] = normalize_credit_code(fields["credit_code"])
+
+        # 电话字段仅存入关联表，不在 companies 表中
+        phone_val = fields.pop("phone", "")
+        other_phone_val = fields.pop("other_phone", "")
 
         set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
         g.db.execute(f"UPDATE companies SET {set_clause} WHERE id = ?",
                      list(fields.values()) + [company_id])
 
         # 更新电话关联表
-        sync_phones(g.db, company_id,
-                    fields.get("phone", ""), fields.get("other_phone", ""))
+        sync_phones(g.db, company_id, phone_val, other_phone_val)
+        # 更新股东关联表
+        sync_shareholders(g.db, company_id, fields.get("shareholders", ""))
         g.db.commit()
 
         flash(f"已更新：{fields.get('name', '')}", "success")
@@ -1513,15 +1520,17 @@ def add_company():
                 fields[f] = val
 
         fields["normalized_name"] = normalize_name(name)
-        if fields.get("phone"):
-            fields["normalized_phone"] = normalize_phone(fields["phone"])
-        else:
-            fields["normalized_phone"] = ""
+        fields["normalized_legal_person"] = normalize_person_name(fields.get("legal_person", ""))
+        fields["normalized_email"] = normalize_email(fields.get("email", ""))
         if fields.get("credit_code"):
             fields["credit_code"] = normalize_credit_code(fields["credit_code"])
 
         fields["status"] = request.form.get("status", "active")
         fields["source"] = "manual"
+
+        # 电话字段仅存入关联表，不在 companies 表中
+        phone_val = fields.pop("phone", "")
+        other_phone_val = fields.pop("other_phone", "")
 
         cols = ", ".join(fields.keys())
         placeholders = ", ".join(["?"] * len(fields))
@@ -1529,8 +1538,8 @@ def add_company():
             f"INSERT INTO companies ({cols}) VALUES ({placeholders})",
             list(fields.values())
         )
-        sync_phones(g.db, cursor.lastrowid,
-                    fields.get("phone", ""), fields.get("other_phone", ""))
+        sync_phones(g.db, cursor.lastrowid, phone_val, other_phone_val)
+        sync_shareholders(g.db, cursor.lastrowid, fields.get("shareholders", ""))
         g.db.commit()
         flash(f"已录入：{name}", "success")
         return redirect(url_for("add_company"))
