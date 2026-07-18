@@ -747,30 +747,30 @@ def browse_relation_groups():
     elif dup_type == "email":
         total = g.db.execute("""
             SELECT COUNT(*) FROM (
-                SELECT email FROM companies
-                WHERE email IS NOT NULL AND email <> '' AND email <> '-'
-                GROUP BY email HAVING COUNT(*) > 1
+                SELECT normalized_email FROM companies
+                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+                GROUP BY normalized_email HAVING COUNT(*) > 1
             )
         """).fetchone()[0]
 
         if sort == "name_asc":
-            order_clause = f"{order_by}, email"
+            order_clause = f"{order_by}, normalized_email"
         else:
-            order_clause = f"{order_by}, email"
+            order_clause = f"{order_by}, normalized_email"
 
         groups = g.db.execute(f"""
             SELECT
-                email as field_value,
+                normalized_email as field_value,
                 COUNT(*) as cnt,
                 GROUP_CONCAT(name, '、') as company_names,
                 GROUP_CONCAT(id, ',') as company_ids
             FROM companies
-            WHERE email IN (
-                SELECT email FROM companies
-                WHERE email IS NOT NULL AND email <> '' AND email <> '-'
-                GROUP BY email HAVING COUNT(*) > 1
+            WHERE normalized_email IN (
+                SELECT normalized_email FROM companies
+                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+                GROUP BY normalized_email HAVING COUNT(*) > 1
             )
-            GROUP BY email
+            GROUP BY normalized_email
             {order_clause}
             LIMIT ? OFFSET ?
         """, [per_page, offset]).fetchall()
@@ -785,30 +785,30 @@ def browse_relation_groups():
     elif dup_type == "legal_person":
         total = g.db.execute("""
             SELECT COUNT(*) FROM (
-                SELECT legal_person FROM companies
-                WHERE legal_person IS NOT NULL AND legal_person <> '' AND legal_person <> '-'
-                GROUP BY legal_person HAVING COUNT(*) > 1
+                SELECT normalized_legal_person FROM companies
+                WHERE normalized_legal_person IS NOT NULL AND normalized_legal_person <> ''
+                GROUP BY normalized_legal_person HAVING COUNT(*) > 1
             )
         """).fetchone()[0]
 
         if sort == "name_asc":
-            order_clause = f"{order_by}, legal_person"
+            order_clause = f"{order_by}, normalized_legal_person"
         else:
-            order_clause = f"{order_by}, legal_person"
+            order_clause = f"{order_by}, normalized_legal_person"
 
         groups = g.db.execute(f"""
             SELECT
-                legal_person as field_value,
+                normalized_legal_person as field_value,
                 COUNT(*) as cnt,
                 GROUP_CONCAT(name, '、') as company_names,
                 GROUP_CONCAT(id, ',') as company_ids
             FROM companies
-            WHERE legal_person IN (
-                SELECT legal_person FROM companies
-                WHERE legal_person IS NOT NULL AND legal_person <> '' AND legal_person <> '-'
-                GROUP BY legal_person HAVING COUNT(*) > 1
+            WHERE normalized_legal_person IN (
+                SELECT normalized_legal_person FROM companies
+                WHERE normalized_legal_person IS NOT NULL AND normalized_legal_person <> ''
+                GROUP BY normalized_legal_person HAVING COUNT(*) > 1
             )
-            GROUP BY legal_person
+            GROUP BY normalized_legal_person
             {order_clause}
             LIMIT ? OFFSET ?
         """, [per_page, offset]).fetchall()
@@ -820,12 +820,84 @@ def browse_relation_groups():
                              page=page, pages=pages, total=total, per_page=per_page,
                              field_label="法人", field_icon="👤")
 
-    elif dup_type == "shareholders":
-        # 暂时无数据
+    elif dup_type in ("shareholder", "shareholders"):
+        # 股东关联分组
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT normalized_name FROM company_shareholders
+                WHERE normalized_name IS NOT NULL AND normalized_name <> ''
+                GROUP BY normalized_name HAVING COUNT(DISTINCT company_id) > 1
+            )
+        """).fetchone()[0]
+
+        if sort == "name_asc":
+            order_clause = f"{order_by}, normalized_name"
+        else:
+            order_clause = f"{order_by}, normalized_name"
+
+        groups = g.db.execute(f"""
+            SELECT
+                cs.normalized_name as field_value,
+                COUNT(DISTINCT cs.company_id) as cnt,
+                GROUP_CONCAT(c.name, '、') as company_names,
+                GROUP_CONCAT(c.id, ',') as company_ids
+            FROM company_shareholders cs
+            JOIN companies c ON c.id = cs.company_id
+            WHERE cs.normalized_name IN (
+                SELECT normalized_name FROM company_shareholders
+                WHERE normalized_name IS NOT NULL AND normalized_name <> ''
+                GROUP BY normalized_name HAVING COUNT(DISTINCT company_id) > 1
+            )
+            GROUP BY cs.normalized_name
+            {order_clause}
+            LIMIT ? OFFSET ?
+        """, [per_page, offset]).fetchall()
+
+        pages = max(1, math.ceil(total / per_page))
+
         return render_template("_relation_groups.html",
-                             groups=[], dup_type=dup_type,
-                             page=1, pages=1, total=0,
-                             field_label="股东", field_icon="🏢")
+                             groups=groups, dup_type="shareholder", sort=sort,
+                             page=page, pages=pages, total=total, per_page=per_page,
+                             field_label="股东", field_icon="💼")
+
+    elif dup_type == "industry":
+        # 行业关联分组
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT industry FROM companies
+                WHERE industry IS NOT NULL AND industry <> '' AND industry <> '-'
+                GROUP BY industry HAVING COUNT(*) > 1
+            )
+        """).fetchone()[0]
+
+        if sort == "name_asc":
+            order_clause = f"{order_by}, industry"
+        else:
+            order_clause = f"{order_by}, industry"
+
+        groups = g.db.execute(f"""
+            SELECT
+                industry as field_value,
+                COUNT(*) as cnt,
+                GROUP_CONCAT(name, '、') as company_names,
+                GROUP_CONCAT(id, ',') as company_ids
+            FROM companies
+            WHERE industry IN (
+                SELECT industry FROM companies
+                WHERE industry IS NOT NULL AND industry <> '' AND industry <> '-'
+                GROUP BY industry HAVING COUNT(*) > 1
+            )
+            GROUP BY industry
+            {order_clause}
+            LIMIT ? OFFSET ?
+        """, [per_page, offset]).fetchall()
+
+        pages = max(1, math.ceil(total / per_page))
+
+        return render_template("_relation_groups.html",
+                             groups=groups, dup_type=dup_type, sort=sort,
+                             page=page, pages=pages, total=total, per_page=per_page,
+                             field_label="行业", field_icon="🏭")
 
     elif dup_type == "tag":
         # 标签关联分组
@@ -902,7 +974,7 @@ def relation_group_detail():
         
     elif dup_type == "email":
         total = g.db.execute("""
-            SELECT COUNT(*) FROM companies WHERE email = ?
+            SELECT COUNT(*) FROM companies WHERE normalized_email = ?
         """, (field_value,)).fetchone()[0]
         
         sort_col = "name" if sort == "name" else "id"
@@ -911,7 +983,7 @@ def relation_group_detail():
         companies = g.db.execute(f"""
             SELECT id, name, legal_person, city, district, business_status
             FROM companies
-            WHERE email = ?
+            WHERE normalized_email = ?
             ORDER BY {sort_col} {dir_sql}
             LIMIT ? OFFSET ?
         """, (field_value, per_page, offset)).fetchall()
@@ -921,7 +993,7 @@ def relation_group_detail():
         
     elif dup_type == "legal_person":
         total = g.db.execute("""
-            SELECT COUNT(*) FROM companies WHERE legal_person = ?
+            SELECT COUNT(*) FROM companies WHERE normalized_legal_person = ?
         """, (field_value,)).fetchone()[0]
         
         sort_col = "name" if sort == "name" else "id"
@@ -930,7 +1002,7 @@ def relation_group_detail():
         companies = g.db.execute(f"""
             SELECT id, name, legal_person, city, district, business_status
             FROM companies
-            WHERE legal_person = ?
+            WHERE normalized_legal_person = ?
             ORDER BY {sort_col} {dir_sql}
             LIMIT ? OFFSET ?
         """, (field_value, per_page, offset)).fetchall()
@@ -961,6 +1033,46 @@ def relation_group_detail():
         
         field_label = "标签"
         field_icon = "🏷️"
+
+    elif dup_type == "shareholder":
+        total = g.db.execute("""
+            SELECT COUNT(DISTINCT company_id) FROM company_shareholders
+            WHERE normalized_name = ?
+        """, (field_value,)).fetchone()[0]
+
+        sort_col = "c.name" if sort == "name" else "c.id"
+        dir_sql = "ASC" if direction == "asc" else "DESC"
+
+        companies = g.db.execute(f"""
+            SELECT c.id, c.name, c.legal_person, c.city, c.district, c.business_status
+            FROM companies c
+            INNER JOIN company_shareholders cs ON c.id = cs.company_id
+            WHERE cs.normalized_name = ?
+            ORDER BY {sort_col} {dir_sql}
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+
+        field_label = "股东"
+        field_icon = "💼"
+
+    elif dup_type == "industry":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM companies WHERE industry = ?
+        """, (field_value,)).fetchone()[0]
+
+        sort_col = "name" if sort == "name" else "id"
+        dir_sql = "ASC" if direction == "asc" else "DESC"
+
+        companies = g.db.execute(f"""
+            SELECT id, name, legal_person, city, district, business_status
+            FROM companies
+            WHERE industry = ?
+            ORDER BY {sort_col} {dir_sql}
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+
+        field_label = "行业"
+        field_icon = "🏭"
     else:
         abort(404)
     
@@ -1002,24 +1114,24 @@ def browse_relation_group_detail():
         
     elif dup_type == "email":
         total = g.db.execute("""
-            SELECT COUNT(*) FROM companies WHERE email = ?
+            SELECT COUNT(*) FROM companies WHERE normalized_email = ?
         """, (field_value,)).fetchone()[0]
         
         companies = g.db.execute("""
             SELECT id, name FROM companies
-            WHERE email = ?
+            WHERE normalized_email = ?
             ORDER BY name
             LIMIT ? OFFSET ?
         """, (field_value, per_page, offset)).fetchall()
         
     elif dup_type == "legal_person":
         total = g.db.execute("""
-            SELECT COUNT(*) FROM companies WHERE legal_person = ?
+            SELECT COUNT(*) FROM companies WHERE normalized_legal_person = ?
         """, (field_value,)).fetchone()[0]
         
         companies = g.db.execute("""
             SELECT id, name FROM companies
-            WHERE legal_person = ?
+            WHERE normalized_legal_person = ?
             ORDER BY name
             LIMIT ? OFFSET ?
         """, (field_value, per_page, offset)).fetchall()
@@ -1041,6 +1153,33 @@ def browse_relation_group_detail():
             ORDER BY c.name
             LIMIT ? OFFSET ?
         """, (field_value, per_page, offset)).fetchall()
+
+    elif dup_type == "shareholder":
+        total = g.db.execute("""
+            SELECT COUNT(DISTINCT company_id) FROM company_shareholders
+            WHERE normalized_name = ?
+        """, (field_value,)).fetchone()[0]
+
+        companies = g.db.execute("""
+            SELECT c.id, c.name
+            FROM companies c
+            INNER JOIN company_shareholders cs ON c.id = cs.company_id
+            WHERE cs.normalized_name = ?
+            ORDER BY c.name
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
+
+    elif dup_type == "industry":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM companies WHERE industry = ?
+        """, (field_value,)).fetchone()[0]
+
+        companies = g.db.execute("""
+            SELECT id, name FROM companies
+            WHERE industry = ?
+            ORDER BY name
+            LIMIT ? OFFSET ?
+        """, (field_value, per_page, offset)).fetchall()
     else:
         return "", 400
     
@@ -1054,8 +1193,7 @@ def browse_relation_group_detail():
 
 @app.route("/browse/relation-top")
 def browse_relation_top():
-    """关联企业最多的TOP 50（HTMX片段）- 简化版，只计算电话关联"""
-    # 只计算电话关联，大大提高查询速度
+    """关联企业最多的TOP 50（HTMX片段）- 多维度：电话+股东+邮箱"""
     companies = g.db.execute("""
         SELECT 
             c.id,
@@ -1063,18 +1201,69 @@ def browse_relation_top():
             c.legal_person,
             c.city,
             c.district,
-            COUNT(DISTINCT cp.normalized_phone) as phone_cnt,
-            0 as email_cnt,
-            0 as lp_cnt,
-            COUNT(DISTINCT cp.normalized_phone) as relation_score
+            (SELECT COUNT(DISTINCT cp.normalized_phone)
+             FROM company_phones cp
+             WHERE cp.company_id = c.id
+               AND cp.normalized_phone IN (
+                   SELECT normalized_phone FROM company_phones
+                   GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) > 1
+               )
+            ) as phone_cnt,
+            (SELECT COUNT(DISTINCT cs.normalized_name)
+             FROM company_shareholders cs
+             WHERE cs.company_id = c.id
+               AND cs.normalized_name IN (
+                   SELECT normalized_name FROM company_shareholders
+                   GROUP BY normalized_name HAVING COUNT(DISTINCT company_id) > 1
+               )
+            ) as shareholder_cnt,
+            CASE WHEN c.normalized_email != '' AND c.normalized_email IN (
+                SELECT normalized_email FROM companies
+                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+                GROUP BY normalized_email HAVING COUNT(*) > 1
+            ) THEN 1 ELSE 0 END as email_cnt,
+            (SELECT COUNT(DISTINCT cp.normalized_phone)
+             FROM company_phones cp
+             WHERE cp.company_id = c.id
+               AND cp.normalized_phone IN (
+                   SELECT normalized_phone FROM company_phones
+                   GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) > 1
+               )
+            ) +
+            (SELECT COUNT(DISTINCT cs.normalized_name)
+             FROM company_shareholders cs
+             WHERE cs.company_id = c.id
+               AND cs.normalized_name IN (
+                   SELECT normalized_name FROM company_shareholders
+                   GROUP BY normalized_name HAVING COUNT(DISTINCT company_id) > 1
+               )
+            ) +
+            CASE WHEN c.normalized_email != '' AND c.normalized_email IN (
+                SELECT normalized_email FROM companies
+                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+                GROUP BY normalized_email HAVING COUNT(*) > 1
+            ) THEN 1 ELSE 0 END as relation_score
         FROM companies c
-        INNER JOIN company_phones cp ON c.id = cp.company_id
-        WHERE cp.normalized_phone IN (
-            SELECT normalized_phone FROM company_phones
-            GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) > 1
+        WHERE c.id IN (
+            SELECT DISTINCT company_id FROM company_phones
+            WHERE normalized_phone IN (
+                SELECT normalized_phone FROM company_phones
+                GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) > 1
+            )
+            UNION
+            SELECT DISTINCT company_id FROM company_shareholders
+            WHERE normalized_name IN (
+                SELECT normalized_name FROM company_shareholders
+                GROUP BY normalized_name HAVING COUNT(DISTINCT company_id) > 1
+            )
+            UNION
+            SELECT id FROM companies
+            WHERE normalized_email IN (
+                SELECT normalized_email FROM companies
+                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+                GROUP BY normalized_email HAVING COUNT(*) > 1
+            )
         )
-        GROUP BY c.id
-        HAVING phone_cnt > 0
         ORDER BY relation_score DESC
         LIMIT 50
     """).fetchall()

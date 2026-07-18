@@ -9,7 +9,7 @@
                 <th>关联强度</th>
                 <th>电话</th>
                 <th>邮箱</th>
-                <th>同法人</th>
+                <th>同股东</th>
                 <th>城市</th>
             </tr>
         </thead>
@@ -33,8 +33,8 @@
                 <td style="color: {{ 'var(--accent)' if c.email_cnt > 0 else 'var(--text-muted)' }};">
                     {{ c.email_cnt if c.email_cnt > 0 else '-' }}
                 </td>
-                <td style="color: {{ 'var(--accent)' if c.lp_cnt > 0 else 'var(--text-muted)' }};">
-                    {{ c.lp_cnt if c.lp_cnt > 0 else '-' }}
+                <td style="color: {{ 'var(--accent)' if c.shareholder_cnt > 0 else 'var(--text-muted)' }};">
+                    {{ c.shareholder_cnt if c.shareholder_cnt > 0 else '-' }}
                 </td>
                 <td style="color: var(--text-muted); font-size: 12px;">
                     {{ c.city or '' }} {{ c.district or '' }}

@@ -56,6 +56,22 @@
                     hx-push-url="true">
                 🏷️ 标签关联
             </button>
+            <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
+                    data-type="shareholder"
+                    hx-get="{{ url_for('browse_relation_groups', dup_type='shareholder', sort='count_desc') }}"
+                    hx-target="#relation-groups-container"
+                    hx-swap="innerHTML"
+                    hx-push-url="true">
+                💼 股东关联
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
+                    data-type="industry"
+                    hx-get="{{ url_for('browse_relation_groups', dup_type='industry', sort='count_desc') }}"
+                    hx-target="#relation-groups-container"
+                    hx-swap="innerHTML"
+                    hx-push-url="true">
+                🏭 行业关联
+            </button>
         </div>
     </div>
 
