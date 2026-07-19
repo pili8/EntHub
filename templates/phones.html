@@ -23,25 +23,32 @@
 
     <!-- Tab 1: 文本标注（默认） -->
     <div id="panel-text">
-        <!-- 一键标注（突出显示） -->
-        <div style="margin-bottom: 16px; padding: 14px 18px; background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); border-radius: 10px; display: flex; align-items: center; gap: 14px;">
-            <i data-lucide="clipboard-list" style="width: 20px; height: 20px; color: white; flex-shrink: 0;"></i>
-            <div style="flex: 1; color: white;">
-                <div style="font-size: 13px; font-weight: 600;">一键标注</div>
-                <div style="font-size: 11px; opacity: 0.9; margin-top: 2px;">从剪贴板读取 → 标注 → 写回剪贴板</div>
+        <!-- 一键标注引导 -->
+        <div id="qa-guide" style="margin-bottom: 16px; padding: 18px 22px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #93c5fd; border-radius: 10px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="flex-shrink: 0; width: 38px; height: 38px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="clipboard-paste" style="width: 18px; height: 18px; color: white;"></i>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-size: 14px; font-weight: 600; color: #1e40af;">粘贴文本自动标注</div>
+                    <div style="font-size: 12px; color: #1d4ed8; margin-top: 2px;">在下方输入框按 <kbd style="background: white; padding: 1px 6px; border-radius: 3px; border: 1px solid #93c5fd; font-size: 11px;">⌘V</kbd> 粘贴，自动识别号码并标注重复数</div>
+                </div>
             </div>
-            <button onclick="quickAnnotate(event)" style="background: white; color: #3b82f6; border: none; padding: 7px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="zap" style="width: 12px; height: 12px;"></i>
-                立即标注
-            </button>
         </div>
 
         <div style="margin-bottom: 16px;">
-            <textarea id="text-input" class="form-input" placeholder="或手动粘贴包含电话号码的文本" rows="6" style="width: 100%; font-size: 13px; line-height: 1.6;"></textarea>
+            <textarea id="text-input" class="form-input" placeholder="在此粘贴文本（Cmd+V），自动标注号码..." rows="6" style="width: 100%; font-size: 13px; line-height: 1.6;" autofocus></textarea>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+                <span>支持格式：手机号、座机（带/不带区号）、400/800 号码</span>
+                <span id="text-char-count">0 字</span>
+            </div>
         </div>
         <div style="margin-bottom: 20px; display: flex; gap: 12px;">
             <button onclick="annotateText(event)" class="btn btn-primary" style="padding: 10px 24px;">
-                <i data-lucide="tag" style="width: 16px; height: 16px;"></i> 标注号码
+                <i data-lucide="tag" style="width: 16px; height: 16px;"></i> 手动标注
+            </button>
+            <button onclick="clearTextInput(event)" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;">
+                <i data-lucide="x" style="width: 16px; height: 16px;"></i> 清空
             </button>
             <button onclick="copyAnnotated(event)" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;" disabled id="copy-annotated-btn">
                 <i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果
@@ -50,8 +57,9 @@
 
         <div id="text-result" style="display: none;">
             <div style="padding: 20px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
-                    标注后文本
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>标注后文本</span>
+                    <span id="text-result-badge" style="font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px;"></span>
                 </div>
                 <pre id="text-annotated" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 14px; line-height: 1.8; margin: 0; color: var(--text-primary);"></pre>
             </div>
@@ -410,14 +418,126 @@ async function queryBatchPhones(evt) {
 async function annotateText(evt) {
     const text = document.getElementById('text-input').value.trim();
     if (!text) {
-        alert('请输入文本');
+        window._enthubToast('warning', '⚠️ 文本为空', '请粘贴文本');
         return;
     }
 
-    const btn = evt.currentTarget.closest('button');
-    const originalHTML = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 标注中...';
+    const btn = evt ? evt.currentTarget.closest('button') : null;
+    const originalHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 标注中...';
+        if (window.lucide) lucide.createIcons();
+    }
+
+    const data = await window.doAnnotate(text);
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        if (window.lucide) lucide.createIcons();
+    }
+
+    if (!data) return;
+
+    // 显示结果
+    document.getElementById('text-result').style.display = 'block';
+    document.getElementById('text-annotated').textContent = data.annotated_text;
+    document.getElementById('copy-annotated-btn').disabled = false;
+
+    // 显示号码数 badge
+    const badge = document.getElementById('text-result-badge');
+    const phoneCount = data.phone_count;
+    if (phoneCount === 0) {
+        badge.style.background = '#f3f4f6';
+        badge.style.color = '#6b7280';
+        badge.textContent = '未发现号码';
+    } else if (phoneCount === 1) {
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#16a34a';
+        badge.textContent = `${phoneCount} 个号码`;
+    } else if (phoneCount <= 5) {
+        badge.style.background = '#fef3c7';
+        badge.style.color = '#d97706';
+        badge.textContent = `${phoneCount} 个号码`;
+    } else {
+        badge.style.background = '#fee2e2';
+        badge.style.color = '#dc2626';
+        badge.textContent = `${phoneCount} 个号码`;
+    }
+}
+
+// 自动触发标注（粘贴时）
+function setupAutoAnnotate() {
+    const input = document.getElementById('text-input');
+    if (!input) return;
+
+    // 字数统计
+    function updateCount() {
+        const count = input.value.length;
+        document.getElementById('text-char-count').textContent = count + ' 字';
+    }
+    input.addEventListener('input', updateCount);
+
+    // 粘贴事件：自动标注
+    let pasteTimer = null;
+    input.addEventListener('paste', function(e) {
+        // 延迟 100ms 等待粘贴完成
+        clearTimeout(pasteTimer);
+        pasteTimer = setTimeout(async () => {
+            const text = input.value.trim();
+            if (text.length < 7) {
+                // 太短不可能是号码
+                updateCount();
+                return;
+            }
+
+            // 显示"自动标注中"
+            window._enthubToast('info', '🔍 自动标注中...', '');
+
+            const data = await window.doAnnotate(text);
+            if (data) {
+                // 显示结果（同 annotateText）
+                document.getElementById('text-result').style.display = 'block';
+                document.getElementById('text-annotated').textContent = data.annotated_text;
+                document.getElementById('copy-annotated-btn').disabled = false;
+
+                const badge = document.getElementById('text-result-badge');
+                const phoneCount = data.phone_count;
+                if (phoneCount === 0) {
+                    badge.style.background = '#f3f4f6';
+                    badge.style.color = '#6b7280';
+                    badge.textContent = '未发现号码';
+                } else if (phoneCount === 1) {
+                    badge.style.background = '#dcfce7';
+                    badge.style.color = '#16a34a';
+                    badge.textContent = `${phoneCount} 个号码`;
+                } else if (phoneCount <= 5) {
+                    badge.style.background = '#fef3c7';
+                    badge.style.color = '#d97706';
+                    badge.textContent = `${phoneCount} 个号码`;
+                } else {
+                    badge.style.background = '#fee2e2';
+                    badge.style.color = '#dc2626';
+                    badge.textContent = `${phoneCount} 个号码`;
+                }
+            }
+            updateCount();
+        }, 150);
+    });
+
+    // 页面加载后自动聚焦
+    input.focus();
+}
+
+// 清空输入
+function clearTextInput(evt) {
+    document.getElementById('text-input').value = '';
+    document.getElementById('text-char-count').textContent = '0 字';
+    document.getElementById('text-result').style.display = 'none';
+    document.getElementById('copy-annotated-btn').disabled = true;
+    document.getElementById('text-input').focus();
+}
 
     try {
         const resp = await fetch('/api/phone_count_text', {
@@ -470,6 +590,14 @@ window.querySinglePhone = querySinglePhone;
 window.queryBatchPhones = queryBatchPhones;
 window.annotateText = annotateText;
 window.copyAnnotated = copyAnnotated;
+window.clearTextInput = clearTextInput;
+
+// 初始化（页面加载或 SPA 切换后执行）
+function initPhonesPage() {
+    setupAutoAnnotate();
+}
+initPhonesPage();
+window.initPhonesPage = initPhonesPage;
 
 // API 说明折叠/展开
 function toggleApiDocs(evt) {

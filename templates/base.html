@@ -217,32 +217,33 @@
         });
     }
 
-    // ── 一键标注：从剪贴板读取 → 标注 → 写回剪贴板 ──
+    // ── 一键标注：粘贴文本 → 标注 → 写回剪贴板 ──
+    // 不依赖 navigator.clipboard.readText（HTTPS/localhost 限制），
+    // 改为：跳转到电话页 + 输入框自动聚焦 + 监听 paste 自动触发
     async function quickAnnotate(evt) {
-        const btn = evt ? evt.currentTarget : null;
-        const originalHTML = btn ? btn.innerHTML : '';
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" style="width: 14px; height: 14px; animation: qa-spin 1s linear infinite;"></i> 处理中...';
-            if (window.lucide) lucide.createIcons();
+        // 在首页/导航栏点击：跳转到电话查询页
+        if (window.location.pathname !== '/phones') {
+            window.location.href = '/phones';
+            return;
+        }
+
+        // 在电话页：聚焦输入框
+        const input = document.getElementById('text-input');
+        if (input) {
+            input.focus();
+            window._enthubToast('info', '📋 请粘贴文本（Cmd+V）', '粘贴后自动标注号码');
+        }
+    }
+
+    // ── 标注核心函数（页面调用）──
+    async function doAnnotate(text, opts) {
+        opts = opts || {};
+        if (!text || !text.trim()) {
+            window._enthubToast('warning', '⚠️ 文本为空', '请粘贴包含电话号码的文本');
+            return null;
         }
 
         try {
-            // 1. 读取剪贴板
-            let text;
-            try {
-                text = await navigator.clipboard.readText();
-            } catch (e) {
-                window._enthubToast('error', '❌ 无法读取剪贴板', '请用 HTTPS 或 localhost 访问，或改用「粘贴文本」');
-                return;
-            }
-
-            if (!text || !text.trim()) {
-                window._enthubToast('warning', '⚠️ 剪贴板为空', '请先复制包含电话号码的文本');
-                return;
-            }
-
-            // 2. 调用 API
             const resp = await fetch('/api/phone_count_text', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -252,32 +253,32 @@
 
             if (data.code !== 0) {
                 window._enthubToast('error', '❌ 标注失败', data.message || '未知错误');
-                return;
+                return null;
             }
 
-            // 3. 写回剪贴板
-            try {
-                await navigator.clipboard.writeText(data.data.annotated_text);
-            } catch (e) {
-                window._enthubToast('warning', '⚠️ 标注完成但写回失败', '请手动复制');
-                return;
-            }
-
-            // 4. 提示
+            // 尝试写入剪贴板（写入比读取宽松，IP 访问也可用）
+            const annotated = data.data.annotated_text;
             const phoneCount = data.data.phone_count;
-            if (phoneCount === 0) {
-                window._enthubToast('warning', '⚠️ 未发现电话号码', `已处理 ${text.length} 字，但未识别到号码`);
-            } else {
-                window._enthubToast('success', `✅ 已标注 ${phoneCount} 个号码`, '结果已写回剪贴板，可直接粘贴');
+            try {
+                await navigator.clipboard.writeText(annotated);
+                if (phoneCount === 0) {
+                    window._enthubToast('warning', '⚠️ 未发现电话号码', `已处理 ${text.length} 字，未识别到号码`);
+                } else {
+                    window._enthubToast('success', `✅ 已标注 ${phoneCount} 个号码`, '结果已复制到剪贴板');
+                }
+            } catch (e) {
+                // 写入失败，提示用户手动复制
+                if (phoneCount === 0) {
+                    window._enthubToast('warning', '⚠️ 未发现电话号码', `已处理 ${text.length} 字`);
+                } else {
+                    window._enthubToast('success', `✅ 已标注 ${phoneCount} 个号码`, '请点击「复制结果」按钮');
+                }
             }
+
+            return data.data;
         } catch (e) {
             window._enthubToast('error', '❌ 操作失败', e.message);
-        } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = originalHTML;
-                if (window.lucide) lucide.createIcons();
-            }
+            return null;
         }
     }
 
@@ -287,10 +288,10 @@
         document.querySelectorAll('.enthub-toast').forEach(t => t.remove());
 
         const colors = {
-            success: { bg: '#22c55e', icon: 'check-circle' },
-            warning: { bg: '#f59e0b', icon: 'alert-triangle' },
-            error: { bg: '#ef4444', icon: 'x-circle' },
-            info: { bg: '#3b82f6', icon: 'info' }
+            success: { bg: '#16a34a' },
+            warning: { bg: '#d97706' },
+            error: { bg: '#dc2626' },
+            info: { bg: '#2563eb' }
         };
         const color = colors[type] || colors.info;
 
@@ -312,13 +313,11 @@
         `;
         document.body.appendChild(toast);
 
-        // 入场动画
         requestAnimationFrame(() => {
             toast.style.opacity = '1';
             toast.style.transform = 'translateX(0)';
         });
 
-        // 自动消失
         setTimeout(() => {
             toast.style.opacity = '0';
             toast.style.transform = 'translateX(120%)';
@@ -328,15 +327,8 @@
 
     // 全局挂载
     window.quickAnnotate = quickAnnotate;
+    window.doAnnotate = doAnnotate;
     window._enthubToast = _enthubToast;
-
-    // 添加 spin 动画
-    if (!document.getElementById('qa-spin-style')) {
-        const style = document.createElement('style');
-        style.id = 'qa-spin-style';
-        style.textContent = '@keyframes qa-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
-        document.head.appendChild(style);
-    }
     </script>
     {% include "_modal.html" %}
     {% block scripts %}{% endblock %}

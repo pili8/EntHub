@@ -83,17 +83,24 @@ class EntHubMenuBar(rumps.App):
         """一键标注：从剪贴板读取 → 标注号码 → 写回剪贴板"""
         import json
         import urllib.request
+        import urllib.error
+
+        print("[EntHub] 一键标注开始...", flush=True)
 
         # 1. 读剪贴板（macOS pbpaste）
         try:
             text = subprocess.check_output(["pbpaste"]).decode("utf-8")
         except Exception as e:
-            rumps.notification("EntHub", "读取剪贴板失败", str(e))
+            print(f"[EntHub] 读取剪贴板失败: {e}", flush=True)
+            self._notify_result("❌ 读取剪贴板失败", str(e))
             return
 
         if not text.strip():
-            rumps.notification("EntHub", "剪贴板为空", "请先复制包含电话号码的文本")
+            print("[EntHub] 剪贴板为空", flush=True)
+            self._notify_result("⚠️ 剪贴板为空", "请先复制包含电话号码的文本")
             return
+
+        print(f"[EntHub] 剪贴板内容长度: {len(text)} 字", flush=True)
 
         # 2. 调用本地 API
         try:
@@ -106,36 +113,72 @@ class EntHubMenuBar(rumps.App):
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
         except urllib.error.URLError:
-            rumps.notification("EntHub", "服务未运行", "请先启动 EntHub 服务")
+            print("[EntHub] 服务未运行", flush=True)
+            self._notify_result("❌ 服务未运行", "请先启动 EntHub 服务")
             return
         except Exception as e:
-            rumps.notification("EntHub", "API 调用失败", str(e))
+            print(f"[EntHub] API 调用失败: {e}", flush=True)
+            self._notify_result("❌ API 调用失败", str(e))
             return
 
         if data.get("code") != 0:
-            rumps.notification("EntHub", "标注失败", data.get("message", "未知错误"))
+            msg = data.get("message", "未知错误")
+            print(f"[EntHub] 标注失败: {msg}", flush=True)
+            self._notify_result("❌ 标注失败", msg)
             return
 
         annotated = data["data"]["annotated_text"]
         phone_count = data["data"]["phone_count"]
+
+        print(f"[EntHub] 识别到 {phone_count} 个号码", flush=True)
 
         # 3. 写回剪贴板（macOS pbcopy）
         try:
             proc = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
             proc.communicate(annotated.encode("utf-8"))
         except Exception as e:
-            rumps.notification("EntHub", "写入剪贴板失败", str(e))
+            print(f"[EntHub] 写入剪贴板失败: {e}", flush=True)
+            self._notify_result("❌ 写入剪贴板失败", str(e))
             return
 
-        # 4. 通知
+        # 4. 多渠道反馈
         if phone_count == 0:
-            rumps.notification("EntHub", "未发现电话号码", f"已处理 {len(text)} 字文本")
+            self._notify_result(
+                "⚠️ 未发现电话号码",
+                f"已处理 {len(text)} 字文本"
+            )
         else:
-            rumps.notification(
-                "EntHub",
-                f"已标注 {phone_count} 个号码",
+            self._notify_result(
+                f"✅ 已标注 {phone_count} 个号码",
                 "结果已写回剪贴板，可直接粘贴使用"
             )
+
+    def _notify_result(self, title, message):
+        """多渠道反馈：系统通知 + 菜单标题短暂变化 + 终端日志"""
+        # 1. 终端日志
+        print(f"[EntHub] {title} | {message}", flush=True)
+
+        # 2. 系统通知（主反馈）
+        try:
+            rumps.notification("EntHub 一键标注", title, message)
+        except Exception as e:
+            print(f"[EntHub] 通知发送失败: {e}", flush=True)
+
+        # 3. 菜单标题短暂变化（备用反馈）
+        try:
+            original_title = self.title
+            # 取标题前几个字作为状态指示
+            short_status = title.split()[0] if title else "✓"
+            self.title = f"EntHub {short_status}"
+            import threading
+            def restore():
+                import time
+                time.sleep(2)
+                self.title = original_title
+            t = threading.Thread(target=restore, daemon=True)
+            t.start()
+        except Exception:
+            pass
 
     def on_open_data_dir(self, _):
         data_dir = Path(__file__).parent / "data"
