@@ -4,6 +4,7 @@
 所有响应格式统一：{"code": 0, "message": "ok", "data": {...}}
 """
 import math
+import re
 from flask import Blueprint, request, jsonify, g
 
 from utils import normalize_phone, normalize_credit_code, normalize_name
@@ -325,3 +326,134 @@ def stats_industry():
     per_page = min(100, max(10, request.args.get('per_page', 25, type=int)))
     min_count = max(2, request.args.get('min', 2, type=int))
     return _ok(_stats_grouped('industry', page, per_page, min_count))
+
+
+# ── 电话重复数查询 ────────────────────────────────────────────
+
+# 号码识别正则（按优先级匹配）
+_PHONE_RE = re.compile(
+    r'(?<!\d)'
+    r'(?:'
+    r'1[3-9]\d{9}'
+    r'|'
+    r'\d{3,4}-\d{7,8}(?:-\d{1,6})?'
+    r'|'
+    r'\d{7,8}(?:-\d{1,6})?'
+    r'|'
+    r'400-\d{3}-\d{4}'
+    r'|'
+    r'800-\d{3}-\d{4}'
+    r')'
+    r'(?!\d)',
+    re.ASCII
+)
+
+
+def _phone_dup_count(db, normalized_phone):
+    """查询号码的重复数（从 company_phones 表）"""
+    if not normalized_phone:
+        return 0
+    return db.execute(
+        "SELECT COUNT(DISTINCT company_id) FROM company_phones WHERE normalized_phone = ?",
+        [normalized_phone]
+    ).fetchone()[0]
+
+
+@api_bp.route('/api/phone_count')
+def phone_count():
+    """查询单个号码的重复数"""
+    phone = request.args.get('phone', '').strip()
+    if not phone:
+        return _err(1001, "phone 参数不能为空")
+
+    norm = normalize_phone(phone)
+    if not norm:
+        return _err(1001, "无效的电话号码")
+
+    count = _phone_dup_count(g.db, norm)
+    return _ok({
+        "phone": phone,
+        "normalized": norm,
+        "count": count
+    })
+
+
+@api_bp.route('/api/phone_count_batch', methods=['POST'])
+def phone_count_batch():
+    """批量查询号码重复数"""
+    try:
+        data = request.get_json() or {}
+        phones = data.get('phones', [])
+        if not phones or not isinstance(phones, list):
+            return _err(1001, "phones 必须是号码数组")
+        if len(phones) > 200:
+            return _err(1001, "一次最多查询 200 个号码")
+    except Exception:
+        return _err(1001, "请求体必须是 JSON 格式")
+
+    results = []
+    for raw in phones:
+        raw = str(raw).strip()
+        if not raw:
+            continue
+        norm = normalize_phone(raw)
+        if not norm:
+            continue
+        count = _phone_dup_count(g.db, norm)
+        results.append({
+            "phone": raw,
+            "normalized": norm,
+            "count": count
+        })
+
+    return _ok({"results": results})
+
+
+@api_bp.route('/api/phone_count_text', methods=['POST'])
+def phone_count_text():
+    """文本中提取号码并标注重复数"""
+    try:
+        data = request.get_json() or {}
+        text = data.get('text', '')
+        if not text:
+            return _err(1001, "text 不能为空")
+        if len(text) > 10000:
+            return _err(1001, "文本不能超过 10000 字")
+    except Exception:
+        return _err(1001, "请求体必须是 JSON 格式")
+
+    # 提取号码
+    matches = []
+    for m in _PHONE_RE.finditer(text):
+        raw = m.group()
+        norm = normalize_phone(raw)
+        if not norm:
+            continue
+        count = _phone_dup_count(g.db, norm)
+        matches.append({
+            "phone": raw,
+            "normalized": norm,
+            "count": count,
+            "position": [m.start(), m.end()]
+        })
+
+    # 去重（相同归一化号码只查一次）
+    seen_norms = {}
+    for m in matches:
+        seen_norms.setdefault(m["normalized"], m)
+    unique_phones = list(seen_norms.values())
+
+    # 生成标注文本（从后往前替换，避免位置偏移）
+    annotated = text
+    for m in reversed(matches):
+        raw = m["phone"]
+        count = m["count"]
+        replacement = f"{raw} ({count})"
+        annotated = annotated[:m["position"][0]] + replacement + annotated[m["position"][1]:]
+
+    return _ok({
+        "original_text": text,
+        "annotated_text": annotated,
+        "phones": unique_phones,
+        "phone_count": len(unique_phones)
+    })

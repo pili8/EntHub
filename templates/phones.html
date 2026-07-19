@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}电话查询 · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title"> 电话查询</div>
+    <div class="page-subtitle">查询电话号码的重复数，识别中介/代理记账号码</div>
+</div>
+
+<!-- Tab 切换 -->
+<div class="card" style="padding: 24px;">
+    <div style="display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border);">
+        <button onclick="switchTab('single')" id="tab-single" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 500; cursor: pointer; font-size: 14px;">
+            单号码查询
+        </button>
+        <button onclick="switchTab('batch')" id="tab-batch" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 14px;">
+            批量查询
+        </button>
+        <button onclick="switchTab('text')" id="tab-text" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 14px;">
+            文本标注
+        </button>
+    </div>
+
+    <!-- Tab 1: 单号码查询 -->
+    <div id="panel-single">
+        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+            <input type="text" id="single-phone" class="form-input" placeholder="输入电话号码（手机、座机、400/800）" style="flex: 1; max-width: 400px;">
+            <button onclick="querySinglePhone()" class="btn btn-primary" style="padding: 10px 24px;">
+                <i data-lucide="search" style="width: 16px; height: 16px;"></i> 查询
+            </button>
+        </div>
+
+        <div id="single-result" style="display: none;">
+            <div style="padding: 20px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 12px 24px; font-size: 14px;">
+                    <div style="color: var(--text-muted); font-weight: 500;">号码</div>
+                    <div id="single-phone-display" style="font-weight: 600;"></div>
+                    
+                    <div style="color: var(--text-muted); font-weight: 500;">归一化</div>
+                    <div id="single-normalized" style="font-family: monospace; color: var(--text-secondary);"></div>
+                    
+                    <div style="color: var(--text-muted); font-weight: 500;">重复数</div>
+                    <div id="single-count" style="font-weight: 600;"></div>
+                </div>
+
+                <div id="single-companies" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: none;">
+                    <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px;">关联企业（点击查看详情）</div>
+                    <div id="single-companies-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: 批量查询 -->
+    <div id="panel-batch" style="display: none;">
+        <div style="margin-bottom: 16px;">
+            <textarea id="batch-phones" class="form-input" placeholder="每行一个号码，或逗号分隔" rows="6" style="width: 100%; max-width: 600px; font-family: monospace; font-size: 13px;"></textarea>
+            <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                支持格式：手机号、座机（带/不带区号）、400/800 号码
+            </div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <button onclick="queryBatchPhones()" class="btn btn-primary" style="padding: 10px 24px;">
+                <i data-lucide="search" style="width: 16px; height: 16px;"></i> 批量查询
+            </button>
+        </div>
+
+        <div id="batch-result" style="display: none;">
+            <div style="background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead>
+                        <tr style="background: #f1f5f9; border-bottom: 2px solid var(--border);">
+                            <th style="padding: 10px 16px; text-align: left; font-weight: 600;">号码</th>
+                            <th style="padding: 10px 16px; text-align: left; font-weight: 600;">重复数</th>
+                            <th style="padding: 10px 16px; text-align: left; font-weight: 600;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch-results-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: 文本标注 -->
+    <div id="panel-text" style="display: none;">
+        <div style="margin-bottom: 16px;">
+            <textarea id="text-input" class="form-input" placeholder="粘贴包含电话号码的文本" rows="6" style="width: 100%; font-size: 13px; line-height: 1.6;"></textarea>
+        </div>
+        <div style="margin-bottom: 20px; display: flex; gap: 12px;">
+            <button onclick="annotateText()" class="btn btn-primary" style="padding: 10px 24px;">
+                <i data-lucide="tag" style="width: 16px; height: 16px;"></i> 标注号码
+            </button>
+            <button onclick="copyAnnotated()" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;" disabled id="copy-annotated-btn">
+                <i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果
+            </button>
+        </div>
+
+        <div id="text-result" style="display: none;">
+            <div style="padding: 20px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                    标注后文本
+                </div>
+                <pre id="text-annotated" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 14px; line-height: 1.8; margin: 0; color: var(--text-primary);"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 颜色标识说明 -->
+<div class="card" style="padding: 20px 24px; margin-top: 16px;">
+    <div style="display: flex; gap: 24px; font-size: 13px; color: var(--text-secondary);">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22c55e;"></span>
+            <span>1 次 · 唯一/可信</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></span>
+            <span>2-5 次 · 少量重复/可疑</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
+            <span>6+ 次 · 高度重复/中介</span>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Tab 切换
+function switchTab(tab) {
+    const tabs = ['single', 'batch', 'text'];
+    tabs.forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        const panel = document.getElementById('panel-' + t);
+        if (t === tab) {
+            btn.style.borderBottomColor = '#3b82f6';
+            btn.style.color = '#3b82f6';
+            panel.style.display = 'block';
+        } else {
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.color = 'var(--text-secondary)';
+            panel.style.display = 'none';
+        }
+    });
+}
+
+// 重复数颜色标识
+function countColor(count) {
+    if (count === 0) return '#6b7280';
+    if (count === 1) return '#22c55e';
+    if (count <= 5) return '#f59e0b';
+    return '#ef4444';
+}
+
+function countEmoji(count) {
+    if (count === 0) return '⚪';
+    if (count === 1) return '🟢';
+    if (count <= 5) return '🟡';
+    return '🔴';
+}
+
+// Tab 1: 单号码查询
+async function querySinglePhone() {
+    const phone = document.getElementById('single-phone').value.trim();
+    if (!phone) {
+        alert('请输入电话号码');
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
+
+    try {
+        const resp = await fetch('/api/phone_count?phone=' + encodeURIComponent(phone));
+        const data = await resp.json();
+
+        if (data.code !== 0) {
+            alert(data.message || '查询失败');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            return;
+        }
+
+        const result = data.data;
+        document.getElementById('single-result').style.display = 'block';
+        document.getElementById('single-phone-display').textContent = result.phone;
+        document.getElementById('single-normalized').textContent = result.normalized;
+
+        const countEl = document.getElementById('single-count');
+        countEl.innerHTML = `<span style="color: ${countColor(result.count)}; font-weight: 600;">${result.count} 次</span>`;
+
+        // 显示关联企业（如果有）
+        if (result.count > 0) {
+            const companiesPanel = document.getElementById('single-companies');
+            companiesPanel.style.display = 'block';
+
+            // 查询关联企业
+            const resp2 = await fetch('/api/relations?type=phone&value=' + encodeURIComponent(result.phone) + '&limit=10');
+            const data2 = await resp2.json();
+
+            if (data2.code === 0 && data2.data.results && data2.data.results.length > 0) {
+                const list = document.getElementById('single-companies-list');
+                list.innerHTML = data2.data.results.map(c =>
+                    `<a href="/company/${c.id}" style="display: block; padding: 8px 12px; margin-bottom: 4px; background: white; border-radius: 6px; border: 1px solid var(--border); text-decoration: none; color: var(--text-primary); font-size: 13px; transition: all 0.2s;">
+                        ${c.name}
+                        ${c.address ? '<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">' + c.address + '</div>' : ''}
+                    </a>`
+                ).join('');
+            } else {
+                document.getElementById('single-companies-list').innerHTML = '<div style="font-size: 13px; color: var(--text-muted);">无关联企业</div>';
+            }
+        } else {
+            document.getElementById('single-companies').style.display = 'none';
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    } catch (e) {
+        alert('请求失败：' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
+
+// Tab 2: 批量查询
+async function queryBatchPhones() {
+    const input = document.getElementById('batch-phones').value.trim();
+    if (!input) {
+        alert('请输入号码');
+        return;
+    }
+
+    // 解析号码（按行或逗号分隔）
+    const phones = input.split(/[\n,;，]/).map(p => p.trim()).filter(p => p);
+    if (phones.length === 0) {
+        alert('未识别到有效号码');
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
+
+    try {
+        const resp = await fetch('/api/phone_count_batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phones: phones })
+        });
+        const data = await resp.json();
+
+        if (data.code !== 0) {
+            alert(data.message || '查询失败');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            return;
+        }
+
+        const results = data.data.results;
+        document.getElementById('batch-result').style.display = 'block';
+
+        const tbody = document.getElementById('batch-results-body');
+        tbody.innerHTML = results.map(r => `
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td style="padding: 10px 16px; font-family: monospace;">${r.phone}</td>
+                <td style="padding: 10px 16px;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; background: ${countColor(r.count)}20; color: ${countColor(r.count)}; font-weight: 600; font-size: 12px;">
+                        ${countEmoji(r.count)} ${r.count} 次
+                    </span>
+                </td>
+                <td style="padding: 10px 16px;">
+                    ${r.count > 0 ? `<a href="/api/relations?type=phone&value=${encodeURIComponent(r.phone)}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 12px;">查看详情</a>` : '-'}
+                </td>
+            </tr>
+        `).join('');
+
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    } catch (e) {
+        alert('请求失败：' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
+
+// Tab 3: 文本标注
+async function annotateText() {
+    const text = document.getElementById('text-input').value.trim();
+    if (!text) {
+        alert('请输入文本');
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 标注中...';
+
+    try {
+        const resp = await fetch('/api/phone_count_text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        const data = await resp.json();
+
+        if (data.code !== 0) {
+            alert(data.message || '标注失败');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            return;
+        }
+
+        const result = data.data;
+        document.getElementById('text-result').style.display = 'block';
+        document.getElementById('text-annotated').textContent = result.annotated_text;
+        document.getElementById('copy-annotated-btn').disabled = false;
+
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    } catch (e) {
+        alert('请求失败：' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
+
+// 复制标注结果
+function copyAnnotated() {
+    const text = document.getElementById('text-annotated').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-annotated-btn');
+        btn.innerHTML = '<i data-lucide="check" style="width: 16px; height: 16px;"></i> 已复制';
+        btn.style.color = '#22c55e';
+        setTimeout(() => {
+            btn.innerHTML = '<i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果';
+            btn.style.color = '';
+        }, 2000);
+    }).catch(e => {
+        alert('复制失败：' + e.message);
+    });
+}
+</script>
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}

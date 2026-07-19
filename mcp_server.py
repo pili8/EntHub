@@ -485,6 +485,140 @@ def get_stats(
     return {"code": 0, "message": "ok", "data": _stats_grouped(field, page, per_page, min_count)}
 
 
+# ── 电话重复数查询 ───────────────────────────────────────────
+
+import re as _re
+
+# 号码识别正则（与 api.py 保持一致）
+_PHONE_RE = _re.compile(
+    r'(?<!\d)'
+    r'(?:'
+    r'1[3-9]\d{9}'
+    r'|'
+    r'\d{3,4}-\d{7,8}(?:-\d{1,6})?'
+    r'|'
+    r'\d{7,8}(?:-\d{1,6})?'
+    r'|'
+    r'400-\d{3}-\d{4}'
+    r'|'
+    r'800-\d{3}-\d{4}'
+    r')'
+    r'(?!\d)',
+    _re.ASCII
+)
+
+
+def _phone_dup_count(db, normalized_phone):
+    """查询号码的重复数"""
+    if not normalized_phone:
+        return 0
+    return db.execute(
+        "SELECT COUNT(DISTINCT company_id) FROM company_phones WHERE normalized_phone = ?",
+        [normalized_phone]
+    ).fetchone()[0]
+
+
+@mcp.tool()
+def check_phone_count(phone: str) -> str:
+    """查询单个电话号码的重复数（被多少家企业共用）。
+    重复数越高，该号码越可能是中介/代理记账号码。
+    
+    Args:
+        phone: 电话号码（支持手机、座机、400/800）
+    
+    Returns:
+        格式化的查询结果字符串
+    """
+    db = get_db()
+    norm = normalize_phone(phone)
+    if not norm:
+        return " 无效的电话号码"
+    
+    count = _phone_dup_count(db, norm)
+    
+    if count == 0:
+        return f" {phone} → 未在数据库中找到，重复 0 次"
+    elif count == 1:
+        return f"📞 {phone}（归一化：{norm}）→ 重复 1 次 ✅ 可信号码"
+    elif count <= 5:
+        return f"📞 {phone}（归一化：{norm}）→ 重复 {count} 次 ⚠️ 少量重复"
+    else:
+        return f" {phone}（归一化：{norm}）→ 重复 {count} 次 🔴 高度重复，可能是中介号码"
+
+
+@mcp.tool()
+def check_phones_batch(phones: list) -> str:
+    """批量查询多个电话号码的重复数。
+    
+    Args:
+        phones: 电话号码列表，如 ["13800138000", "0571-88889999"]
+    
+    Returns:
+        批量查询结果，每行一个号码
+    """
+    db = get_db()
+    if not phones or len(phones) > 200:
+        return "❌ 请提供 1-200 个号码"
+    
+    lines = []
+    for raw in phones:
+        raw = str(raw).strip()
+        if not raw:
+            continue
+        norm = normalize_phone(raw)
+        if not norm:
+            lines.append(f"  ❌ {raw}: 无效号码")
+            continue
+        count = _phone_dup_count(db, norm)
+        if count == 0:
+            lines.append(f"   {raw} → 0 次")
+        elif count == 1:
+            lines.append(f"  📞 {raw} → 1 次 ✅")
+        elif count <= 5:
+            lines.append(f"  📞 {raw} → {count} 次 ⚠️")
+        else:
+            lines.append(f"  📞 {raw} → {count} 次 🔴")
+    
+    return f"查询 {len(lines)} 个号码：\n" + "\n".join(lines)
+
+
+@mcp.tool()
+def annotate_phones(text: str) -> str:
+    """从一段文本中提取所有电话号码，并标注每个号码的重复数。
+    
+    Args:
+        text: 任意文本（可能包含电话号码）
+    
+    Returns:
+        标注后的文本，每个号码后面带有重复数
+    """
+    db = get_db()
+    matches = []
+    for m in _PHONE_RE.finditer(text):
+        raw = m.group()
+        norm = normalize_phone(raw)
+        if not norm:
+            continue
+        count = _phone_dup_count(db, norm)
+        matches.append({
+            "phone": raw,
+            "count": count,
+            "pos": [m.start(), m.end()]
+        })
+    
+    if not matches:
+        return "📞 文本中未发现电话号码"
+    
+    # 从后往前替换
+    annotated = text
+    for m in reversed(matches):
+        replacement = f"{m['phone']} ({m['count']})"
+        annotated = annotated[:m["pos"][0]] + replacement + annotated[m["pos"][1]:]
+    
+    unique_count = len(set(normalize_phone(m["phone"]) for m in matches))
+    return f"发现 {len(matches)} 个号码（{unique_count} 个不重复）：\n\n{annotated}"
+
+
 # ── 启动 ──────────────────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -35,13 +35,51 @@ def normalize_name(name):
 
 
 def normalize_phone(phone):
-    """Normalize a phone number: digits only, strip +86."""
+    """Normalize a phone number.
+    
+    Rules:
+    - Mobile: strip +86/86 prefix
+    - Landline with 0817 area code (Nanchong): remove 0817
+    - Extension: keep format XXXXXXX-XXX or XXXXXXXX-XXX (dash preserved)
+    - Other area codes (0571, 010, etc.): keep full, strip internal dashes
+    - Non-area-code: keep as-is (7-8 digit landline)
+    
+    Examples:
+        +86 13800138000  →  13800138000
+        0817-3350888     →  3350888
+        0817-3350888-356 →  3350888-356
+        3350888          →  3350888
+        3350888-356      →  3350888-356
+        0571-88889999    →  057188889999
+        010-12345678     →  01012345678
+    """
     if not phone:
         return ""
-    digits = re.sub(r"\D", "", str(phone))
+    
+    s = str(phone).strip()
+    
+    # Detect extension: XXXXXXX-XXX or XXXXXXXX-XXX format
+    # Matches: 7-8 digit main number followed by dash and 1-6 digit extension
+    ext_match = re.search(r'(\d{7,8})-(\d{1,6})$', s)
+    extension = ""
+    if ext_match:
+        main_part = s[:ext_match.start()] + ext_match.group(1)
+        extension = "-" + ext_match.group(2)
+    else:
+        main_part = s
+    
+    # Extract digits from main part only
+    digits = re.sub(r"\D", "", main_part)
+    
+    # Mobile: strip 86 prefix (when length > 11)
     if digits.startswith("86") and len(digits) > 11:
         digits = digits[2:]
-    return digits
+    
+    # Nanchong landline: strip 0817 area code
+    if digits.startswith("0817"):
+        digits = digits[4:]
+    
+    return digits + extension
 
 
 def normalize_person_name(name):

@@ -2631,6 +2631,12 @@ def mcp_page():
     )
 
 
+@app.route("/phones")
+def phones_page():
+    """电话查询页面"""
+    return render_template("phones.html")
+
+
 @app.route("/mcp/start", methods=["POST"])
 def mcp_start():
     """启动 MCP Server（独立后台进程）"""
