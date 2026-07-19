@@ -17,7 +17,7 @@
                     {% if running %}运行中{% else %}已停止{% endif %}
                 </div>
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                    {% if running and pid %}PID: {{ pid }} · 端口 8000（HTTP 模式）{% else %}stdio 模式无需启动，配置后 AI 工具会自动拉起{% endif %}
+                    {% if running and pid %}PID: {{ pid }} · 端口 8000（HTTP 模式）{% else %}未启动（stdio 模式可不启动）{% endif %}
                 </div>
             </div>
         </div>
@@ -70,15 +70,12 @@
 
 {% if not running %}
 <!-- 未运行提示 -->
-<div class="card" style="padding: 24px; margin-bottom: 24px; background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%); border: 1px solid #fcd34d;">
-    <div style="display: flex; align-items: flex-start; gap: 14px;">
-        <div style="font-size: 28px;">💡</div>
-        <div style="flex: 1;">
-            <h3 style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #92400e;">stdio 模式无需点击启动</h3>
-            <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.6;">
-                直接复制下方 <strong>stdio 配置</strong> 到 AI 工具，AI 会自动启动 MCP Server。<br>
-                只有需要<strong>多设备共享</strong>或<strong>局域网访问</strong>时，才需要点击「启动」使用 HTTP 模式。
-            </p>
+<div class="card" style="padding: 20px 24px; margin-bottom: 24px; background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%); border: 1px solid #fcd34d;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="font-size: 24px;">💡</div>
+        <div style="flex: 1; font-size: 13px; color: #78350f; line-height: 1.6;">
+            只有需要<strong>多设备共享</strong>或<strong>局域网访问</strong>时，才需要点击「启动」使用 HTTP 模式。<br>
+            单机使用直接复制下方 <strong>stdio 配置</strong>，AI 工具会自动拉起。
         </div>
     </div>
 </div>
@@ -304,9 +301,6 @@
                     </tbody>
                 </table>
             </div>
-            <div style="margin-top: 10px; padding: 10px 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; font-size: 12px; color: #075985; line-height: 1.6;">
-                💡 <strong>说明</strong>：<code style="background: white; padding: 1px 4px; border-radius: 2px;">command</code> 是 Python 解释器路径，<code style="background: white; padding: 1px 4px; border-radius: 2px;">args</code> 是 MCP Server 脚本路径。AI 工具会用这个命令自动启动 MCP Server，<strong>无需手动运行</strong>。
-            </div>
         </div>
 
         <!-- Claude Code 命令行（特殊显示） -->
@@ -324,8 +318,7 @@
     <!-- HTTP 模式 -->
     <div id="config-http" style="display: none;">
         <div style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #1e40af; line-height: 1.6;">
-            <strong>🌐 HTTP 模式</strong>：需要先点上方「启动」按钮运行 MCP Server，多端可共享访问。<br>
-            <strong>支持此模式的工具</strong>：Claude Code、Cherry Studio、ChatBox、Open WebUI 等
+            <strong>🌐 HTTP 模式</strong>：需要先点上方「启动」按钮运行 MCP Server，多端可共享访问。
         </div>
 
         <div style="margin-bottom: 12px;">
@@ -402,31 +395,10 @@
         {% endif %}
     </div>
 
-    <!-- 通用配置说明（始终显示） -->
-    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border);">
-        <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-            <i data-lucide="book-open" style="width: 14px; height: 14px;"></i>
-            配置说明
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
-            <div>
-                <strong style="color: var(--text-primary);">📦 stdio 模式</strong><br>
-                AI 工具自动启动 MCP Server 进程。<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">command</code> + <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">args</code> 必填。
-            </div>
-            <div>
-                <strong style="color: var(--text-primary);">🌐 HTTP 模式</strong><br>
-                连接到已启动的 HTTP 服务。<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">type: "http"</code> + <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">url</code> 必填。
-            </div>
-            <div>
-                <strong style="color: var(--text-primary);">🔑 字段必填</strong><br>
-                stdio 模式：<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">command</code>, <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">args</code><br>
-                HTTP 模式：<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">type</code>, <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">url</code>
-            </div>
-            <div>
-                <strong style="color: var(--text-primary);">🔁 重启生效</strong><br>
-                修改配置文件后必须<strong>完全退出</strong> AI 工具再重新打开（Cmd+Q），不是最小化后重开。
-            </div>
-        </div>
+    <!-- 重启提示 -->
+    <div style="margin-top: 16px; padding: 10px 14px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; color: #92400e; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="alert-triangle" style="width: 14px; height: 14px; flex-shrink: 0;"></i>
+        <span>修改配置后必须 <strong>Cmd+Q 完全退出</strong> AI 工具再重新打开（不是关窗口）</span>
     </div>
 </div>
 
