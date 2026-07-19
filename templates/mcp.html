@@ -220,8 +220,9 @@
 
         <!-- 配置内容 -->
         <div id="stdio-config-wrapper">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 复制以下 JSON 粘贴到配置文件的 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px;">mcpServers</code> 中：</div>
-            <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
+            <!-- JSON 配置 -->
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 方式一：复制以下 JSON 粘贴到配置文件的 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px;">mcpServers</code> 中：</div>
+            <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin-bottom: 16px;">
                 <button onclick="copyToClipboard(document.getElementById('stdioConfig').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                     <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
                 </button>
@@ -233,6 +234,75 @@
     }
   }
 }</code></pre>
+            </div>
+
+            <!-- 通用表单填写 -->
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📝 方式二：AI 工具提供表单时，按以下字段填写（每个字段均可单独复制）：</div>
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: var(--bg-tertiary, #f1f5f9); border-bottom: 2px solid var(--border);">
+                            <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-primary); width: 25%;">字段名</th>
+                            <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-primary); width: 15%;">必填</th>
+                            <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-primary);">填写值</th>
+                            <th style="padding: 10px 12px; text-align: right; font-weight: 600; color: var(--text-primary); width: 60px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 10px 12px;">
+                                <div style="font-weight: 500;">名称 / Name</div>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">服务器标识</div>
+                            </td>
+                            <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
+                            <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px;">enthub</code></td>
+                            <td style="padding: 10px 12px; text-align: right;">
+                                <button onclick="copyToClipboard('enthub', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 10px 12px;">
+                                <div style="font-weight: 500;">传输类型 / Transport</div>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">协议类型</div>
+                            </td>
+                            <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
+                            <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px;">stdio</code></td>
+                            <td style="padding: 10px 12px; text-align: right;">
+                                <button onclick="copyToClipboard('stdio', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 10px 12px;">
+                                <div style="font-weight: 500;">命令 / Command *</div>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">可执行程序路径</div>
+                            </td>
+                            <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
+                            <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px; word-break: break-all;">{{ venv_python }}</code></td>
+                            <td style="padding: 10px 12px; text-align: right;">
+                                <button onclick="copyToClipboard('{{ venv_python }}', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px 12px;">
+                                <div style="font-weight: 500;">参数 / Args *</div>
+                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">脚本路径</div>
+                            </td>
+                            <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
+                            <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px; word-break: break-all;">{{ mcp_script }}</code></td>
+                            <td style="padding: 10px 12px; text-align: right;">
+                                <button onclick="copyToClipboard('{{ mcp_script }}', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             <div style="margin-top: 10px; padding: 10px 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; font-size: 12px; color: #075985; line-height: 1.6;">
                 💡 <strong>说明</strong>：<code style="background: white; padding: 1px 4px; border-radius: 2px;">command</code> 是 Python 解释器路径，<code style="background: white; padding: 1px 4px; border-radius: 2px;">args</code> 是 MCP Server 脚本路径。AI 工具会用这个命令自动启动 MCP Server，<strong>无需手动运行</strong>。
@@ -263,8 +333,9 @@
             <code style="display: block; padding: 8px 12px; background: var(--bg-secondary); border-radius: 4px; font-size: 12px; font-family: monospace;">{{ server_url }}</code>
         </div>
 
-        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 通用 JSON 配置：</div>
-        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
+        <!-- JSON 配置 -->
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 方式一：通用 JSON 配置：</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; margin-bottom: 16px;">
             <button onclick="copyToClipboard(document.getElementById('httpConfig').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                 <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
             </button>
@@ -276,6 +347,53 @@
     }
   }
 }</code></pre>
+        </div>
+
+        <!-- 通用表单填写 -->
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📝 方式二：AI 工具提供表单时，按以下字段填写：</div>
+        <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+            <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f1f5f9; border-bottom: 2px solid var(--border);">
+                        <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-primary); width: 25%;">字段名</th>
+                        <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-primary); width: 15%;">必填</th>
+                        <th style="padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-primary);">填写值</th>
+                        <th style="padding: 10px 12px; text-align: right; font-weight: 600; color: var(--text-primary); width: 60px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 10px 12px;"><div style="font-weight: 500;">名称 / Name</div></td>
+                        <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
+                        <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px;">enthub</code></td>
+                        <td style="padding: 10px 12px; text-align: right;">
+                            <button onclick="copyToClipboard('enthub', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                                <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 10px 12px;"><div style="font-weight: 500;">传输类型 / Transport</div></td>
+                        <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
+                        <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px;">http</code></td>
+                        <td style="padding: 10px 12px; text-align: right;">
+                            <button onclick="copyToClipboard('http', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                                <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px 12px;"><div style="font-weight: 500;">URL *</div><div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">服务地址</div></td>
+                        <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
+                        <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px; word-break: break-all;">{{ server_url }}</code></td>
+                        <td style="padding: 10px 12px; text-align: right;">
+                            <button onclick="copyToClipboard('{{ server_url }}', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                                <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
         {% if lan_url %}
         <div style="margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; font-size: 12px; color: #166534; line-height: 1.6;">
