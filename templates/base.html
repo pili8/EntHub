@@ -217,21 +217,93 @@
         });
     }
 
-    // ── 一键标注：粘贴文本 → 标注 → 写回剪贴板 ──
-    // 不依赖 navigator.clipboard.readText（HTTPS/localhost 限制），
-    // 改为：跳转到电话页 + 输入框自动聚焦 + 监听 paste 自动触发
+    // ── 一键标注：双模式（读剪贴板 / 降级到粘贴）──
     async function quickAnnotate(evt) {
-        // 在首页/导航栏点击：跳转到电话查询页
-        if (window.location.pathname !== '/phones') {
-            window.location.href = '/phones';
+        const btn = evt ? evt.currentTarget : null;
+        const originalHTML = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" style="width: 14px; height: 14px; animation: qa-spin 1s linear infinite;"></i> 处理中...';
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // 1. 尝试读取剪贴板
+        let clipboardText = null;
+        try {
+            clipboardText = await navigator.clipboard.readText();
+        } catch (e) {
+            // 读剪贴板失败（HTTPS/IP 限制/权限拒绝）→ 降级模式
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+                if (window.lucide) lucide.createIcons();
+            }
+
+            // 在电话页：聚焦输入框让用户粘贴
+            const input = document.getElementById('text-input');
+            if (input) {
+                input.focus();
+                window._enthubToast('info', '请在输入框粘贴（Cmd+V）', '浏览器限制了剪贴板读取，粘贴后自动标注');
+            } else {
+                // 不在电话页：跳转过去
+                window.location.href = '/phones';
+            }
             return;
         }
 
-        // 在电话页：聚焦输入框
-        const input = document.getElementById('text-input');
-        if (input) {
-            input.focus();
-            window._enthubToast('info', '📋 请粘贴文本（Cmd+V）', '粘贴后自动标注号码');
+        // 2. 剪贴板为空
+        if (!clipboardText || !clipboardText.trim()) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+                if (window.lucide) lucide.createIcons();
+            }
+            window._enthubToast('warning', '剪贴板为空', '请先复制文本');
+            return;
+        }
+
+        // 3. 调用标注
+        const data = await window.doAnnotate(clipboardText);
+
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // 4. 在电话页：同步显示结果
+        if (data && window.location.pathname === '/phones') {
+            const result = document.getElementById('text-result');
+            const input = document.getElementById('text-input');
+            if (result && input) {
+                input.value = clipboardText;
+                result.style.display = 'block';
+                document.getElementById('text-annotated').textContent = data.annotated_text;
+                document.getElementById('copy-annotated-btn').disabled = false;
+
+                // 更新 badge
+                const badge = document.getElementById('text-result-badge');
+                const phoneCount = data.phone_count;
+                if (badge) {
+                    if (phoneCount === 0) {
+                        badge.style.background = '#f3f4f6';
+                        badge.style.color = '#6b7280';
+                        badge.textContent = '未发现号码';
+                    } else if (phoneCount === 1) {
+                        badge.style.background = '#dcfce7';
+                        badge.style.color = '#16a34a';
+                        badge.textContent = `${phoneCount} 个号码`;
+                    } else if (phoneCount <= 5) {
+                        badge.style.background = '#fef3c7';
+                        badge.style.color = '#d97706';
+                        badge.textContent = `${phoneCount} 个号码`;
+                    } else {
+                        badge.style.background = '#fee2e2';
+                        badge.style.color = '#dc2626';
+                        badge.textContent = `${phoneCount} 个号码`;
+                    }
+                }
+            }
         }
     }
 
