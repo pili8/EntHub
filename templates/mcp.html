@@ -157,7 +157,54 @@
             <button onclick="switchAiTool('cursor')" data-tool="cursor" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Cursor</button>
             <button onclick="switchAiTool('vscode')" data-tool="vscode" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">VS Code</button>
             <button onclick="switchAiTool('cline')" data-tool="cline" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Cline</button>
+            <button onclick="switchAiTool('ccswitch')" data-tool="ccswitch" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">CC Switch</button>
             <button onclick="switchAiTool('claude-code')" data-tool="claude-code" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Claude Code</button>
+        </div>
+
+        <!-- CC Switch 特殊表单配置（不显示 JSON） -->
+        <div id="ccswitch-form" style="display: none; margin-bottom: 14px; padding: 14px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #bae6fd; border-radius: 8px;">
+            <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px;">
+                <i data-lucide="info" style="width: 16px; height: 16px; color: #0284c7; margin-top: 2px; flex-shrink: 0;"></i>
+                <div style="font-size: 12px; color: #075985; line-height: 1.6;">
+                    <strong>CC Switch</strong> 是 Claude Code / Codex / Gemini CLI 的配置管理工具，使用 <strong>GUI 表单</strong>配置 MCP，不用编辑 JSON 文件。
+                </div>
+            </div>
+            <div style="font-size: 12px; font-weight: 600; color: #0c4a6e; margin-bottom: 8px;">📋 在 CC Switch 中按以下表单填写：</div>
+            <div style="background: white; border-radius: 6px; padding: 12px; border: 1px solid #bae6fd;">
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                    <tr style="border-bottom: 1px solid #e0f2fe;">
+                        <td style="padding: 8px 10px; font-weight: 500; color: #075985; width: 100px;">服务器 ID</td>
+                        <td style="padding: 8px 10px;"><code style="background: #f0f9ff; padding: 2px 6px; border-radius: 3px; font-family: monospace;">enthub</code></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e0f2fe;">
+                        <td style="padding: 8px 10px; font-weight: 500; color: #075985;">名称</td>
+                        <td style="padding: 8px 10px;">EntHub 企业信息</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e0f2fe;">
+                        <td style="padding: 8px 10px; font-weight: 500; color: #075985;">传输类型</td>
+                        <td style="padding: 8px 10px;"><strong>stdio</strong> ✅</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e0f2fe;">
+                        <td style="padding: 8px 10px; font-weight: 500; color: #075985;">命令 *</td>
+                        <td style="padding: 8px 10px;"><code style="background: #f0f9ff; padding: 2px 6px; border-radius: 3px; font-family: monospace; word-break: break-all;">{{ venv_python }}</code>
+                            <button onclick="copyToClipboard('{{ venv_python }}', this)" style="background: #3b82f6; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 6px;">复制</button>
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e0f2fe;">
+                        <td style="padding: 8px 10px; font-weight: 500; color: #075985;">参数 *</td>
+                        <td style="padding: 8px 10px;"><code style="background: #f0f9ff; padding: 2px 6px; border-radius: 3px; font-family: monospace; word-break: break-all;">{{ mcp_script }}</code>
+                            <button onclick="copyToClipboard('{{ mcp_script }}', this)" style="background: #3b82f6; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-left: 6px;">复制</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 10px; font-weight: 500; color: #075985;">应用绑定</td>
+                        <td style="padding: 8px 10px;">勾选 <strong>Claude</strong>（自动同步到 <code style="font-family: monospace; background: #f0f9ff; padding: 1px 4px; border-radius: 2px;">~/.claude.json</code>）</td>
+                    </tr>
+                </table>
+            </div>
+            <div style="margin-top: 10px; padding: 10px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; font-size: 11px; color: #92400e;">
+                💡 <strong>注意</strong>：CC Switch 不支持同步到 Claude Desktop，仅同步到 Claude Code / Codex / Gemini CLI 等 CLI 工具。
+            </div>
         </div>
 
         <!-- 配置文件路径 + 说明 -->
@@ -338,27 +385,38 @@ const aiToolConfig = {
     'claude': {
         desc: '<strong>Claude Desktop</strong>：菜单栏点击图标 → Settings → Developer → Edit Config',
         path: '~/Library/Application Support/Claude/claude_desktop_config.json',
-        showCmd: false
+        showCmd: false,
+        showForm: false
     },
     'cursor': {
         desc: '<strong>Cursor</strong>：Settings → Cursor Settings → Features → MCP → Add MCP Server',
         path: '~/.cursor/mcp.json',
-        showCmd: false
+        showCmd: false,
+        showForm: false
     },
     'vscode': {
         desc: '<strong>VS Code</strong>（需安装 GitHub Copilot Chat 扩展）：项目根目录创建配置文件',
         path: '.vscode/mcp.json（项目根目录，注意 VS Code 用 "servers" 而非 "mcpServers"）',
-        showCmd: false
+        showCmd: false,
+        showForm: false
     },
     'cline': {
         desc: '<strong>Cline</strong>（VS Code 扩展）：Settings → MCP Servers → Add',
         path: '~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
-        showCmd: false
+        showCmd: false,
+        showForm: false
+    },
+    'ccswitch': {
+        desc: '<strong>CC Switch</strong>：打开 CC Switch → MCP 服务器管理 → 添加服务器（GUI 表单配置，无需编辑 JSON）',
+        path: '通过 CC Switch 自动同步到 ~/.claude.json（Claude Code）等',
+        showCmd: false,
+        showForm: true
     },
     'claude-code': {
         desc: '<strong>Claude Code</strong>（命令行工具）：用命令行一键添加，无需编辑 JSON 文件',
         path: '无需配置文件（用命令行添加）',
-        showCmd: true
+        showCmd: true,
+        showForm: false
     }
 };
 
@@ -383,9 +441,16 @@ function switchAiTool(tool) {
         document.getElementById('stdio-tool-desc').innerHTML = config.desc;
         document.getElementById('stdio-path').textContent = config.path;
         document.getElementById('claude-code-cmd').style.display = config.showCmd ? 'block' : 'none';
-        document.getElementById('stdio-config-wrapper').style.display = config.showCmd ? 'none' : 'block';
+        document.getElementById('stdio-config-wrapper').style.display = (config.showCmd || config.showForm) ? 'none' : 'block';
+        document.getElementById('ccswitch-form').style.display = config.showForm ? 'block' : 'none';
     }
 }
+
+// 显式挂到 window，避免 SPA 切换页面后 onclick 找不到函数
+window.switchAiTool = switchAiTool;
+window.switchConfigTab = switchConfigTab;
+window.startMcp = startMcp;
+window.stopMcp = stopMcp;
 
 // 启动 MCP
 async function startMcp(btn) {
