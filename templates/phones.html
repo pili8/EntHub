@@ -24,8 +24,8 @@
     <!-- Tab 1: 单号码查询 -->
     <div id="panel-single">
         <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-            <input type="text" id="single-phone" class="form-input" placeholder="输入电话号码（手机、座机、400/800）" style="flex: 1; max-width: 400px;">
-            <button onclick="querySinglePhone()" class="btn btn-primary" style="padding: 10px 24px;">
+            <input type="text" id="single-phone" class="form-input" placeholder="输入电话号码（手机、座机、400/800）" style="flex: 1; max-width: 400px;" onkeypress="if(event.key==='Enter') querySinglePhone(event)">
+            <button onclick="querySinglePhone(event)" class="btn btn-primary" style="padding: 10px 24px;">
                 <i data-lucide="search" style="width: 16px; height: 16px;"></i> 查询
             </button>
         </div>
@@ -60,7 +60,7 @@
             </div>
         </div>
         <div style="margin-bottom: 20px;">
-            <button onclick="queryBatchPhones()" class="btn btn-primary" style="padding: 10px 24px;">
+            <button onclick="queryBatchPhones(event)" class="btn btn-primary" style="padding: 10px 24px;">
                 <i data-lucide="search" style="width: 16px; height: 16px;"></i> 批量查询
             </button>
         </div>
@@ -88,10 +88,10 @@
             <textarea id="text-input" class="form-input" placeholder="粘贴包含电话号码的文本" rows="6" style="width: 100%; font-size: 13px; line-height: 1.6;"></textarea>
         </div>
         <div style="margin-bottom: 20px; display: flex; gap: 12px;">
-            <button onclick="annotateText()" class="btn btn-primary" style="padding: 10px 24px;">
+            <button onclick="annotateText(event)" class="btn btn-primary" style="padding: 10px 24px;">
                 <i data-lucide="tag" style="width: 16px; height: 16px;"></i> 标注号码
             </button>
-            <button onclick="copyAnnotated()" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;" disabled id="copy-annotated-btn">
+            <button onclick="copyAnnotated(event)" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;" disabled id="copy-annotated-btn">
                 <i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果
             </button>
         </div>
@@ -121,6 +121,89 @@
         <div style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
             <span>6+ 次 · 高度重复/中介</span>
+        </div>
+    </div>
+</div>
+
+<!-- API 调用说明 -->
+<div class="card" style="padding: 24px; margin-top: 16px;">
+    <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="code" style="width: 18px; height: 18px;"></i>
+        API 调用
+    </h3>
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
+        所有 API 返回统一 JSON 格式 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">{"code": 0, "message": "ok", "data": {...}}</code>，方便其他工具集成。
+    </p>
+
+    <!-- API 1: 单号码查询 -->
+    <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="display: inline-block; padding: 2px 8px; background: #22c55e; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">GET</span>
+            <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/phone_count</code>
+        </div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">单号码查询，返回号码、归一化、重复数</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
+            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
+            </button>
+            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>curl "http://127.0.0.1:5210/api/phone_count?phone=13800138000"</code></pre>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：{"code": 0, "data": {"phone": "13800138000", "normalized": "13800138000", "count": 3}}</div>
+    </div>
+
+    <!-- API 2: 批量查询 -->
+    <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="display: inline-block; padding: 2px 8px; background: #f59e0b; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">POST</span>
+            <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/phone_count_batch</code>
+        </div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">批量查询号码重复数（最多 200 个）</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
+            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
+            </button>
+            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>curl -X POST "http://127.0.0.1:5210/api/phone_count_batch" \
+  -H "Content-Type: application/json" \
+  -d '{"phones": ["13800138000", "0571-88889999"]}'</code></pre>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：{"code": 0, "data": {"results": [{phone, normalized, count}, ...]}}</div>
+    </div>
+
+    <!-- API 3: 文本标注 -->
+    <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="display: inline-block; padding: 2px 8px; background: #f59e0b; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">POST</span>
+            <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/phone_count_text</code>
+        </div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">从文本中提取号码并标注重复数，返回标注后的文本</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
+            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
+            </button>
+            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>curl -X POST "http://127.0.0.1:5210/api/phone_count_text" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "联系张三 13800138000 或李四 0571-88889999"}'</code></pre>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：{"code": 0, "data": {"annotated_text": "...", "phones": [...], "phone_count": N}}</div>
+    </div>
+
+    <!-- Python 调用示例 -->
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border);">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px;">🐍 Python 调用示例</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
+            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
+            </button>
+            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>import requests
+
+# 单号码查询
+r = requests.get("http://127.0.0.1:5210/api/phone_count", params={"phone": "13800138000"})
+print(r.json()["data"]["count"])
+
+# 批量查询
+r = requests.post("http://127.0.0.1:5210/api/phone_count_batch", json={"phones": ["13800138000", "0571-88889999"]})
+for item in r.json()["data"]["results"]:
+    print(f"{item['phone']} → {item['count']}次")</code></pre>
         </div>
     </div>
 </div>
@@ -163,14 +246,14 @@ function countEmoji(count) {
 }
 
 // Tab 1: 单号码查询
-async function querySinglePhone() {
+async function querySinglePhone(evt) {
     const phone = document.getElementById('single-phone').value.trim();
     if (!phone) {
         alert('请输入电话号码');
         return;
     }
 
-    const btn = event.target.closest('button');
+    const btn = evt.currentTarget.closest('button');
     const originalHTML = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
@@ -228,7 +311,7 @@ async function querySinglePhone() {
 }
 
 // Tab 2: 批量查询
-async function queryBatchPhones() {
+async function queryBatchPhones(evt) {
     const input = document.getElementById('batch-phones').value.trim();
     if (!input) {
         alert('请输入号码');
@@ -242,7 +325,7 @@ async function queryBatchPhones() {
         return;
     }
 
-    const btn = event.target.closest('button');
+    const btn = evt.currentTarget.closest('button');
     const originalHTML = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
@@ -290,14 +373,14 @@ async function queryBatchPhones() {
 }
 
 // Tab 3: 文本标注
-async function annotateText() {
+async function annotateText(evt) {
     const text = document.getElementById('text-input').value.trim();
     if (!text) {
         alert('请输入文本');
         return;
     }
 
-    const btn = event.target.closest('button');
+    const btn = evt.currentTarget.closest('button');
     const originalHTML = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 标注中...';
@@ -332,10 +415,10 @@ async function annotateText() {
 }
 
 // 复制标注结果
-function copyAnnotated() {
+function copyAnnotated(evt) {
     const text = document.getElementById('text-annotated').textContent;
     navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copy-annotated-btn');
+        const btn = evt ? evt.currentTarget : document.getElementById('copy-annotated-btn');
         btn.innerHTML = '<i data-lucide="check" style="width: 16px; height: 16px;"></i> 已复制';
         btn.style.color = '#22c55e';
         setTimeout(() => {
@@ -346,6 +429,13 @@ function copyAnnotated() {
         alert('复制失败：' + e.message);
     });
 }
+
+// 显式挂到 window，避免 SPA 路由切换后失效
+window.switchTab = switchTab;
+window.querySinglePhone = querySinglePhone;
+window.queryBatchPhones = queryBatchPhones;
+window.annotateText = annotateText;
+window.copyAnnotated = copyAnnotated;
 </script>
 <style>
 @keyframes spin {
