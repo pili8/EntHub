@@ -20,7 +20,7 @@ from utils import normalize_phone, normalize_credit_code, normalize_name
 import math
 
 # 创建 MCP Server
-mcp = FastMCP("EntHub", json_response=True)
+mcp = FastMCP("EntHub", json_response=True, host="0.0.0.0", port=8000)
 
 
 # ── 工具函数 ──────────────────────────────────────────────────
@@ -502,4 +502,4 @@ if __name__ == "__main__":
     print('  "找和张三有关联的企业"')
     print('  "统计出现 5 次以上的法人"')
     
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
+    mcp.run(transport="streamable-http")
