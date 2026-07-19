@@ -10,7 +10,7 @@
 <!-- Tab 切换 -->
 <div class="card" style="padding: 24px;">
     <div style="display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border);">
-        <button onclick="switchTab('text')" id="tab-text" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 500; cursor: pointer; font-size: 14px;">
+        <button onclick="switchTab('text')" id="tab-text" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid #D97757; color: #D97757; font-weight: 500; cursor: pointer; font-size: 14px;">
             文本标注
         </button>
         <button onclick="switchTab('single')" id="tab-single" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 14px;">
@@ -24,15 +24,15 @@
     <!-- Tab 1: 文本标注（默认） -->
     <div id="panel-text">
         <!-- 一键标注引导 -->
-        <div id="qa-guide" style="margin-bottom: 16px; padding: 14px 18px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 1px solid #93c5fd; border-radius: 10px; display: flex; align-items: center; gap: 12px;">
-            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #2563eb; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+        <div id="qa-guide" style="margin-bottom: 16px; padding: 14px 18px; background: linear-gradient(135deg, #FBE7DF 0%, #F5D5C5 100%); border: 1px solid #E89479; border-radius: 10px; display: flex; align-items: center; gap: 12px;">
+            <div style="flex-shrink: 0; width: 36px; height: 36px; background: #D97757; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
                 <i data-lucide="zap" style="width: 16px; height: 16px; color: white;"></i>
             </div>
             <div style="flex: 1;">
-                <div style="font-size: 13px; font-weight: 600; color: #1e40af;">一键标注</div>
-                <div style="font-size: 11px; color: #1d4ed8; margin-top: 2px;">自动读取剪贴板，或下方手动粘贴</div>
+                <div style="font-size: 13px; font-weight: 600; color: #C9663F;">一键标注</div>
+                <div style="font-size: 11px; color: #B45309; margin-top: 2px;">自动读取剪贴板，或下方手动粘贴</div>
             </div>
-            <button onclick="quickAnnotate(event)" style="background: #2563eb; color: white; border: none; padding: 8px 18px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+            <button onclick="quickAnnotate(event)" style="background: #D97757; color: white; border: none; padding: 8px 18px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                 <i data-lucide="zap" style="width: 12px; height: 12px;"></i>
                 立即标注
             </button>
@@ -93,7 +93,7 @@
                 <div id="single-companies" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: none;">
                     <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                         <span>关联企业</span>
-                        <a id="single-view-all" href="#" style="font-size: 12px; color: #3b82f6; text-decoration: none; font-weight: 400;">查看全部 →</a>
+                        <a id="single-view-all" href="#" style="font-size: 12px; color: #D97757; text-decoration: none; font-weight: 400;">查看全部 →</a>
                     </div>
                     <div id="single-companies-list"></div>
                 </div>
@@ -249,8 +249,8 @@ function switchTab(tab) {
         const btn = document.getElementById('tab-' + t);
         const panel = document.getElementById('panel-' + t);
         if (t === tab) {
-            btn.style.borderBottomColor = '#3b82f6';
-            btn.style.color = '#3b82f6';
+            btn.style.borderBottomColor = '#D97757';
+            btn.style.color = '#D97757';
             panel.style.display = 'block';
         } else {
             btn.style.borderBottomColor = 'transparent';
@@ -401,7 +401,7 @@ async function queryBatchPhones(evt) {
                 </td>
                 <td style="padding: 10px 16px;">
                     ${relUrl
-                        ? `<a href="${relUrl}" style="color: #3b82f6; text-decoration: none; font-size: 12px;">查看关联 →</a>`
+                        ? `<a href="${relUrl}" style="color: #D97757; text-decoration: none; font-size: 12px;">查看关联 →</a>`
                         : '<span style="color: var(--text-muted); font-size: 12px;">-</span>'}
                 </td>
             </tr>`;
