@@ -2647,7 +2647,7 @@ def mcp_start():
         log_file = Path(__file__).parent / "mcp_server.log"
         log_fp = open(log_file, "a")
         proc = subprocess.Popen(
-            [venv_python, str(Path(__file__).parent / "mcp_server.py")],
+            [venv_python, str(Path(__file__).parent / "mcp_server.py"), "--http"],
             stdout=log_fp,
             stderr=log_fp,
             cwd=str(Path(__file__).parent),

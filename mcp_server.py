@@ -2,10 +2,9 @@
 
 让 AI 工具（Claude、Cursor 等）能用自然语言查询企业工商信息。
 
-使用方法：
-1. 安装依赖：pip install "mcp[cli]>=1.27,<2"
-2. 启动服务：python mcp_server.py
-3. 在 AI 工具中配置 MCP Server 地址
+启动模式：
+1. stdio 模式（默认，Claude Desktop 自动拉起）：python mcp_server.py
+2. HTTP 模式（手动启动，多端共享）：python mcp_server.py --http
 
 工具列表：
 - search_companies: 搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）
@@ -14,12 +13,13 @@
 - get_companies_list: 企业列表（支持筛选/排序/分页）
 - get_stats: 统计查询（法人/股东/行业）
 """
+import sys
 from mcp.server.fastmcp import FastMCP
 from db import get_db
 from utils import normalize_phone, normalize_credit_code, normalize_name
 import math
 
-# 创建 MCP Server
+# 创建 MCP Server（host/port 仅 HTTP 模式生效）
 mcp = FastMCP("EntHub", json_response=True, host="0.0.0.0", port=8000)
 
 
@@ -488,18 +488,24 @@ def get_stats(
 # ── 启动 ──────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("🚀 EntHub MCP Server 启动中...")
-    print("📡 监听地址：http://localhost:8000/mcp")
-    print("🔧 可用工具：")
-    print("   - search_companies: 搜索企业")
-    print("   - get_company_detail: 企业详情")
-    print("   - find_relations: 关联企业查询")
-    print("   - get_companies_list: 企业列表")
-    print("   - get_stats: 统计查询")
-    print("\n在 AI 工具中配置 MCP Server 地址后，可以用自然语言查询：")
-    print('  "帮我找所有叫科技的公司"')
-    print('  "查一下 ID 为 2 的企业详情"')
-    print('  "找和张三有关联的企业"')
-    print('  "统计出现 5 次以上的法人"')
-    
-    mcp.run(transport="streamable-http")
+    # 解析参数：默认 stdio 模式（Claude Desktop 兼容），--http 切换 HTTP 模式
+    use_http = "--http" in sys.argv or "--transport" in sys.argv
+
+    if use_http:
+        print("🚀 EntHub MCP Server 启动中（HTTP 模式）...")
+        print("📡 监听地址：http://localhost:8000/mcp")
+        print("🔧 可用工具：")
+        print("   - search_companies: 搜索企业")
+        print("   - get_company_detail: 企业详情")
+        print("   - find_relations: 关联企业查询")
+        print("   - get_companies_list: 企业列表")
+        print("   - get_stats: 统计查询")
+        print("\n在 AI 工具中配置 MCP Server 地址后，可以用自然语言查询：")
+        print('  "帮我找所有叫科技的公司"')
+        print('  "查一下 ID 为 2 的企业详情"')
+        print('  "找和张三有关联的企业"')
+        print('  "统计出现 5 次以上的法人"')
+        mcp.run(transport="streamable-http")
+    else:
+        # stdio 模式（Claude Desktop 自动拉起，无需打印日志）
+        mcp.run(transport="stdio")
