@@ -60,6 +60,8 @@ class EntHubMenuBar(rumps.App):
         self.menu = [
             self.status_item,
             None,
+            rumps.MenuItem("一键标注号码", callback=self.on_quick_annotate),
+            None,
             rumps.MenuItem("打开控制台", callback=self.on_open_console),
             rumps.MenuItem("数据管理", callback=self.on_open_data),
             rumps.MenuItem("电话统计", callback=self.on_open_stats),
@@ -76,6 +78,64 @@ class EntHubMenuBar(rumps.App):
     def on_open_data(self, _):     _open("/data")
     def on_open_stats(self, _):    _open("/stats/phone")
     def on_open_stats_shareholder(self, _): _open("/stats/shareholder")
+
+    def on_quick_annotate(self, _):
+        """一键标注：从剪贴板读取 → 标注号码 → 写回剪贴板"""
+        import json
+        import urllib.request
+
+        # 1. 读剪贴板（macOS pbpaste）
+        try:
+            text = subprocess.check_output(["pbpaste"]).decode("utf-8")
+        except Exception as e:
+            rumps.notification("EntHub", "读取剪贴板失败", str(e))
+            return
+
+        if not text.strip():
+            rumps.notification("EntHub", "剪贴板为空", "请先复制包含电话号码的文本")
+            return
+
+        # 2. 调用本地 API
+        try:
+            req = urllib.request.Request(
+                f"{URL}/api/phone_count_text",
+                data=json.dumps({"text": text}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+        except urllib.error.URLError:
+            rumps.notification("EntHub", "服务未运行", "请先启动 EntHub 服务")
+            return
+        except Exception as e:
+            rumps.notification("EntHub", "API 调用失败", str(e))
+            return
+
+        if data.get("code") != 0:
+            rumps.notification("EntHub", "标注失败", data.get("message", "未知错误"))
+            return
+
+        annotated = data["data"]["annotated_text"]
+        phone_count = data["data"]["phone_count"]
+
+        # 3. 写回剪贴板（macOS pbcopy）
+        try:
+            proc = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+            proc.communicate(annotated.encode("utf-8"))
+        except Exception as e:
+            rumps.notification("EntHub", "写入剪贴板失败", str(e))
+            return
+
+        # 4. 通知
+        if phone_count == 0:
+            rumps.notification("EntHub", "未发现电话号码", f"已处理 {len(text)} 字文本")
+        else:
+            rumps.notification(
+                "EntHub",
+                f"已标注 {phone_count} 个号码",
+                "结果已写回剪贴板，可直接粘贴使用"
+            )
 
     def on_open_data_dir(self, _):
         data_dir = Path(__file__).parent / "data"

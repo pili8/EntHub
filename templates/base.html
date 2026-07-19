@@ -195,14 +195,14 @@
             if (btn) {
                 const icon = btn.querySelector('i');
                 const originalIcon = icon ? icon.getAttribute('data-lucide') : null;
-                
+
                 if (icon) {
                     icon.setAttribute('data-lucide', 'check');
                     if (window.lucide) lucide.createIcons();
                 }
                 btn.classList.add('copied');
                 btn.style.color = 'var(--success)';
-                
+
                 setTimeout(() => {
                     if (icon && originalIcon) {
                         icon.setAttribute('data-lucide', originalIcon);
@@ -215,6 +215,127 @@
         }).catch(err => {
             console.error('复制失败:', err);
         });
+    }
+
+    // ── 一键标注：从剪贴板读取 → 标注 → 写回剪贴板 ──
+    async function quickAnnotate(evt) {
+        const btn = evt ? evt.currentTarget : null;
+        const originalHTML = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" style="width: 14px; height: 14px; animation: qa-spin 1s linear infinite;"></i> 处理中...';
+            if (window.lucide) lucide.createIcons();
+        }
+
+        try {
+            // 1. 读取剪贴板
+            let text;
+            try {
+                text = await navigator.clipboard.readText();
+            } catch (e) {
+                window._enthubToast('error', '❌ 无法读取剪贴板', '请用 HTTPS 或 localhost 访问，或改用「粘贴文本」');
+                return;
+            }
+
+            if (!text || !text.trim()) {
+                window._enthubToast('warning', '⚠️ 剪贴板为空', '请先复制包含电话号码的文本');
+                return;
+            }
+
+            // 2. 调用 API
+            const resp = await fetch('/api/phone_count_text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            const data = await resp.json();
+
+            if (data.code !== 0) {
+                window._enthubToast('error', '❌ 标注失败', data.message || '未知错误');
+                return;
+            }
+
+            // 3. 写回剪贴板
+            try {
+                await navigator.clipboard.writeText(data.data.annotated_text);
+            } catch (e) {
+                window._enthubToast('warning', '⚠️ 标注完成但写回失败', '请手动复制');
+                return;
+            }
+
+            // 4. 提示
+            const phoneCount = data.data.phone_count;
+            if (phoneCount === 0) {
+                window._enthubToast('warning', '⚠️ 未发现电话号码', `已处理 ${text.length} 字，但未识别到号码`);
+            } else {
+                window._enthubToast('success', `✅ 已标注 ${phoneCount} 个号码`, '结果已写回剪贴板，可直接粘贴');
+            }
+        } catch (e) {
+            window._enthubToast('error', '❌ 操作失败', e.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+    }
+
+    // ── Toast 提示组件 ──
+    function _enthubToast(type, title, message) {
+        // 移除已有 toast
+        document.querySelectorAll('.enthub-toast').forEach(t => t.remove());
+
+        const colors = {
+            success: { bg: '#22c55e', icon: 'check-circle' },
+            warning: { bg: '#f59e0b', icon: 'alert-triangle' },
+            error: { bg: '#ef4444', icon: 'x-circle' },
+            info: { bg: '#3b82f6', icon: 'info' }
+        };
+        const color = colors[type] || colors.info;
+
+        const toast = document.createElement('div');
+        toast.className = 'enthub-toast';
+        toast.style.cssText = `
+            position: fixed; top: 80px; right: 24px; z-index: 3000;
+            padding: 12px 18px; border-radius: 8px;
+            background: ${color.bg}; color: white;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+            opacity: 0; transform: translateX(120%);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            max-width: 380px; min-width: 240px;
+            font-size: 13px;
+        `;
+        toast.innerHTML = `
+            <div style="font-weight: 600; margin-bottom: 2px;">${title}</div>
+            ${message ? `<div style="font-size: 12px; opacity: 0.92; line-height: 1.4;">${message}</div>` : ''}
+        `;
+        document.body.appendChild(toast);
+
+        // 入场动画
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+        });
+
+        // 自动消失
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(120%)';
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
+
+    // 全局挂载
+    window.quickAnnotate = quickAnnotate;
+    window._enthubToast = _enthubToast;
+
+    // 添加 spin 动画
+    if (!document.getElementById('qa-spin-style')) {
+        const style = document.createElement('style');
+        style.id = 'qa-spin-style';
+        style.textContent = '@keyframes qa-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
     }
     </script>
     {% include "_modal.html" %}
