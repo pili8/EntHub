@@ -2614,12 +2614,20 @@ def mcp_page():
 
     lan_url = f"http://{local_ip}:{MCP_PORT}/mcp" if local_ip else None
 
+    # 路径信息（用于 stdio 模式配置）
+    project_root = str(Path(__file__).parent.resolve())
+    venv_python = str(Path(project_root) / "venv" / "bin" / "python")
+    mcp_script = str(Path(project_root) / "mcp_server.py")
+
     return render_template(
         "mcp.html",
         running=running,
         pid=pid,
         server_url=server_url,
         lan_url=lan_url,
+        project_root=project_root,
+        venv_python=venv_python,
+        mcp_script=mcp_script,
     )
 
 

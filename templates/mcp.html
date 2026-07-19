@@ -17,7 +17,7 @@
                     {% if running %}运行中{% else %}已停止{% endif %}
                 </div>
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                    {% if running and pid %}PID: {{ pid }} · 端口 8000{% else %}点击「启动」开始运行{% endif %}
+                    {% if running and pid %}PID: {{ pid }} · 端口 8000（HTTP 模式）{% else %}stdio 模式无需启动，配置后 AI 工具会自动拉起{% endif %}
                 </div>
             </div>
         </div>
@@ -30,7 +30,7 @@
             {% else %}
             <button onclick="startMcp(this)" class="btn btn-primary" style="padding: 10px 20px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                 <i data-lucide="play" style="width: 15px; height: 15px;"></i>
-                启动
+                启动（HTTP 模式）
             </button>
             {% endif %}
             <button onclick="location.reload()" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px;">
@@ -68,7 +68,22 @@
     {% endif %}
 </div>
 
-{% if running %}
+{% if not running %}
+<!-- 未运行提示 -->
+<div class="card" style="padding: 24px; margin-bottom: 24px; background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%); border: 1px solid #fcd34d;">
+    <div style="display: flex; align-items: flex-start; gap: 14px;">
+        <div style="font-size: 28px;">💡</div>
+        <div style="flex: 1;">
+            <h3 style="margin: 0 0 6px 0; font-size: 15px; font-weight: 600; color: #92400e;">stdio 模式无需点击启动</h3>
+            <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.6;">
+                直接复制下方 <strong>stdio 配置</strong> 到 AI 工具，AI 会自动启动 MCP Server。<br>
+                只有需要<strong>多设备共享</strong>或<strong>局域网访问</strong>时，才需要点击「启动」使用 HTTP 模式。
+            </p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- 可用工具 -->
 <div class="card" style="padding: 24px; margin-bottom: 24px;">
     <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
@@ -76,62 +91,124 @@
         可用工具（5 个）
     </h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+        {% for tool in [
+            {'name': 'search_companies', 'icon': 'search', 'color': '#3b82f6', 'desc': '搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）'},
+            {'name': 'get_company_detail', 'icon': 'file-text', 'color': '#22c55e', 'desc': '获取企业详情（含关联企业+标签）'},
+            {'name': 'find_relations', 'icon': 'git-branch', 'color': '#f97316', 'desc': '查找关联企业（按电话/邮箱/法人/股东）'},
+            {'name': 'get_companies_list', 'icon': 'list', 'color': '#8b5cf6', 'desc': '企业列表（支持筛选/排序/分页）'},
+            {'name': 'get_stats', 'icon': 'bar-chart-3', 'color': '#ec4899', 'desc': '统计查询（法人/股东/行业）'}
+        ] %}
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);{% if not running %} opacity: 0.75;{% endif %}">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="search" style="width: 15px; height: 15px; color: #3b82f6;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #3b82f6;">search_companies</code>
+                <i data-lucide="{{ tool.icon }}" style="width: 15px; height: 15px; color: {{ tool.color }};"></i>
+                <code style="font-size: 13px; font-weight: 600; color: {{ tool.color }};">{{ tool.name }}</code>
             </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）</div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">{{ tool.desc }}</div>
         </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="file-text" style="width: 15px; height: 15px; color: #22c55e;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #22c55e;">get_company_detail</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">获取企业详情（含关联企业+标签）</div>
-        </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="git-branch" style="width: 15px; height: 15px; color: #f97316;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #f97316;">find_relations</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">查找关联企业（按电话/邮箱/法人/股东）</div>
-        </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="list" style="width: 15px; height: 15px; color: #8b5cf6;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #8b5cf6;">get_companies_list</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">企业列表（支持筛选/排序/分页）</div>
-        </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="bar-chart-3" style="width: 15px; height: 15px; color: #ec4899;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #ec4899;">get_stats</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">统计查询（法人/股东/行业）</div>
-        </div>
+        {% endfor %}
     </div>
 </div>
 
 <!-- AI 工具配置 -->
 <div class="card" style="padding: 24px; margin-bottom: 24px;">
-    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+    <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
         <i data-lucide="settings" style="width: 18px; height: 18px;"></i>
         AI 工具配置
     </h3>
-    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">在 Claude Desktop、Cursor 等 AI 工具的配置文件中添加：</p>
-    <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
-        <button onclick="copyToClipboard(document.getElementById('configJson').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
-            <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
+        主流 AI 工具（Claude Desktop / Cursor / VS Code 等）都使用相同的 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">mcpServers</code> JSON 格式。复制对应配置 → 粘贴到配置文件 → 重启 AI 工具。
+    </p>
+
+    <!-- 配置模式切换 -->
+    <div style="display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border);">
+        <button onclick="switchConfigTab('stdio')" id="tab-stdio" class="config-tab" style="padding: 10px 16px; background: transparent; border: none; border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 500; cursor: pointer; font-size: 13px;">
+            📦 stdio 模式（推荐）
         </button>
-        <pre id="configJson" style="margin: 0; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.6;"><code>{
+        <button onclick="switchConfigTab('http')" id="tab-http" class="config-tab" style="padding: 10px 16px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 13px;">
+            🌐 HTTP 模式
+        </button>
+    </div>
+
+    <!-- stdio 模式 -->
+    <div id="config-stdio">
+        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #92400e;">
+            <strong>📦 stdio 模式：</strong>AI 工具自动启动 MCP Server，无需手动运行。<strong>适合单机使用，零运维。</strong>
+        </div>
+
+        <!-- AI 工具选择 -->
+        <div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-muted); margin-right: 4px;">选择 AI 工具：</span>
+            <button onclick="switchAiTool('claude')" data-tool="claude" class="tool-tab" style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Claude Desktop</button>
+            <button onclick="switchAiTool('cursor')" data-tool="cursor" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Cursor</button>
+            <button onclick="switchAiTool('vscode')" data-tool="vscode" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">VS Code</button>
+            <button onclick="switchAiTool('claude-code')" data-tool="claude-code" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Claude Code</button>
+        </div>
+
+        <!-- 配置文件路径 -->
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📋 配置文件位置（不存在则创建）：</div>
+            <code id="stdio-path" style="display: block; padding: 8px 12px; background: var(--bg-secondary); border-radius: 4px; font-size: 12px; font-family: monospace; word-break: break-all;">~/Library/Application Support/Claude/claude_desktop_config.json</code>
+        </div>
+
+        <!-- 配置内容 -->
+        <div id="stdio-config-wrapper">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 配置内容（复制到上面的文件）：</div>
+            <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
+                <button onclick="copyToClipboard(document.getElementById('stdioConfig').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
+                </button>
+                <pre id="stdioConfig" style="margin: 0; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.6;"><code>{
+  "mcpServers": {
+    "enthub": {
+      "command": "{{ venv_python }}",
+      "args": ["{{ mcp_script }}"]
+    }
+  }
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- Claude Code 命令行（特殊显示） -->
+        <div id="claude-code-cmd" style="display: none; margin-top: 16px;">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">⚡ Claude Code 用命令行一键添加：</div>
+            <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
+                <button onclick="copyToClipboard('claude mcp add enthub {{ venv_python }} {{ mcp_script }}', this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                    <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
+                </button>
+                <code style="font-family: monospace; font-size: 12px;">claude mcp add enthub {{ venv_python }} {{ mcp_script }}</code>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTTP 模式 -->
+    <div id="config-http" style="display: none;">
+        <div style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #1e40af;">
+            <strong>🌐 HTTP 模式：</strong>需要先点上方「启动」按钮，多端可共享访问。<strong>适合局域网或多设备使用。</strong>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📡 服务地址：</div>
+            <code style="display: block; padding: 8px 12px; background: var(--bg-secondary); border-radius: 4px; font-size: 12px; font-family: monospace;">{{ server_url }}</code>
+        </div>
+
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 配置内容（所有 AI 工具通用）：</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
+            <button onclick="copyToClipboard(document.getElementById('httpConfig').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
+            </button>
+            <pre id="httpConfig" style="margin: 0; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.6;"><code>{
   "mcpServers": {
     "enthub": {
       "url": "{{ server_url }}"
     }
   }
 }</code></pre>
+        </div>
+        {% if lan_url %}
+        <div style="margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; font-size: 12px; color: #166534;">
+            💡 <strong>局域网其他设备</strong>请把 URL 改为：<code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ lan_url }}</code>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -141,7 +218,7 @@
         <i data-lucide="message-circle" style="width: 18px; height: 18px;"></i>
         使用示例
     </h3>
-    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">在 AI 工具中用自然语言提问：</p>
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">配置完成后，在 AI 工具中用自然语言提问：</p>
     <div style="display: flex; flex-direction: column; gap: 8px;">
         <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #3b82f6; font-size: 13px;">
             <span style="color: var(--text-muted);">🔍 </span>"帮我找所有叫<span style="font-weight: 500;">科技</span>的公司"
@@ -161,67 +238,6 @@
     </div>
 </div>
 
-{% else %}
-<!-- 未运行提示 -->
-<div class="card" style="padding: 32px 24px; text-align: center;">
-    <div style="font-size: 48px; margin-bottom: 16px;">🤖</div>
-    <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">MCP Server 未启动</h3>
-    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 24px 0; max-width: 480px; margin-left: auto; margin-right: auto;">
-        启动后可以让 AI 工具（Claude、Cursor 等）用自然语言查询 EntHub 数据。<br>
-        支持 5 个工具：搜索企业、企业详情、关联查询、企业列表、统计查询。
-    </p>
-    <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); display: inline-block; text-align: left; font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-        <div style="font-weight: 500; color: var(--text-primary); margin-bottom: 6px;">💡 也可以命令行启动：</div>
-        <code style="font-family: monospace; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 3px;">./venv/bin/python mcp_server.py</code>
-    </div>
-</div>
-
-<!-- 工具列表（未运行时也显示） -->
-<div class="card" style="padding: 24px; margin-bottom: 24px;">
-    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-        <i data-lucide="wrench" style="width: 18px; height: 18px;"></i>
-        启动后可用的工具（5 个）
-    </h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="search" style="width: 15px; height: 15px; color: #3b82f6;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #3b82f6;">search_companies</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）</div>
-        </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="file-text" style="width: 15px; height: 15px; color: #22c55e;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #22c55e;">get_company_detail</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">获取企业详情（含关联企业+标签）</div>
-        </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="git-branch" style="width: 15px; height: 15px; color: #f97316;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #f97316;">find_relations</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">查找关联企业（按电话/邮箱/法人/股东）</div>
-        </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="list" style="width: 15px; height: 15px; color: #8b5cf6;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #8b5cf6;">get_companies_list</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">企业列表（支持筛选/排序/分页）</div>
-        </div>
-        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <i data-lucide="bar-chart-3" style="width: 15px; height: 15px; color: #ec4899;"></i>
-                <code style="font-size: 13px; font-weight: 600; color: #ec4899;">get_stats</code>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">统计查询（法人/股东/行业）</div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 {% endblock %}
 
 {% block scripts %}
@@ -240,6 +256,73 @@ setTimeout(function() {
 }, 5000);
 {% endif %}
 
+// 配置 Tab 切换
+function switchConfigTab(tab) {
+    const stdioTab = document.getElementById('tab-stdio');
+    const httpTab = document.getElementById('tab-http');
+    const stdioPanel = document.getElementById('config-stdio');
+    const httpPanel = document.getElementById('config-http');
+
+    if (tab === 'stdio') {
+        stdioTab.style.borderBottomColor = '#3b82f6';
+        stdioTab.style.color = '#3b82f6';
+        httpTab.style.borderBottomColor = 'transparent';
+        httpTab.style.color = 'var(--text-secondary)';
+        stdioPanel.style.display = 'block';
+        httpPanel.style.display = 'none';
+    } else {
+        httpTab.style.borderBottomColor = '#3b82f6';
+        httpTab.style.color = '#3b82f6';
+        stdioTab.style.borderBottomColor = 'transparent';
+        stdioTab.style.color = 'var(--text-secondary)';
+        httpPanel.style.display = 'block';
+        stdioPanel.style.display = 'none';
+    }
+}
+
+// AI 工具切换（stdio 模式下）
+const aiToolConfig = {
+    'claude': {
+        path: '~/Library/Application Support/Claude/claude_desktop_config.json',
+        showCmd: false
+    },
+    'cursor': {
+        path: '~/.cursor/mcp.json',
+        showCmd: false
+    },
+    'vscode': {
+        path: '.vscode/mcp.json（项目根目录）',
+        showCmd: false
+    },
+    'claude-code': {
+        path: '无需配置文件，用命令行添加',
+        showCmd: true
+    }
+};
+
+function switchAiTool(tool) {
+    // 切换按钮样式
+    document.querySelectorAll('.tool-tab').forEach(btn => {
+        if (btn.dataset.tool === tool) {
+            btn.style.background = '#3b82f6';
+            btn.style.color = 'white';
+            btn.style.border = 'none';
+        } else {
+            btn.style.background = 'var(--bg-secondary)';
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.border = '1px solid var(--border)';
+        }
+    });
+
+    const config = aiToolConfig[tool];
+    if (config) {
+        document.getElementById('stdio-path').textContent = config.path;
+        document.getElementById('claude-code-cmd').style.display = config.showCmd ? 'block' : 'none';
+        // 配置内容包装器：Claude Code 不需要 JSON 文件
+        document.getElementById('stdio-config-wrapper').style.display = config.showCmd ? 'none' : 'block';
+    }
+}
+
 // 启动 MCP
 async function startMcp(btn) {
     const originalHTML = btn.innerHTML;
@@ -251,7 +334,6 @@ async function startMcp(btn) {
         const resp = await fetch('/mcp/start', { method: 'POST' });
         const data = await resp.json();
         if (data.code === 0) {
-            // 等待 1 秒后刷新页面
             setTimeout(() => location.reload(), 1000);
         } else {
             alert(data.message || '启动失败');
