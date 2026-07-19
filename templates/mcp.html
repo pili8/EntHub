@@ -116,8 +116,27 @@
         AI 工具配置
     </h3>
     <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
-        主流 AI 工具（Claude Desktop / Cursor / VS Code 等）都使用相同的 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">mcpServers</code> JSON 格式。复制对应配置 → 粘贴到配置文件 → 重启 AI 工具。
+        主流 AI 工具都使用相同的 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">mcpServers</code> JSON 格式（MCP 协议标准）。复制配置 → 粘贴到对应文件 → 重启 AI 工具。
     </p>
+
+    <!-- ⚠️ 兼容性提示 -->
+    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px; color: #92400e; line-height: 1.6;">
+        <div style="font-weight: 600; margin-bottom: 6px;">⚠️ 重要：两种模式不互通</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+                <strong>📦 stdio 模式</strong>（AI 工具自动启动）<br>
+                ✅ Claude Desktop（仅支持此模式）<br>
+                ✅ Cursor、VS Code、Cline<br>
+                ✅ 绝大多数桌面 AI 工具
+            </div>
+            <div>
+                <strong>🌐 HTTP 模式</strong>（先启动再连接）<br>
+                ✅ Claude Code（CLI）<br>
+                ✅ Cherry Studio、ChatBox<br>
+                ⚠️ Claude Desktop <strong>不支持</strong>
+            </div>
+        </div>
+    </div>
 
     <!-- 配置模式切换 -->
     <div style="display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border);">
@@ -131,28 +150,30 @@
 
     <!-- stdio 模式 -->
     <div id="config-stdio">
-        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #92400e;">
-            <strong>📦 stdio 模式：</strong>AI 工具自动启动 MCP Server，无需手动运行。<strong>适合单机使用，零运维。</strong>
-        </div>
-
         <!-- AI 工具选择 -->
-        <div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;">
-            <span style="font-size: 12px; color: var(--text-muted); margin-right: 4px;">选择 AI 工具：</span>
-            <button onclick="switchAiTool('claude')" data-tool="claude" class="tool-tab" style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Claude Desktop</button>
+        <div style="display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-muted); margin-right: 4px;">选择 AI 工具查看对应配置：</span>
+            <button onclick="switchAiTool('claude')" data-tool="claude" class="tool-tab active" style="padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;">Claude Desktop</button>
             <button onclick="switchAiTool('cursor')" data-tool="cursor" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Cursor</button>
             <button onclick="switchAiTool('vscode')" data-tool="vscode" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">VS Code</button>
+            <button onclick="switchAiTool('cline')" data-tool="cline" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Cline</button>
             <button onclick="switchAiTool('claude-code')" data-tool="claude-code" class="tool-tab" style="padding: 6px 12px; background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px; cursor: pointer;">Claude Code</button>
         </div>
 
-        <!-- 配置文件路径 -->
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📋 配置文件位置（不存在则创建）：</div>
-            <code id="stdio-path" style="display: block; padding: 8px 12px; background: var(--bg-secondary); border-radius: 4px; font-size: 12px; font-family: monospace; word-break: break-all;">~/Library/Application Support/Claude/claude_desktop_config.json</code>
+        <!-- 配置文件路径 + 说明 -->
+        <div id="stdio-tool-info" style="margin-bottom: 14px; padding: 12px 14px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border);">
+            <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="info" style="width: 14px; height: 14px; color: #3b82f6; margin-top: 2px; flex-shrink: 0;"></i>
+                <div style="flex: 1; font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+                    <div id="stdio-tool-desc"><strong>Claude Desktop</strong>：在「设置 → Developer → Edit Config」打开配置文件</div>
+                    <div style="margin-top: 4px; color: var(--text-muted);">📁 <code id="stdio-path" style="font-family: monospace; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 3px;">~/Library/Application Support/Claude/claude_desktop_config.json</code></div>
+                </div>
+            </div>
         </div>
 
         <!-- 配置内容 -->
         <div id="stdio-config-wrapper">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 配置内容（复制到上面的文件）：</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 复制以下 JSON 粘贴到配置文件的 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px;">mcpServers</code> 中：</div>
             <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
                 <button onclick="copyToClipboard(document.getElementById('stdioConfig').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                     <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
@@ -166,11 +187,14 @@
   }
 }</code></pre>
             </div>
+            <div style="margin-top: 10px; padding: 10px 12px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; font-size: 12px; color: #075985; line-height: 1.6;">
+                💡 <strong>说明</strong>：<code style="background: white; padding: 1px 4px; border-radius: 2px;">command</code> 是 Python 解释器路径，<code style="background: white; padding: 1px 4px; border-radius: 2px;">args</code> 是 MCP Server 脚本路径。AI 工具会用这个命令自动启动 MCP Server，<strong>无需手动运行</strong>。
+            </div>
         </div>
 
         <!-- Claude Code 命令行（特殊显示） -->
         <div id="claude-code-cmd" style="display: none; margin-top: 16px;">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">⚡ Claude Code 用命令行一键添加：</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">⚡ Claude Code 用命令行一键添加（无需编辑 JSON）：</div>
             <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
                 <button onclick="copyToClipboard('claude mcp add enthub {{ venv_python }} {{ mcp_script }}', this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
                     <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
@@ -182,16 +206,17 @@
 
     <!-- HTTP 模式 -->
     <div id="config-http" style="display: none;">
-        <div style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #1e40af;">
-            <strong>🌐 HTTP 模式：</strong>需要先点上方「启动」按钮，多端可共享访问。<strong>适合局域网或多设备使用。</strong>
+        <div style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #1e40af; line-height: 1.6;">
+            <strong>🌐 HTTP 模式</strong>：需要先点上方「启动」按钮运行 MCP Server，多端可共享访问。<br>
+            <strong>支持此模式的工具</strong>：Claude Code、Cherry Studio、ChatBox、Open WebUI 等
         </div>
 
         <div style="margin-bottom: 12px;">
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📡 服务地址：</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📡 MCP Server URL（启动后才能访问）：</div>
             <code style="display: block; padding: 8px 12px; background: var(--bg-secondary); border-radius: 4px; font-size: 12px; font-family: monospace;">{{ server_url }}</code>
         </div>
 
-        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 配置内容（所有 AI 工具通用）：</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📄 通用 JSON 配置：</div>
         <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
             <button onclick="copyToClipboard(document.getElementById('httpConfig').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                 <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
@@ -199,16 +224,44 @@
             <pre id="httpConfig" style="margin: 0; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.6;"><code>{
   "mcpServers": {
     "enthub": {
+      "type": "http",
       "url": "{{ server_url }}"
     }
   }
 }</code></pre>
         </div>
         {% if lan_url %}
-        <div style="margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; font-size: 12px; color: #166534;">
-            💡 <strong>局域网其他设备</strong>请把 URL 改为：<code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ lan_url }}</code>
+        <div style="margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; font-size: 12px; color: #166534; line-height: 1.6;">
+            💡 <strong>局域网/其他设备</strong>请把 URL 改为：<code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ lan_url }}</code>
         </div>
         {% endif %}
+    </div>
+
+    <!-- 通用配置说明（始终显示） -->
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--border);">
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="book-open" style="width: 14px; height: 14px;"></i>
+            配置说明
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; font-size: 12px; color: var(--text-secondary); line-height: 1.6;">
+            <div>
+                <strong style="color: var(--text-primary);">📦 stdio 模式</strong><br>
+                AI 工具自动启动 MCP Server 进程。<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">command</code> + <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">args</code> 必填。
+            </div>
+            <div>
+                <strong style="color: var(--text-primary);">🌐 HTTP 模式</strong><br>
+                连接到已启动的 HTTP 服务。<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">type: "http"</code> + <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">url</code> 必填。
+            </div>
+            <div>
+                <strong style="color: var(--text-primary);">🔑 字段必填</strong><br>
+                stdio 模式：<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">command</code>, <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">args</code><br>
+                HTTP 模式：<code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">type</code>, <code style="background: var(--bg-secondary); padding: 1px 4px; border-radius: 2px;">url</code>
+            </div>
+            <div>
+                <strong style="color: var(--text-primary);">🔁 重启生效</strong><br>
+                修改配置文件后必须<strong>完全退出</strong> AI 工具再重新打开（Cmd+Q），不是最小化后重开。
+            </div>
+        </div>
     </div>
 </div>
 
@@ -283,19 +336,28 @@ function switchConfigTab(tab) {
 // AI 工具切换（stdio 模式下）
 const aiToolConfig = {
     'claude': {
+        desc: '<strong>Claude Desktop</strong>：菜单栏点击图标 → Settings → Developer → Edit Config',
         path: '~/Library/Application Support/Claude/claude_desktop_config.json',
         showCmd: false
     },
     'cursor': {
+        desc: '<strong>Cursor</strong>：Settings → Cursor Settings → Features → MCP → Add MCP Server',
         path: '~/.cursor/mcp.json',
         showCmd: false
     },
     'vscode': {
-        path: '.vscode/mcp.json（项目根目录）',
+        desc: '<strong>VS Code</strong>（需安装 GitHub Copilot Chat 扩展）：项目根目录创建配置文件',
+        path: '.vscode/mcp.json（项目根目录，注意 VS Code 用 "servers" 而非 "mcpServers"）',
+        showCmd: false
+    },
+    'cline': {
+        desc: '<strong>Cline</strong>（VS Code 扩展）：Settings → MCP Servers → Add',
+        path: '~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
         showCmd: false
     },
     'claude-code': {
-        path: '无需配置文件，用命令行添加',
+        desc: '<strong>Claude Code</strong>（命令行工具）：用命令行一键添加，无需编辑 JSON 文件',
+        path: '无需配置文件（用命令行添加）',
         showCmd: true
     }
 };
@@ -307,18 +369,20 @@ function switchAiTool(tool) {
             btn.style.background = '#3b82f6';
             btn.style.color = 'white';
             btn.style.border = 'none';
+            btn.classList.add('active');
         } else {
             btn.style.background = 'var(--bg-secondary)';
             btn.style.color = 'var(--text-secondary)';
             btn.style.border = '1px solid var(--border)';
+            btn.classList.remove('active');
         }
     });
 
     const config = aiToolConfig[tool];
     if (config) {
+        document.getElementById('stdio-tool-desc').innerHTML = config.desc;
         document.getElementById('stdio-path').textContent = config.path;
         document.getElementById('claude-code-cmd').style.display = config.showCmd ? 'block' : 'none';
-        // 配置内容包装器：Claude Code 不需要 JSON 文件
         document.getElementById('stdio-config-wrapper').style.display = config.showCmd ? 'none' : 'block';
     }
 }
