@@ -10,19 +10,43 @@
 <!-- Tab 切换 -->
 <div class="card" style="padding: 24px;">
     <div style="display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border);">
-        <button onclick="switchTab('single')" id="tab-single" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 500; cursor: pointer; font-size: 14px;">
+        <button onclick="switchTab('text')" id="tab-text" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 500; cursor: pointer; font-size: 14px;">
+            文本标注
+        </button>
+        <button onclick="switchTab('single')" id="tab-single" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 14px;">
             单号码查询
         </button>
         <button onclick="switchTab('batch')" id="tab-batch" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 14px;">
             批量查询
         </button>
-        <button onclick="switchTab('text')" id="tab-text" class="tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 14px;">
-            文本标注
-        </button>
     </div>
 
-    <!-- Tab 1: 单号码查询 -->
-    <div id="panel-single">
+    <!-- Tab 1: 文本标注（默认） -->
+    <div id="panel-text">
+        <div style="margin-bottom: 16px;">
+            <textarea id="text-input" class="form-input" placeholder="粘贴包含电话号码的文本" rows="6" style="width: 100%; font-size: 13px; line-height: 1.6;"></textarea>
+        </div>
+        <div style="margin-bottom: 20px; display: flex; gap: 12px;">
+            <button onclick="annotateText(event)" class="btn btn-primary" style="padding: 10px 24px;">
+                <i data-lucide="tag" style="width: 16px; height: 16px;"></i> 标注号码
+            </button>
+            <button onclick="copyAnnotated(event)" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;" disabled id="copy-annotated-btn">
+                <i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果
+            </button>
+        </div>
+
+        <div id="text-result" style="display: none;">
+            <div style="padding: 20px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+                    标注后文本
+                </div>
+                <pre id="text-annotated" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 14px; line-height: 1.8; margin: 0; color: var(--text-primary);"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: 单号码查询 -->
+    <div id="panel-single" style="display: none;">
         <div style="display: flex; gap: 12px; margin-bottom: 20px;">
             <input type="text" id="single-phone" class="form-input" placeholder="输入电话号码（手机、座机、400/800）" style="flex: 1; max-width: 400px;" onkeypress="if(event.key==='Enter') querySinglePhone(event)">
             <button onclick="querySinglePhone(event)" class="btn btn-primary" style="padding: 10px 24px;">
@@ -35,28 +59,31 @@
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 12px 24px; font-size: 14px;">
                     <div style="color: var(--text-muted); font-weight: 500;">号码</div>
                     <div id="single-phone-display" style="font-weight: 600;"></div>
-                    
+
                     <div style="color: var(--text-muted); font-weight: 500;">归一化</div>
                     <div id="single-normalized" style="font-family: monospace; color: var(--text-secondary);"></div>
-                    
+
                     <div style="color: var(--text-muted); font-weight: 500;">重复数</div>
                     <div id="single-count" style="font-weight: 600;"></div>
                 </div>
 
                 <div id="single-companies" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: none;">
-                    <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px;">关联企业（点击查看详情）</div>
+                    <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>关联企业</span>
+                        <a id="single-view-all" href="#" style="font-size: 12px; color: #3b82f6; text-decoration: none; font-weight: 400;">查看全部 →</a>
+                    </div>
                     <div id="single-companies-list"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Tab 2: 批量查询 -->
+    <!-- Tab 3: 批量查询 -->
     <div id="panel-batch" style="display: none;">
         <div style="margin-bottom: 16px;">
             <textarea id="batch-phones" class="form-input" placeholder="每行一个号码，或逗号分隔" rows="6" style="width: 100%; max-width: 600px; font-family: monospace; font-size: 13px;"></textarea>
             <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
-                支持格式：手机号、座机（带/不带区号）、400/800 号码
+                支持格式：手机号、座机（带/不带区号）、400/800 号码。点击号码或重复数可跳转到关联企业详情。
             </div>
         </div>
         <div style="margin-bottom: 20px;">
@@ -78,30 +105,6 @@
                     <tbody id="batch-results-body">
                     </tbody>
                 </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tab 3: 文本标注 -->
-    <div id="panel-text" style="display: none;">
-        <div style="margin-bottom: 16px;">
-            <textarea id="text-input" class="form-input" placeholder="粘贴包含电话号码的文本" rows="6" style="width: 100%; font-size: 13px; line-height: 1.6;"></textarea>
-        </div>
-        <div style="margin-bottom: 20px; display: flex; gap: 12px;">
-            <button onclick="annotateText(event)" class="btn btn-primary" style="padding: 10px 24px;">
-                <i data-lucide="tag" style="width: 16px; height: 16px;"></i> 标注号码
-            </button>
-            <button onclick="copyAnnotated(event)" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer;" disabled id="copy-annotated-btn">
-                <i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果
-            </button>
-        </div>
-
-        <div id="text-result" style="display: none;">
-            <div style="padding: 20px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
-                    标注后文本
-                </div>
-                <pre id="text-annotated" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 14px; line-height: 1.8; margin: 0; color: var(--text-primary);"></pre>
             </div>
         </div>
     </div>
@@ -286,6 +289,10 @@ async function querySinglePhone(evt) {
             const companiesPanel = document.getElementById('single-companies');
             companiesPanel.style.display = 'block';
 
+            // "查看全部"链接
+            const viewAllLink = document.getElementById('single-view-all');
+            viewAllLink.href = `/relation-group?dup_type=phone&field_value=${encodeURIComponent(result.normalized)}`;
+
             // 查询关联企业
             const resp2 = await fetch('/api/relations?type=phone&value=' + encodeURIComponent(result.phone) + '&limit=10');
             const data2 = await resp2.json();
@@ -353,19 +360,29 @@ async function queryBatchPhones(evt) {
         document.getElementById('batch-result').style.display = 'block';
 
         const tbody = document.getElementById('batch-results-body');
-        tbody.innerHTML = results.map(r => `
+        tbody.innerHTML = results.map(r => {
+            const relUrl = r.count > 0
+                ? `/relation-group?dup_type=phone&field_value=${encodeURIComponent(r.normalized)}`
+                : null;
+            return `
             <tr style="border-bottom: 1px solid var(--border);">
-                <td style="padding: 10px 16px; font-family: monospace;">${r.phone}</td>
-                <td style="padding: 10px 16px;">
-                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; background: ${countColor(r.count)}20; color: ${countColor(r.count)}; font-weight: 600; font-size: 12px;">
-                        ${countEmoji(r.count)} ${r.count} 次
-                    </span>
+                <td style="padding: 10px 16px; font-family: monospace;">
+                    ${relUrl
+                        ? `<a href="${relUrl}" style="color: var(--text-primary); text-decoration: none;" title="查看关联企业">${r.phone}</a>`
+                        : `<span style="color: var(--text-muted);">${r.phone}</span>`}
                 </td>
                 <td style="padding: 10px 16px;">
-                    ${r.count > 0 ? `<a href="/api/relations?type=phone&value=${encodeURIComponent(r.phone)}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 12px;">查看详情</a>` : '-'}
+                    ${relUrl
+                        ? `<a href="${relUrl}" style="text-decoration: none;"><span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 12px; background: ${countColor(r.count)}20; color: ${countColor(r.count)}; font-weight: 600; font-size: 12px;">${countEmoji(r.count)} ${r.count} 次</span></a>`
+                        : `<span style="color: var(--text-muted); font-size: 12px;">0 次</span>`}
                 </td>
-            </tr>
-        `).join('');
+                <td style="padding: 10px 16px;">
+                    ${relUrl
+                        ? `<a href="${relUrl}" style="color: #3b82f6; text-decoration: none; font-size: 12px;">查看关联 →</a>`
+                        : '<span style="color: var(--text-muted); font-size: 12px;">-</span>'}
+                </td>
+            </tr>`;
+        }).join('');
 
         btn.disabled = false;
         btn.innerHTML = originalHTML;
