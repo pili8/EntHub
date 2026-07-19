@@ -125,15 +125,19 @@
     </div>
 </div>
 
-<!-- API 调用说明 -->
-<div class="card" style="padding: 24px; margin-top: 16px;">
-    <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-        <i data-lucide="code" style="width: 18px; height: 18px;"></i>
-        API 调用
-    </h3>
-    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
-        所有 API 返回统一 JSON 格式 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">{"code": 0, "message": "ok", "data": {...}}</code>，方便其他工具集成。
-    </p>
+<!-- API 调用说明（默认折叠） -->
+<div class="card" style="padding: 0; margin-top: 16px; overflow: hidden;">
+    <button onclick="toggleApiDocs(event)" id="api-docs-toggle" style="width: 100%; padding: 16px 24px; background: transparent; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 600; color: var(--text-primary);">
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="code" style="width: 18px; height: 18px;"></i>
+            API 调用说明
+        </span>
+        <i id="api-docs-chevron" data-lucide="chevron-down" style="width: 16px; height: 16px; transition: transform 0.2s; color: var(--text-muted);"></i>
+    </button>
+    <div id="api-docs-content" style="display: none; padding: 0 24px 24px;">
+        <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
+            所有 API 返回统一 JSON 格式 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">{"code": 0, "message": "ok", "data": {...}}</code>，方便其他工具集成。
+        </p>
 
     <!-- API 1: 单号码查询 -->
     <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
@@ -436,6 +440,17 @@ window.querySinglePhone = querySinglePhone;
 window.queryBatchPhones = queryBatchPhones;
 window.annotateText = annotateText;
 window.copyAnnotated = copyAnnotated;
+
+// API 说明折叠/展开
+function toggleApiDocs(evt) {
+    if (evt) evt.currentTarget.blur();
+    const content = document.getElementById('api-docs-content');
+    const chevron = document.getElementById('api-docs-chevron');
+    const isHidden = content.style.display === 'none';
+    content.style.display = isHidden ? 'block' : 'none';
+    chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+window.toggleApiDocs = toggleApiDocs;
 </script>
 <style>
 @keyframes spin {
