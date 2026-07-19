@@ -28,13 +28,17 @@
                         <i data-lucide="table" style="width:15px;height:15px"></i>
                         浏览
                     </a>
+                    <a href="{{ url_for('relation_discovery') }}" class="nav-link">
+                        <i data-lucide="git-branch" style="width:15px;height:15px"></i>
+                        关联
+                    </a>
                     <a href="{{ url_for('tags_page') }}" class="nav-link">
                         <i data-lucide="tag" style="width:15px;height:15px"></i>
                         标签
                     </a>
-                    <a href="{{ url_for('relation_discovery') }}" class="nav-link">
-                        <i data-lucide="git-branch" style="width:15px;height:15px"></i>
-                        关联
+                    <a href="{{ url_for('mcp_page') }}" class="nav-link">
+                        <i data-lucide="bot" style="width:15px;height:15px"></i>
+                        MCP
                     </a>
                     <a href="{{ url_for('add_company') }}" class="nav-link">
                         <i data-lucide="plus" style="width:15px;height:15px"></i>

@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}MCP 管理 · EntHub{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">🤖 MCP Server 管理</div>
+    <div class="page-subtitle">让 AI 工具（Claude、Cursor 等）用自然语言查询 EntHub 数据</div>
+</div>
+
+<!-- 服务状态 -->
+<div class="card" style="padding: 24px; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div id="statusDot" style="width: 14px; height: 14px; border-radius: 50%; background: {% if running %}#22c55e{% else %}#ef4444{% endif %}; box-shadow: 0 0 0 4px {% if running %}rgba(34,197,94,0.2){% else %}rgba(239,68,68,0.2){% endif %};"></div>
+            <div>
+                <div style="font-weight: 600; font-size: 16px;">
+                    {% if running %}运行中{% else %}已停止{% endif %}
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                    {% if running and pid %}PID: {{ pid }} · 端口 8000{% else %}点击「启动」开始运行{% endif %}
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            {% if running %}
+            <button onclick="stopMcp(this)" class="btn" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="square" style="width: 15px; height: 15px;"></i>
+                停止
+            </button>
+            {% else %}
+            <button onclick="startMcp(this)" class="btn btn-primary" style="padding: 10px 20px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="play" style="width: 15px; height: 15px;"></i>
+                启动
+            </button>
+            {% endif %}
+            <button onclick="location.reload()" class="btn" style="padding: 10px 16px; background: var(--bg-secondary); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="refresh-cw" style="width: 15px; height: 15px;"></i>
+                刷新
+            </button>
+        </div>
+    </div>
+
+    {% if running %}
+    <!-- 服务地址 -->
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+        <div style="font-size: 13px; color: var(--text-secondary); font-weight: 500; margin-bottom: 12px;">服务地址</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border);">
+                <i data-lucide="monitor" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                <span style="font-family: monospace; font-size: 13px; flex: 1;">{{ server_url }}</span>
+                <span style="font-size: 11px; color: var(--text-muted);">本机</span>
+                <button onclick="copyToClipboard('{{ server_url }}', this)" class="btn-icon" style="background: transparent; border: none; cursor: pointer; padding: 4px;">
+                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+            {% if lan_url %}
+            <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border);">
+                <i data-lucide="wifi" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                <span style="font-family: monospace; font-size: 13px; flex: 1;">{{ lan_url }}</span>
+                <span style="font-size: 11px; color: var(--text-muted);">局域网</span>
+                <button onclick="copyToClipboard('{{ lan_url }}', this)" class="btn-icon" style="background: transparent; border: none; cursor: pointer; padding: 4px;">
+                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if running %}
+<!-- 可用工具 -->
+<div class="card" style="padding: 24px; margin-bottom: 24px;">
+    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="wrench" style="width: 18px; height: 18px;"></i>
+        可用工具（5 个）
+    </h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="search" style="width: 15px; height: 15px; color: #3b82f6;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #3b82f6;">search_companies</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="file-text" style="width: 15px; height: 15px; color: #22c55e;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #22c55e;">get_company_detail</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">获取企业详情（含关联企业+标签）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="git-branch" style="width: 15px; height: 15px; color: #f97316;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #f97316;">find_relations</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">查找关联企业（按电话/邮箱/法人/股东）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="list" style="width: 15px; height: 15px; color: #8b5cf6;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #8b5cf6;">get_companies_list</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">企业列表（支持筛选/排序/分页）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="bar-chart-3" style="width: 15px; height: 15px; color: #ec4899;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #ec4899;">get_stats</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">统计查询（法人/股东/行业）</div>
+        </div>
+    </div>
+</div>
+
+<!-- AI 工具配置 -->
+<div class="card" style="padding: 24px; margin-bottom: 24px;">
+    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="settings" style="width: 18px; height: 18px;"></i>
+        AI 工具配置
+    </h3>
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">在 Claude Desktop、Cursor 等 AI 工具的配置文件中添加：</p>
+    <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto;">
+        <button onclick="copyToClipboard(document.getElementById('configJson').textContent, this)" style="position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+            <i data-lucide="copy" style="width: 12px; height: 12px;"></i> 复制
+        </button>
+        <pre id="configJson" style="margin: 0; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.6;"><code>{
+  "mcpServers": {
+    "enthub": {
+      "url": "{{ server_url }}"
+    }
+  }
+}</code></pre>
+    </div>
+</div>
+
+<!-- 使用示例 -->
+<div class="card" style="padding: 24px; margin-bottom: 24px;">
+    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="message-circle" style="width: 18px; height: 18px;"></i>
+        使用示例
+    </h3>
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">在 AI 工具中用自然语言提问：</p>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #3b82f6; font-size: 13px;">
+            <span style="color: var(--text-muted);">🔍 </span>"帮我找所有叫<span style="font-weight: 500;">科技</span>的公司"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #22c55e; font-size: 13px;">
+            <span style="color: var(--text-muted);">📄 </span>"查一下 ID 为 <span style="font-weight: 500;">2</span> 的企业详情"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #f97316; font-size: 13px;">
+            <span style="color: var(--text-muted);">🔗 </span>"找和<span style="font-weight: 500;">张三</span>有关联的企业"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #ec4899; font-size: 13px;">
+            <span style="color: var(--text-muted);">📊 </span>"统计出现 <span style="font-weight: 500;">5 次</span>以上的法人"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #8b5cf6; font-size: 13px;">
+            <span style="color: var(--text-muted);">📋 </span>"列出<span style="font-weight: 500;">杭州</span>地区的科技公司"
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- 未运行提示 -->
+<div class="card" style="padding: 32px 24px; text-align: center;">
+    <div style="font-size: 48px; margin-bottom: 16px;">🤖</div>
+    <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">MCP Server 未启动</h3>
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 24px 0; max-width: 480px; margin-left: auto; margin-right: auto;">
+        启动后可以让 AI 工具（Claude、Cursor 等）用自然语言查询 EntHub 数据。<br>
+        支持 5 个工具：搜索企业、企业详情、关联查询、企业列表、统计查询。
+    </p>
+    <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); display: inline-block; text-align: left; font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+        <div style="font-weight: 500; color: var(--text-primary); margin-bottom: 6px;">💡 也可以命令行启动：</div>
+        <code style="font-family: monospace; background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 3px;">./venv/bin/python mcp_server.py</code>
+    </div>
+</div>
+
+<!-- 工具列表（未运行时也显示） -->
+<div class="card" style="padding: 24px; margin-bottom: 24px;">
+    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="wrench" style="width: 18px; height: 18px;"></i>
+        启动后可用的工具（5 个）
+    </h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="search" style="width: 15px; height: 15px; color: #3b82f6;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #3b82f6;">search_companies</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="file-text" style="width: 15px; height: 15px; color: #22c55e;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #22c55e;">get_company_detail</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">获取企业详情（含关联企业+标签）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="git-branch" style="width: 15px; height: 15px; color: #f97316;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #f97316;">find_relations</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">查找关联企业（按电话/邮箱/法人/股东）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="list" style="width: 15px; height: 15px; color: #8b5cf6;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #8b5cf6;">get_companies_list</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">企业列表（支持筛选/排序/分页）</div>
+        </div>
+        <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border); opacity: 0.75;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <i data-lucide="bar-chart-3" style="width: 15px; height: 15px; color: #ec4899;"></i>
+                <code style="font-size: 13px; font-weight: 600; color: #ec4899;">get_stats</code>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">统计查询（法人/股东/行业）</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 自动刷新状态（仅未运行时）
+{% if not running %}
+setTimeout(function() {
+    fetch('/mcp/status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.data && data.data.running) {
+                location.reload();
+            }
+        })
+        .catch(() => {});
+}, 5000);
+{% endif %}
+
+// 启动 MCP
+async function startMcp(btn) {
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" style="width: 15px; height: 15px; animation: spin 1s linear infinite;"></i> 启动中...';
+    if (window.lucide) lucide.createIcons();
+
+    try {
+        const resp = await fetch('/mcp/start', { method: 'POST' });
+        const data = await resp.json();
+        if (data.code === 0) {
+            // 等待 1 秒后刷新页面
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert(data.message || '启动失败');
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            if (window.lucide) lucide.createIcons();
+        }
+    } catch (e) {
+        alert('请求失败：' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+// 停止 MCP
+async function stopMcp(btn) {
+    showConfirm('停止 MCP Server', '确定要停止 MCP Server 吗？', async () => {
+        const originalHTML = '<i data-lucide="square" style="width: 15px; height: 15px;"></i> 停止';
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" style="width: 15px; height: 15px; animation: spin 1s linear infinite;"></i> 停止中...';
+        if (window.lucide) lucide.createIcons();
+
+        try {
+            const resp = await fetch('/mcp/stop', { method: 'POST' });
+            const data = await resp.json();
+            if (data.code === 0) {
+                setTimeout(() => location.reload(), 500);
+            } else {
+                alert(data.message || '停止失败');
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+                if (window.lucide) lucide.createIcons();
+            }
+        } catch (e) {
+            alert('请求失败：' + e.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            if (window.lucide) lucide.createIcons();
+        }
+    });
+}
+</script>
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
