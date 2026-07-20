@@ -65,12 +65,11 @@ class _ToastController(NSObject):
         # 计算窗口尺寸
         width, height = _calc_size(text)
 
-        # 屏幕正中（略偏上 1/3 处更自然）
+        # 屏幕顶部居中（避开状态栏，留 12pt 间距）
         screen = NSScreen.mainScreen()
         screen_frame = screen.frame()
         x = (screen_frame.size.width - width) / 2
-        # 屏幕中心，稍微偏上（黄金分割）
-        y = screen_frame.size.height * 0.62
+        y = screen_frame.size.height - height - 28  # 状态栏高度约 22pt
 
         # 创建窗口
         frame = NSRect(NSPoint(x, y), NSSize(width, height))

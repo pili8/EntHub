@@ -153,7 +153,7 @@
 
 <!-- API 调用说明（默认折叠） -->
 <div class="card" style="padding: 0; margin-top: 16px; overflow: hidden;">
-    <button onclick="toggleApiDocs(event)" id="api-docs-toggle" style="width: 100%; padding: 16px 24px; background: transparent; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 600; color: var(--text-primary);">
+    <button onclick="toggleApiDocs(event)" id="api-docs-toggle" type="button" style="width: 100%; padding: 16px 24px; background: transparent; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 600; color: var(--text-primary); outline: none;">
         <span style="display: flex; align-items: center; gap: 8px;">
             <i data-lucide="code" style="width: 18px; height: 18px;"></i>
             API 调用说明
@@ -242,12 +242,13 @@ for item in r.json()["data"]["results"]:
 
 {% block scripts %}
 <script>
-// Tab 切换
+// ── 工具函数（提前定义）──
 function switchTab(tab) {
-    const tabs = ['single', 'batch', 'text'];
+    const tabs = ['text', 'single', 'batch'];
     tabs.forEach(t => {
         const btn = document.getElementById('tab-' + t);
         const panel = document.getElementById('panel-' + t);
+        if (!btn || !panel) return;
         if (t === tab) {
             btn.style.borderBottomColor = '#D97757';
             btn.style.color = '#D97757';
@@ -260,12 +261,11 @@ function switchTab(tab) {
     });
 }
 
-// 重复数颜色标识
 function countColor(count) {
     if (count === 0) return '#6b7280';
-    if (count === 1) return '#22c55e';
-    if (count <= 5) return '#f59e0b';
-    return '#ef4444';
+    if (count === 1) return '#16A34A';
+    if (count <= 5) return '#B45309';
+    return '#C2410C';
 }
 
 function countEmoji(count) {
@@ -275,11 +275,56 @@ function countEmoji(count) {
     return '🔴';
 }
 
-// Tab 1: 单号码查询
+function updateResultBadge(phoneCount) {
+    const badge = document.getElementById('text-result-badge');
+    if (!badge) return;
+    if (phoneCount === 0) {
+        badge.style.background = '#f3f4f6';
+        badge.style.color = '#6b7280';
+        badge.textContent = '未发现号码';
+    } else if (phoneCount === 1) {
+        badge.style.background = '#ECFDF3';
+        badge.style.color = '#16A34A';
+        badge.textContent = phoneCount + ' 个号码';
+    } else if (phoneCount <= 5) {
+        badge.style.background = '#FEF3C7';
+        badge.style.color = '#B45309';
+        badge.textContent = phoneCount + ' 个号码';
+    } else {
+        badge.style.background = '#FEF1EB';
+        badge.style.color = '#C2410C';
+        badge.textContent = phoneCount + ' 个号码';
+    }
+}
+
+function showTextResult(data, inputText) {
+    document.getElementById('text-result').style.display = 'block';
+    document.getElementById('text-annotated').textContent = data.annotated_text;
+    document.getElementById('copy-annotated-btn').disabled = false;
+    if (inputText !== undefined) {
+        document.getElementById('text-input').value = inputText;
+    }
+    updateResultBadge(data.phone_count);
+}
+
+// API 说明折叠/展开
+function toggleApiDocs(evt) {
+    if (evt && evt.preventDefault) evt.preventDefault();
+    const content = document.getElementById('api-docs-content');
+    const chevron = document.getElementById('api-docs-chevron');
+    if (!content) return;
+    const isHidden = content.style.display === 'none';
+    content.style.display = isHidden ? 'block' : 'none';
+    if (chevron) {
+        chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+}
+
+// 单号码查询
 async function querySinglePhone(evt) {
     const phone = document.getElementById('single-phone').value.trim();
     if (!phone) {
-        alert('请输入电话号码');
+        window._enthubToast('warning', '请输入电话号码', '');
         return;
     }
 
@@ -287,15 +332,14 @@ async function querySinglePhone(evt) {
     const originalHTML = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
+    if (window.lucide) lucide.createIcons();
 
     try {
         const resp = await fetch('/api/phone_count?phone=' + encodeURIComponent(phone));
         const data = await resp.json();
 
         if (data.code !== 0) {
-            alert(data.message || '查询失败');
-            btn.disabled = false;
-            btn.innerHTML = originalHTML;
+            window._enthubToast('error', '查询失败', data.message || '');
             return;
         }
 
@@ -305,28 +349,26 @@ async function querySinglePhone(evt) {
         document.getElementById('single-normalized').textContent = result.normalized;
 
         const countEl = document.getElementById('single-count');
-        countEl.innerHTML = `<span style="color: ${countColor(result.count)}; font-weight: 600;">${result.count} 次</span>`;
+        countEl.innerHTML = '<span style="color: ' + countColor(result.count) + '; font-weight: 600;">' + result.count + ' 次</span>';
 
-        // 显示关联企业（如果有）
+        // 关联企业
         if (result.count > 0) {
             const companiesPanel = document.getElementById('single-companies');
             companiesPanel.style.display = 'block';
 
-            // "查看全部"链接
             const viewAllLink = document.getElementById('single-view-all');
-            viewAllLink.href = `/relation-group?dup_type=phone&field_value=${encodeURIComponent(result.normalized)}`;
+            viewAllLink.href = '/relation-group?dup_type=phone&field_value=' + encodeURIComponent(result.normalized);
 
-            // 查询关联企业
             const resp2 = await fetch('/api/relations?type=phone&value=' + encodeURIComponent(result.phone) + '&limit=10');
             const data2 = await resp2.json();
 
             if (data2.code === 0 && data2.data.results && data2.data.results.length > 0) {
                 const list = document.getElementById('single-companies-list');
                 list.innerHTML = data2.data.results.map(c =>
-                    `<a href="/company/${c.id}" style="display: block; padding: 8px 12px; margin-bottom: 4px; background: white; border-radius: 6px; border: 1px solid var(--border); text-decoration: none; color: var(--text-primary); font-size: 13px; transition: all 0.2s;">
-                        ${c.name}
-                        ${c.address ? '<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">' + c.address + '</div>' : ''}
-                    </a>`
+                    '<a href="/company/' + c.id + '" style="display: block; padding: 8px 12px; margin-bottom: 4px; background: white; border-radius: 6px; border: 1px solid var(--border); text-decoration: none; color: var(--text-primary); font-size: 13px; transition: all 0.2s;">' +
+                    c.name +
+                    (c.address ? '<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">' + c.address + '</div>' : '') +
+                    '</a>'
                 ).join('');
             } else {
                 document.getElementById('single-companies-list').innerHTML = '<div style="font-size: 13px; color: var(--text-muted);">无关联企业</div>';
@@ -334,28 +376,26 @@ async function querySinglePhone(evt) {
         } else {
             document.getElementById('single-companies').style.display = 'none';
         }
-
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
     } catch (e) {
-        alert('请求失败：' + e.message);
+        window._enthubToast('error', '请求失败', e.message);
+    } finally {
         btn.disabled = false;
         btn.innerHTML = originalHTML;
+        if (window.lucide) lucide.createIcons();
     }
 }
 
-// Tab 2: 批量查询
+// 批量查询
 async function queryBatchPhones(evt) {
     const input = document.getElementById('batch-phones').value.trim();
     if (!input) {
-        alert('请输入号码');
+        window._enthubToast('warning', '请输入号码', '');
         return;
     }
 
-    // 解析号码（按行或逗号分隔）
     const phones = input.split(/[\n,;，]/).map(p => p.trim()).filter(p => p);
     if (phones.length === 0) {
-        alert('未识别到有效号码');
+        window._enthubToast('warning', '未识别到有效号码', '');
         return;
     }
 
@@ -363,6 +403,7 @@ async function queryBatchPhones(evt) {
     const originalHTML = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
+    if (window.lucide) lucide.createIcons();
 
     try {
         const resp = await fetch('/api/phone_count_batch', {
@@ -373,9 +414,7 @@ async function queryBatchPhones(evt) {
         const data = await resp.json();
 
         if (data.code !== 0) {
-            alert(data.message || '查询失败');
-            btn.disabled = false;
-            btn.innerHTML = originalHTML;
+            window._enthubToast('error', '查询失败', data.message || '');
             return;
         }
 
@@ -385,42 +424,40 @@ async function queryBatchPhones(evt) {
         const tbody = document.getElementById('batch-results-body');
         tbody.innerHTML = results.map(r => {
             const relUrl = r.count > 0
-                ? `/relation-group?dup_type=phone&field_value=${encodeURIComponent(r.normalized)}`
+                ? '/relation-group?dup_type=phone&field_value=' + encodeURIComponent(r.normalized)
                 : null;
-            return `
-            <tr style="border-bottom: 1px solid var(--border);">
-                <td style="padding: 10px 16px; font-family: monospace;">
-                    ${relUrl
-                        ? `<a href="${relUrl}" style="color: var(--text-primary); text-decoration: none;" title="查看关联企业">${r.phone}</a>`
-                        : `<span style="color: var(--text-muted);">${r.phone}</span>`}
-                </td>
-                <td style="padding: 10px 16px;">
-                    ${relUrl
-                        ? `<a href="${relUrl}" style="text-decoration: none;"><span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 12px; background: ${countColor(r.count)}20; color: ${countColor(r.count)}; font-weight: 600; font-size: 12px;">${countEmoji(r.count)} ${r.count} 次</span></a>`
-                        : `<span style="color: var(--text-muted); font-size: 12px;">0 次</span>`}
-                </td>
-                <td style="padding: 10px 16px;">
-                    ${relUrl
-                        ? `<a href="${relUrl}" style="color: #D97757; text-decoration: none; font-size: 12px;">查看关联 →</a>`
-                        : '<span style="color: var(--text-muted); font-size: 12px;">-</span>'}
-                </td>
-            </tr>`;
+            return '<tr style="border-bottom: 1px solid var(--border);">' +
+                '<td style="padding: 10px 16px; font-family: monospace;">' +
+                    (relUrl
+                        ? '<a href="' + relUrl + '" style="color: var(--text-primary); text-decoration: none;">' + r.phone + '</a>'
+                        : '<span style="color: var(--text-muted);">' + r.phone + '</span>') +
+                '</td>' +
+                '<td style="padding: 10px 16px;">' +
+                    (relUrl
+                        ? '<a href="' + relUrl + '" style="text-decoration: none;"><span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 12px; background: ' + countColor(r.count) + '20; color: ' + countColor(r.count) + '; font-weight: 600; font-size: 12px;">' + countEmoji(r.count) + ' ' + r.count + ' 次</span></a>'
+                        : '<span style="color: var(--text-muted); font-size: 12px;">0 次</span>') +
+                '</td>' +
+                '<td style="padding: 10px 16px;">' +
+                    (relUrl
+                        ? '<a href="' + relUrl + '" style="color: #D97757; text-decoration: none; font-size: 12px;">查看关联 →</a>'
+                        : '<span style="color: var(--text-muted); font-size: 12px;">-</span>') +
+                '</td>' +
+            '</tr>';
         }).join('');
-
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
     } catch (e) {
-        alert('请求失败：' + e.message);
+        window._enthubToast('error', '请求失败', e.message);
+    } finally {
         btn.disabled = false;
         btn.innerHTML = originalHTML;
+        if (window.lucide) lucide.createIcons();
     }
 }
 
-// Tab 3: 文本标注
+// 文本标注
 async function annotateText(evt) {
     const text = document.getElementById('text-input').value.trim();
     if (!text) {
-        window._enthubToast('warning', '⚠️ 文本为空', '请粘贴文本');
+        window._enthubToast('warning', '文本为空', '请粘贴文本');
         return;
     }
 
@@ -440,36 +477,10 @@ async function annotateText(evt) {
         if (window.lucide) lucide.createIcons();
     }
 
-    if (!data) return;
-
-    // 显示结果
-    document.getElementById('text-result').style.display = 'block';
-    document.getElementById('text-annotated').textContent = data.annotated_text;
-    document.getElementById('copy-annotated-btn').disabled = false;
-
-    // 显示号码数 badge
-    const badge = document.getElementById('text-result-badge');
-    const phoneCount = data.phone_count;
-    if (phoneCount === 0) {
-        badge.style.background = '#f3f4f6';
-        badge.style.color = '#6b7280';
-        badge.textContent = '未发现号码';
-    } else if (phoneCount === 1) {
-        badge.style.background = '#dcfce7';
-        badge.style.color = '#16a34a';
-        badge.textContent = `${phoneCount} 个号码`;
-    } else if (phoneCount <= 5) {
-        badge.style.background = '#fef3c7';
-        badge.style.color = '#d97706';
-        badge.textContent = `${phoneCount} 个号码`;
-    } else {
-        badge.style.background = '#fee2e2';
-        badge.style.color = '#dc2626';
-        badge.textContent = `${phoneCount} 个号码`;
-    }
+    if (data) showTextResult(data);
 }
 
-// 自动触发标注（粘贴时）
+// 粘贴自动标注
 function setupAutoAnnotate() {
     const input = document.getElementById('text-input');
     if (!input) return;
@@ -477,97 +488,41 @@ function setupAutoAnnotate() {
     // 字数统计
     function updateCount() {
         const count = input.value.length;
-        document.getElementById('text-char-count').textContent = count + ' 字';
+        const el = document.getElementById('text-char-count');
+        if (el) el.textContent = count + ' 字';
     }
     input.addEventListener('input', updateCount);
 
-    // 粘贴事件：自动标注
+    // 粘贴事件
     let pasteTimer = null;
     input.addEventListener('paste', function(e) {
-        // 延迟 100ms 等待粘贴完成
         clearTimeout(pasteTimer);
         pasteTimer = setTimeout(async () => {
             const text = input.value.trim();
             if (text.length < 7) {
-                // 太短不可能是号码
                 updateCount();
                 return;
             }
 
-            // 显示"自动标注中"
             window._enthubToast('info', '🔍 自动标注中...', '');
 
             const data = await window.doAnnotate(text);
-            if (data) {
-                // 显示结果（同 annotateText）
-                document.getElementById('text-result').style.display = 'block';
-                document.getElementById('text-annotated').textContent = data.annotated_text;
-                document.getElementById('copy-annotated-btn').disabled = false;
-
-                const badge = document.getElementById('text-result-badge');
-                const phoneCount = data.phone_count;
-                if (phoneCount === 0) {
-                    badge.style.background = '#f3f4f6';
-                    badge.style.color = '#6b7280';
-                    badge.textContent = '未发现号码';
-                } else if (phoneCount === 1) {
-                    badge.style.background = '#dcfce7';
-                    badge.style.color = '#16a34a';
-                    badge.textContent = `${phoneCount} 个号码`;
-                } else if (phoneCount <= 5) {
-                    badge.style.background = '#fef3c7';
-                    badge.style.color = '#d97706';
-                    badge.textContent = `${phoneCount} 个号码`;
-                } else {
-                    badge.style.background = '#fee2e2';
-                    badge.style.color = '#dc2626';
-                    badge.textContent = `${phoneCount} 个号码`;
-                }
-            }
+            if (data) showTextResult(data);
             updateCount();
         }, 150);
     });
 
-    // 页面加载后自动聚焦
     input.focus();
 }
 
-// 清空输入
+// 清空
 function clearTextInput(evt) {
     document.getElementById('text-input').value = '';
-    document.getElementById('text-char-count').textContent = '0 字';
+    const charEl = document.getElementById('text-char-count');
+    if (charEl) charEl.textContent = '0 字';
     document.getElementById('text-result').style.display = 'none';
     document.getElementById('copy-annotated-btn').disabled = true;
     document.getElementById('text-input').focus();
-}
-
-    try {
-        const resp = await fetch('/api/phone_count_text', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
-        });
-        const data = await resp.json();
-
-        if (data.code !== 0) {
-            alert(data.message || '标注失败');
-            btn.disabled = false;
-            btn.innerHTML = originalHTML;
-            return;
-        }
-
-        const result = data.data;
-        document.getElementById('text-result').style.display = 'block';
-        document.getElementById('text-annotated').textContent = result.annotated_text;
-        document.getElementById('copy-annotated-btn').disabled = false;
-
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-    } catch (e) {
-        alert('请求失败：' + e.message);
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-    }
 }
 
 // 复制标注结果
@@ -576,41 +531,27 @@ function copyAnnotated(evt) {
     navigator.clipboard.writeText(text).then(() => {
         const btn = evt ? evt.currentTarget : document.getElementById('copy-annotated-btn');
         btn.innerHTML = '<i data-lucide="check" style="width: 16px; height: 16px;"></i> 已复制';
-        btn.style.color = '#22c55e';
+        btn.style.color = '#16A34A';
         setTimeout(() => {
             btn.innerHTML = '<i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果';
             btn.style.color = '';
         }, 2000);
     }).catch(e => {
-        alert('复制失败：' + e.message);
+        window._enthubToast('error', '复制失败', e.message);
     });
 }
 
-// 显式挂到 window，避免 SPA 路由切换后失效
+// ── 显式挂到 window（避免 SPA 路由切换后失效）──
 window.switchTab = switchTab;
 window.querySinglePhone = querySinglePhone;
 window.queryBatchPhones = queryBatchPhones;
 window.annotateText = annotateText;
 window.copyAnnotated = copyAnnotated;
 window.clearTextInput = clearTextInput;
-
-// 初始化（页面加载或 SPA 切换后执行）
-function initPhonesPage() {
-    setupAutoAnnotate();
-}
-initPhonesPage();
-window.initPhonesPage = initPhonesPage;
-
-// API 说明折叠/展开
-function toggleApiDocs(evt) {
-    if (evt) evt.currentTarget.blur();
-    const content = document.getElementById('api-docs-content');
-    const chevron = document.getElementById('api-docs-chevron');
-    const isHidden = content.style.display === 'none';
-    content.style.display = isHidden ? 'block' : 'none';
-    chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-}
 window.toggleApiDocs = toggleApiDocs;
+
+// ── 初始化 ──
+setupAutoAnnotate();
 </script>
 <style>
 @keyframes spin {
