@@ -8,6 +8,7 @@ from flask import Blueprint, g, request, render_template, redirect, url_for, \
 
 from db import DB_PATH
 import tasks
+from queries import invalidate_cache
 from data_helpers import merge_phones, merge_shareholders
 
 bp = Blueprint('cleanup_flow_bp', __name__)
@@ -204,6 +205,9 @@ def _cleanup_worker(task_queue, stop_event, clean_nan, clean_header,
 
         total_after = db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
         db.close()
+
+        # 数据已变更，清空筛选器缓存
+        invalidate_cache()
 
         if stop_event.is_set():
             send("stopped", {"total_deleted": deleted_total, "total_after": total_after})

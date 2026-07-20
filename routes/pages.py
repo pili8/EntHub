@@ -55,33 +55,12 @@ def restart_server():
 
 @bp.route("/browse")
 def browse():
-    page = sanitize_page(request.args)
-    per_page = sanitize_per_page(request.args)
+    """浏览页骨架：只渲染筛选器（带缓存），数据列表由 HTMX 异步加载。
 
-    # 筛选 + 排序
-    clauses, params = build_filter_clause(request.args)
-    where_clause = where_sql(clauses)
-    sort_col, dir_sql = build_sort_clause(request.args)
-
-    # 总数
-    total = g.db.execute(
-        f"SELECT COUNT(*) FROM companies {where_clause}", params
-    ).fetchone()[0]
-    pages, offset = paginate(total, page, per_page)
-
-    # 列表
-    rows = query_company_list(
-        g.db, where_clause, params, sort_col, dir_sql, per_page, offset
-    )
-
-    # 筛选器选项（DISTINCT 值）
-    filter_options = get_filter_options(g.db)
-
-    # 年份区间（递增）
-    min_year, max_year = get_year_bounds(g.db)
-    year_ranges = build_year_ranges(min_year, max_year)
-
-    # 当前选中的筛选值（用于模板回填）
+    这样首次进入浏览页时跳转响应很快（< 100ms），用户立即看到骨架，
+    数据填充由独立的 /browse/data 异步完成，避免"干等 3-5 秒"。
+    """
+    # 当前选中的筛选值（用于模板回填 + 透传给数据端点）
     filters = {}
     for key in ("city", "district", "business_status", "industry",
                 "year_from", "year_to", "cap_from", "cap_to",
@@ -90,13 +69,56 @@ def browse():
         if val:
             filters[key] = val
 
+    # 筛选器选项（5 分钟缓存，命中后毫秒级）
+    filter_options = get_filter_options(g.db)
+    min_year, max_year = get_year_bounds(g.db)
+    year_ranges = build_year_ranges(min_year, max_year)
+
     return render_template("browse.html",
+                           # 透传参数（给 HTMX 用）
+                           page=sanitize_page(request.args),
+                           per_page=sanitize_per_page(request.args),
+                           sort=request.args.get("sort", "id"),
+                           direction=request.args.get("dir", "desc"),
+                           filters=filters, filter_options=filter_options,
+                           year_ranges=year_ranges,
+                           # 数据区初始为空，由 HTMX 异步加载
+                           rows=None, total=None, pages=None)
+
+
+@bp.route("/browse/data")
+def browse_data():
+    """浏览页数据片段：企业列表 + 分页。由 HTMX 异步请求。"""
+    page = sanitize_page(request.args)
+    per_page = sanitize_per_page(request.args)
+
+    clauses, params = build_filter_clause(request.args)
+    where_clause = where_sql(clauses)
+    sort_col, dir_sql = build_sort_clause(request.args)
+
+    total = g.db.execute(
+        f"SELECT COUNT(*) FROM companies {where_clause}", params
+    ).fetchone()[0]
+    pages, offset = paginate(total, page, per_page)
+
+    rows = query_company_list(
+        g.db, where_clause, params, sort_col, dir_sql, per_page, offset
+    )
+
+    filters = {}
+    for key in ("city", "district", "business_status", "industry",
+                "year_from", "year_to", "cap_from", "cap_to",
+                "insured_from", "insured_to"):
+        val = (request.args.get(key) or "").strip()
+        if val:
+            filters[key] = val
+
+    return render_template("_browse_data.html",
                            rows=rows, total=total, page=page, pages=pages,
                            per_page=per_page,
                            sort=request.args.get("sort", "id"),
                            direction=request.args.get("dir", "desc"),
-                           filters=filters, filter_options=filter_options,
-                           year_ranges=year_ranges)
+                           filters=filters)
 
 
 # ── 统一搜索 ────────────────────────────────────────────────────────────────

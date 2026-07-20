@@ -1,0 +1,132 @@
+{# 浏览页数据片段：分页 + 表格 + 底部分页。
+   由 /browse/data 端点返回，被 HTMX 填充到 #browse-data 区域。 #}
+
+{# ===== 分页（顶部） ===== #}
+<div class="pagination" style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0; flex-wrap: wrap; gap: 8px;">
+  <div>
+    每页
+    <select id="per-page" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
+      {% for n in [10, 25, 50, 100, 200] %}
+        <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
+      {% endfor %}
+    </select>
+    条
+  </div>
+  <div class="pagination-links">
+    {% if page > 1 %}
+      <a href="?page=1&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">«</a>
+      <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">‹</a>
+    {% endif %}
+
+    {% for p in range([1, page-3]|max, [pages+1, page+4]|min) %}
+      {% if p == page %}
+        <span class="current">{{ p }}</span>
+      {% else %}
+        <a href="?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page < pages %}
+      <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">›</a>
+      <a href="?page={{ pages }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">»</a>
+    {% endif %}
+
+    <span style="margin-left: 8px; color: var(--text-secondary);">
+      {{ total }} 条 · 第 {{ page }}/{{ pages }} 页
+    </span>
+  </div>
+</div>
+
+{# ===== 企业列表 ===== #}
+<div class="browse-table-wrap">
+  <table class="browse-table">
+    <thead>
+      <tr>
+        <th class="col-check"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width: 16px; height: 16px; cursor: pointer;" title="全选当前页"></th>
+        <th class="col-id">
+          <a href="?sort=id&dir={{ 'asc' if sort=='id' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            ID {% if sort=='id' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-name">
+          <a href="?sort=name&dir={{ 'asc' if sort=='name' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            企业名称 {% if sort=='name' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-phone">电话</th>
+        <th class="col-legal">法人</th>
+        <th class="col-city">城市/区县</th>
+        <th class="col-capital">注册资本</th>
+        <th class="col-status">状态</th>
+        <th class="col-date">成立日期</th>
+        <th class="col-industry">行业</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><input type="checkbox" class="row-select" value="{{ r.id }}" onchange="updateToolbar()"></td>
+        <td title="{{ r.id }}">#{{ '%08d' % r.id }}</td>
+        <td title="{{ r.name }}"><a href="{{ url_for('companies_bp.company_detail', company_id=r.id) }}">{{ r.name }}</a></td>
+        <td title="{{ r.phone or '' }}">{{ r.phone or '-' }}</td>
+        <td title="{{ r.legal_person or '' }}">{{ r.legal_person or '-' }}</td>
+        <td title="{{ r.city or '' }} {{ r.district or '' }}">{{ r.city or '-' }}{% if r.district and r.district != '-' %} {{ r.district }}{% endif %}</td>
+        <td title="{{ r.registered_capital or '' }}">{{ r.registered_capital or '-' }}</td>
+        <td>{{ r.business_status or '-' }}</td>
+        <td>{{ r.established_date or '-' }}</td>
+        <td title="{{ r.industry or '' }}">{{ r.industry or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ===== 批量操作工具栏 ===== #}
+<div class="batch-toolbar" id="batch-toolbar" style="display: none;">
+  <span id="selected-count">已选 0 家企业</span>
+  <button onclick="batchDelete()" class="btn btn-danger btn-sm" style="margin-left: auto;">
+    批量删除
+  </button>
+  <button onclick="batchAddTag()" class="btn btn-secondary btn-sm">
+    添加标签
+  </button>
+  <button onclick="clearSelection()" class="btn btn-secondary btn-sm">
+    取消选择
+  </button>
+</div>
+
+{# ===== 分页（底部） ===== #}
+<div class="pagination" style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0; flex-wrap: wrap; gap: 8px;">
+  <div>
+    每页
+    <select id="per-page-2" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
+      {% for n in [10, 25, 50, 100, 200] %}
+        <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
+      {% endfor %}
+    </select>
+    条
+  </div>
+  <div class="pagination-links">
+    {% if page > 1 %}
+      <a href="?page=1&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">«</a>
+      <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">‹</a>
+    {% endif %}
+
+    {% for p in range([1, page-3]|max, [pages+1, page+4]|min) %}
+      {% if p == page %}
+        <span class="current">{{ p }}</span>
+      {% else %}
+        <a href="?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page < pages %}
+      <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">›</a>
+      <a href="?page={{ pages }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">»</a>
+    {% endif %}
+
+    <span style="margin-left: 8px; color: var(--text-secondary);">
+      {{ total }} 条 · 第 {{ page }}/{{ pages }} 页
+    </span>
+  </div>
+</div>

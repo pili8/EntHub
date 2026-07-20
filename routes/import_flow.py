@@ -14,6 +14,7 @@ from flask import Blueprint, g, request, render_template, redirect, url_for, \
 from db import DB_PATH
 import backup
 import tasks
+from queries import invalidate_cache
 from data_helpers import sync_phones, merge_phones, sync_shareholders, merge_shareholders
 from utils import (
     map_columns, clean_val, is_industrial_park_file,
@@ -466,6 +467,9 @@ def _import_worker(batch_id, temp_path, skip_dup, task_queue, stop_event):
         # 清理临时文件
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+        # 数据已变更，清空筛选器缓存（避免浏览页显示陈旧的筛选项）
+        invalidate_cache()
 
         send("done", {
             "total": total,

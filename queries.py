@@ -4,6 +4,7 @@
 保证筛选、排序、统计、号码查询的一致性。
 """
 import math
+import time
 
 from utils import (
     normalize_phone, normalize_credit_code, normalize_name,
@@ -182,8 +183,37 @@ def query_company_list(db, where_clause, where_params,
 
 # ── 筛选器选项（菜单选项） ─────────────────────────────────────────────────
 
+# 简易内存缓存：避免每次刷新浏览页都跑 4 次 DISTINCT + 1 次年份聚合
+# 数据变动少（导入时才变），TTL 5 分钟足够；导入完成后第一次访问会自动重算
+_CACHE = {}
+_CACHE_TTL = 300  # 秒
+
+
+def _cache_get(key):
+    """读缓存，过期返回 None。"""
+    item = _CACHE.get(key)
+    if not item:
+        return None
+    if time.time() - item[1] > _CACHE_TTL:
+        return None
+    return item[0]
+
+
+def _cache_set(key, value):
+    _CACHE[key] = (value, time.time())
+
+
+def invalidate_cache():
+    """主动清空缓存（导入/清理完成后调用）。"""
+    _CACHE.clear()
+
+
 def get_filter_options(db, limit=50):
-    """读取筛选下拉框的去重值。"""
+    """读取筛选下拉框的去重值（带 5 分钟缓存）。"""
+    cached = _cache_get("filter_options")
+    if cached is not None:
+        return cached
+
     options = {}
     for f in EXACT_FILTERS:
         rows = db.execute(f"""
@@ -192,11 +222,17 @@ def get_filter_options(db, limit=50):
             ORDER BY {f} LIMIT ?
         """, [limit]).fetchall()
         options[f] = [r[f] for r in rows]
+
+    _cache_set("filter_options", options)
     return options
 
 
 def get_year_bounds(db, fallback_min=1950, fallback_max=2026):
-    """读取 established_date 的最小/最大年份。"""
+    """读取 established_date 的最小/最大年份（带 5 分钟缓存）。"""
+    cached = _cache_get("year_bounds")
+    if cached is not None:
+        return cached
+
     row = db.execute("""
         SELECT MIN(SUBSTR(established_date, 1, 4)) AS min_y,
                MAX(SUBSTR(established_date, 1, 4)) AS max_y
@@ -207,7 +243,9 @@ def get_year_bounds(db, fallback_min=1950, fallback_max=2026):
     """).fetchone()
     min_y = int(row["min_y"]) if row and row["min_y"] else fallback_min
     max_y = int(row["max_y"]) if row and row["max_y"] else fallback_max
-    return min_y, max_y
+    result = (min_y, max_y)
+    _cache_set("year_bounds", result)
+    return result
 
 
 def build_year_ranges(min_year, max_year):

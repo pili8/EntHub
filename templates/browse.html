@@ -2,10 +2,10 @@
 {% block title %}数据浏览{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h1>数据浏览 <small>共 {{ total }} 条记录</small></h1>
+  <h1>数据浏览</h1>
 </div>
 
-{# ===== 筛选条件 ===== #}
+{# ===== 筛选条件（带缓存，命中后毫秒级返回）===== #}
 <form class="browse-filters" method="GET" action="/browse" id="filter-form">
   <div style="font-weight: 600; margin-bottom: 10px; font-size: 15px;">筛选条件</div>
 
@@ -72,140 +72,26 @@
   </div>
 </form>
 
-{# ===== 分页 ===== #}
-<div class="pagination" style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0; flex-wrap: wrap; gap: 8px;">
-  <div>
-    每页
-    <select id="per-page" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
-      {% for n in [10, 25, 50, 100, 200] %}
-        <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
-      {% endfor %}
-    </select>
-    条
-  </div>
-  <div class="pagination-links">
-    {% if page > 1 %}
-      <a href="?page=1&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">«</a>
-      <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">‹</a>
-    {% endif %}
-
-    {% set ns = namespace(pages=[]) %}
-    {% for p in range([1, page-3]|max, [pages+1, page+4]|min) %}
-      {% if p == page %}
-        <span class="current">{{ p }}</span>
-      {% else %}
-        <a href="?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">{{ p }}</a>
-      {% endif %}
-    {% endfor %}
-
-    {% if page < pages %}
-      <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">›</a>
-      <a href="?page={{ pages }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">»</a>
-    {% endif %}
-
-    <span style="margin-left: 8px; color: var(--text-secondary);">
-      {{ total }} 条 · 第 {{ page }}/{{ pages }} 页
-    </span>
+{# ===== 数据区：HTMX 异步加载 =====
+   进入页面立即显示骨架（不查数据库），然后 HTMX 触发 /browse/data
+   把当前 URL 参数透传过去，避免用户"干等 3-5 秒"。 #}
+<div id="browse-data"
+     hx-get="{{ url_for('pages_bp.browse_data') }}?{{ request.query_string.decode() if request.query_string else '' }}"
+     hx-trigger="load"
+     hx-swap="innerHTML"
+     hx-indicator="#browse-loading">
+  <div id="browse-loading" style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+    <div style="display: inline-block; width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--primary, #3b82f6); border-radius: 50%; animation: browse-spin 0.8s linear infinite;"></div>
+    <p style="margin-top: 16px; font-size: 13px;">数据加载中...</p>
   </div>
 </div>
 
-{# ===== 企业列表 ===== #}
-<div id="company-list">
-  <div class="browse-table-wrap">
-    <table class="browse-table">
-      <thead>
-        <tr>
-          <th class="col-check"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width: 16px; height: 16px; cursor: pointer;" title="全选当前页"></th>
-          <th class="col-id">
-            <a href="?sort=id&dir={{ 'asc' if sort=='id' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
-              ID {% if sort=='id' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
-            </a>
-          </th>
-          <th class="col-name">
-            <a href="?sort=name&dir={{ 'asc' if sort=='name' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
-              企业名称 {% if sort=='name' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
-            </a>
-          </th>
-          <th class="col-phone">电话</th>
-          <th class="col-legal">法人</th>
-          <th class="col-city">城市/区县</th>
-          <th class="col-capital">注册资本</th>
-          <th class="col-status">状态</th>
-          <th class="col-date">成立日期</th>
-          <th class="col-industry">行业</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr>
-          <td><input type="checkbox" class="row-select" value="{{ r.id }}" onchange="updateToolbar()"></td>
-          <td title="{{ r.id }}">#{{ '%08d' % r.id }}</td>
-          <td title="{{ r.name }}"><a href="/detail/{{ r.id }}">{{ r.name }}</a></td>
-          <td title="{{ r.phone or '' }}">{{ r.phone or '-' }}</td>
-          <td title="{{ r.legal_person or '' }}">{{ r.legal_person or '-' }}</td>
-          <td title="{{ r.city or '' }} {{ r.district or '' }}">{{ r.city or '-' }}{% if r.district and r.district != '-' %} {{ r.district }}{% endif %}</td>
-          <td title="{{ r.registered_capital or '' }}">{{ r.registered_capital or '-' }}</td>
-          <td>{{ r.business_status or '-' }}</td>
-          <td>{{ r.established_date or '-' }}</td>
-          <td title="{{ r.industry or '' }}">{{ r.industry or '-' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+<style>
+@keyframes browse-spin { to { transform: rotate(360deg); } }
+.htmx-indicator { opacity: 1 !important; }
+</style>
 
-{# ===== 批量操作工具栏 ===== #}
-<div class="batch-toolbar" id="batch-toolbar" style="display: none;">
-  <span id="selected-count">已选 0 家企业</span>
-  <button onclick="batchDelete()" class="btn btn-danger btn-sm" style="margin-left: auto;">
-    批量删除
-  </button>
-  <button onclick="batchAddTag()" class="btn btn-secondary btn-sm">
-    添加标签
-  </button>
-  <button onclick="clearSelection()" class="btn btn-secondary btn-sm">
-    取消选择
-  </button>
-</div>
-
-{# ===== 分页（底部） ===== #}
-<div class="pagination" style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0; flex-wrap: wrap; gap: 8px;">
-  <div>
-    每页
-    <select id="per-page-2" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
-      {% for n in [10, 25, 50, 100, 200] %}
-        <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
-      {% endfor %}
-    </select>
-    条
-  </div>
-  <div class="pagination-links">
-    {% if page > 1 %}
-      <a href="?page=1&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">«</a>
-      <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">‹</a>
-    {% endif %}
-
-    {% for p in range([1, page-3]|max, [pages+1, page+4]|min) %}
-      {% if p == page %}
-        <span class="current">{{ p }}</span>
-      {% else %}
-        <a href="?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">{{ p }}</a>
-      {% endif %}
-    {% endfor %}
-
-    {% if page < pages %}
-      <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">›</a>
-      <a href="?page={{ pages }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ direction }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}">»</a>
-    {% endif %}
-
-    <span style="margin-left: 8px; color: var(--text-secondary);">
-      {{ total }} 条 · 第 {{ page }}/{{ pages }} 页
-    </span>
-  </div>
-</div>
-
-{# ===== 脚本 ===== #}
+{# ===== 脚本：批量操作（被 _browse_data.html 复用）===== #}
 <script>
 function changePerPage(n) {
   const params = new URLSearchParams(location.search);
@@ -247,12 +133,10 @@ async function batchDelete() {
   const count = checked.length;
   const secondConfirm = count > 50;
 
-  // 第一次确认
   const msg1 = '确认删除选中的 ' + count + ' 家企业？此操作不可撤销。';
   const ok1 = showConfirm(msg1);
   if (!ok1) return;
 
-  // 超过50家，第二次确认
   if (secondConfirm) {
     const msg2 = '⚠️ 即将删除 ' + count + ' 家企业，数据量较大，确认继续？';
     const ok2 = showConfirm(msg2);
@@ -261,16 +145,16 @@ async function batchDelete() {
 
   const ids = Array.from(checked).map(c => c.value);
   try {
-    const resp = await fetch('/batch_delete', {
+    const resp = await fetch('/api/companies/batch-delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: ids })
     });
     const data = await resp.json();
-    if (data.success) {
+    if (data.code === 0) {
       location.reload();
     } else {
-      alert('删除失败：' + (data.error || '未知错误'));
+      alert('删除失败：' + (data.message || '未知错误'));
     }
   } catch (e) {
     alert('请求失败：' + e.message);
@@ -286,17 +170,17 @@ async function batchAddTag() {
 
   const ids = Array.from(checked).map(c => c.value);
   try {
-    const resp = await fetch('/batch_add_tag', {
+    const resp = await fetch('/api/companies/batch-add-tag', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: ids, tag_name: tagName.trim() })
     });
     const data = await resp.json();
-    if (data.success) {
-      alert('成功为 ' + data.updated + ' 家企业添加标签「' + tagName.trim() + '」');
+    if (data.code === 0) {
+      alert('成功为 ' + data.data.updated + ' 家企业添加标签「' + tagName.trim() + '」');
       location.reload();
     } else {
-      alert('操作失败：' + (data.error || '未知错误'));
+      alert('操作失败：' + (data.message || '未知错误'));
     }
   } catch (e) {
     alert('请求失败：' + e.message);
