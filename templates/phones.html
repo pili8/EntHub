@@ -153,7 +153,7 @@
 
 <!-- API 调用说明（默认折叠） -->
 <div class="card" style="padding: 0; margin-top: 16px; overflow: hidden;">
-    <button onclick="toggleApiDocs(event)" id="api-docs-toggle" type="button" style="width: 100%; padding: 16px 24px; background: transparent; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 600; color: var(--text-primary); outline: none;">
+    <button id="api-docs-toggle" type="button" style="width: 100%; padding: 16px 24px; background: transparent; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 600; color: var(--text-primary); outline: none;">
         <span style="display: flex; align-items: center; gap: 8px;">
             <i data-lucide="code" style="width: 18px; height: 18px;"></i>
             API 调用说明
@@ -162,29 +162,59 @@
     </button>
     <div id="api-docs-content" style="display: none; padding: 0 24px 24px;">
         <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
-            所有 API 返回统一 JSON 格式 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">{"code": 0, "message": "ok", "data": {...}}</code>，方便其他工具集成。
+            所有 API 返回统一 JSON 格式 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">{"code": 0, "message": "ok", "data": {...}}</code>（<code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">/api/annotate</code> 除外，返回纯文本）。
         </p>
 
-    <!-- API 1: 单号码查询 -->
+    <!-- API 1: 快速标注（推荐） -->
+    <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--accent);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="display: inline-block; padding: 2px 8px; background: #D97757; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">GET/POST</span>
+            <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/annotate</code>
+            <span style="font-size: 11px; padding: 2px 6px; background: var(--accent-light); color: var(--accent); border-radius: 3px;">推荐</span>
+        </div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+            <strong>快速标注</strong>：返回纯文本（非 JSON），命令行友好，支持管道。
+        </div>
+
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">📋 剪贴板一键标注：</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;">
+            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
+            </button>
+            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>pbpaste | curl -s -X POST http://127.0.0.1:5210/api/annotate --data-binary @- | pbcopy</code></pre>
+        </div>
+
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">🌐 GET 方式：</div>
+        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
+            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
+            </button>
+            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>curl "http://127.0.0.1:5210/api/annotate?text=联系 13800138000"
+# 返回：联系 13800138000 (4)</code></pre>
+        </div>
+        <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：纯文本（标注后的原文）；出错返回"错误：xxx"</div>
+    </div>
+
+    <!-- API 2: 单号码查询 -->
     <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <span style="display: inline-block; padding: 2px 8px; background: #22c55e; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">GET</span>
+            <span style="display: inline-block; padding: 2px 8px; background: #16A34A; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">GET</span>
             <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/phone_count</code>
         </div>
-        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">单号码查询，返回号码、归一化、重复数</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">单号码查询，返回号码、归一化、重复数（JSON）</div>
         <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
             <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
                 <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
             </button>
             <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>curl "http://127.0.0.1:5210/api/phone_count?phone=13800138000"</code></pre>
         </div>
-        <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：{"code": 0, "data": {"phone": "13800138000", "normalized": "13800138000", "count": 3}}</div>
+        <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：{"code": 0, "data": {"phone": "...", "normalized": "...", "count": 3}}</div>
     </div>
 
-    <!-- API 2: 批量查询 -->
+    <!-- API 3: 批量查询 -->
     <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <span style="display: inline-block; padding: 2px 8px; background: #f59e0b; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">POST</span>
+            <span style="display: inline-block; padding: 2px 8px; background: #B45309; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">POST</span>
             <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/phone_count_batch</code>
         </div>
         <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">批量查询号码重复数（最多 200 个）</div>
@@ -199,13 +229,13 @@
         <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：{"code": 0, "data": {"results": [{phone, normalized, count}, ...]}}</div>
     </div>
 
-    <!-- API 3: 文本标注 -->
+    <!-- API 4: 文本标注（JSON） -->
     <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <span style="display: inline-block; padding: 2px 8px; background: #f59e0b; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">POST</span>
+            <span style="display: inline-block; padding: 2px 8px; background: #B45309; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">POST</span>
             <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/phone_count_text</code>
         </div>
-        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">从文本中提取号码并标注重复数，返回标注后的文本</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">从文本提取号码并标注，返回 JSON（含结构化数据）</div>
         <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
             <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
                 <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
@@ -215,47 +245,6 @@
   -d '{"text": "联系张三 13800138000 或李四 0571-88889999"}'</code></pre>
         </div>
         <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：{"code": 0, "data": {"annotated_text": "...", "phones": [...], "phone_count": N}}</div>
-    </div>
-
-    <!-- API 4: 快速标注（纯文本） -->
-    <div style="margin-top: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--accent);">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <span style="display: inline-block; padding: 2px 8px; background: #D97757; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">GET/POST</span>
-            <code style="font-family: monospace; font-size: 13px; font-weight: 500;">/api/annotate</code>
-            <span style="font-size: 11px; padding: 2px 6px; background: var(--accent-light); color: var(--accent); border-radius: 3px;">推荐</span>
-        </div>
-        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
-            <strong>快速标注</strong>：直接返回标注后的纯文本（非 JSON）。支持 GET / POST / 管道，命令行最方便。
-        </div>
-
-        <!-- 用法 1: 剪贴板管道 -->
-        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">📋 剪贴板一键标注：</div>
-        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;">
-            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
-                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
-            </button>
-            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>pbpaste | curl -s -X POST http://127.0.0.1:5210/api/annotate --data-binary @- | pbcopy</code></pre>
-        </div>
-
-        <!-- 用法 2: GET -->
-        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">🌐 GET（短文本）：</div>
-        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;">
-            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
-                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
-            </button>
-            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>curl "http://127.0.0.1:5210/api/annotate?text=联系 13800138000"
-# 返回：联系 13800138000 (4)</code></pre>
-        </div>
-
-        <!-- 用法 3: 从文件 -->
-        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">📄 从文件处理：</div>
-        <div style="position: relative; background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 6px;">
-            <button onclick="copyToClipboard(this.nextElementSibling.textContent, this)" style="position: absolute; top: 6px; right: 6px; background: rgba(255,255,255,0.1); border: none; color: #e2e8f0; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
-                <i data-lucide="copy" style="width: 11px; height: 11px;"></i> 复制
-            </button>
-            <pre style="margin: 0; font-family: monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;"><code>cat 联系人.txt | curl -s -X POST http://127.0.0.1:5210/api/annotate --data-binary @-</code></pre>
-        </div>
-        <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">返回：纯文本（标注后的原文）；出错时返回"错误：xxx"</div>
     </div>
 
     <!-- Python 调用示例 -->
@@ -348,8 +337,27 @@ function showTextResult(data, inputText) {
     updateResultBadge(data.phone_count);
 }
 
-// API 说明折叠/展开
+// API 说明折叠/展开（IIFE 立即绑定，避免 SPA 切换后失效）
+(function setupApiDocsToggle() {
+    const btn = document.getElementById('api-docs-toggle');
+    if (!btn) return;
+    // 避免重复绑定
+    if (btn._enthubToggleBound) return;
+    btn._enthubToggleBound = true;
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const content = document.getElementById('api-docs-content');
+        const chevron = document.getElementById('api-docs-chevron');
+        if (!content) return;
+        const isHidden = content.style.display === 'none';
+        content.style.display = isHidden ? 'block' : 'none';
+        if (chevron) {
+            chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+    });
+})();
 function toggleApiDocs(evt) {
+    // 兼容旧调用（如果 onclick 还在）
     if (evt && evt.preventDefault) evt.preventDefault();
     const content = document.getElementById('api-docs-content');
     const chevron = document.getElementById('api-docs-chevron');
