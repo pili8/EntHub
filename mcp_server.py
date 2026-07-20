@@ -19,6 +19,12 @@ from db import get_db
 from utils import normalize_phone, normalize_credit_code, normalize_name
 import math
 
+# 复用 api.py 中已稳定的电话标注实现（避免重复维护导致 bug 漂移）
+from api import (
+    _phone_dup_count,
+    _extract_and_annotate,
+)
+
 # 创建 MCP Server（host/port 仅 HTTP 模式生效）
 mcp = FastMCP("EntHub", json_response=True, host="0.0.0.0", port=8000)
 
@@ -26,7 +32,11 @@ mcp = FastMCP("EntHub", json_response=True, host="0.0.0.0", port=8000)
 # ── 工具函数 ──────────────────────────────────────────────────
 
 def _detect_query_type(q: str) -> str:
-    """检测查询类型（电话/信用代码/文本）"""
+    """检测查询类型（电话/信用代码/文本）
+
+    注意：与 queries.detect_query_type 略有不同——
+    要求号码长度 >= 7 才识别为电话，避免短数字（如"100"）被误判。
+    """
     q = q.strip()
     digits_only = normalize_phone(q)
     if digits_only and len(digits_only) >= 7 and digits_only.isdigit():
@@ -486,36 +496,8 @@ def get_stats(
 
 
 # ── 电话重复数查询 ───────────────────────────────────────────
-
-import re as _re
-
-# 号码识别正则（与 api.py 保持一致）
-_PHONE_RE = _re.compile(
-    r'(?<!\d)'
-    r'(?:'
-    r'1[3-9]\d{9}'
-    r'|'
-    r'\d{3,4}-\d{7,8}(?:-\d{1,6})?'
-    r'|'
-    r'\d{7,8}(?:-\d{1,6})?'
-    r'|'
-    r'400-\d{3}-\d{4}'
-    r'|'
-    r'800-\d{3}-\d{4}'
-    r')'
-    r'(?!\d)',
-    _re.ASCII
-)
-
-
-def _phone_dup_count(db, normalized_phone):
-    """查询号码的重复数"""
-    if not normalized_phone:
-        return 0
-    return db.execute(
-        "SELECT COUNT(DISTINCT company_id) FROM company_phones WHERE normalized_phone = ?",
-        [normalized_phone]
-    ).fetchone()[0]
+# 注：_PHONE_RE、_phone_dup_count、_extract_and_annotate 已从 api.py 复用
+# （在文件顶部导入），避免重复维护导致行为漂移。
 
 
 @mcp.tool()
@@ -585,38 +567,24 @@ def check_phones_batch(phones: list) -> str:
 @mcp.tool()
 def annotate_phones(text: str) -> str:
     """从一段文本中提取所有电话号码，并标注每个号码的重复数。
-    
+
+    自动覆盖已有标注：如果文本里已经有 '电话 (N)' 格式的旧标注，
+    会用最新的重复数覆盖，而不是叠加成 '(N) (N)'。
+
     Args:
         text: 任意文本（可能包含电话号码）
-    
+
     Returns:
         标注后的文本，每个号码后面带有重复数
     """
     db = get_db()
-    matches = []
-    for m in _PHONE_RE.finditer(text):
-        raw = m.group()
-        norm = normalize_phone(raw)
-        if not norm:
-            continue
-        count = _phone_dup_count(db, norm)
-        matches.append({
-            "phone": raw,
-            "count": count,
-            "pos": [m.start(), m.end()]
-        })
-    
+    # 复用 api.py 的 _extract_and_annotate，行为与 /api/annotate 一致
+    annotated, matches, unique_phones = _extract_and_annotate(db, text)
+
     if not matches:
         return "📞 文本中未发现电话号码"
-    
-    # 从后往前替换
-    annotated = text
-    for m in reversed(matches):
-        replacement = f"{m['phone']} ({m['count']})"
-        annotated = annotated[:m["pos"][0]] + replacement + annotated[m["pos"][1]:]
-    
-    unique_count = len(set(normalize_phone(m["phone"]) for m in matches))
-    return f"发现 {len(matches)} 个号码（{unique_count} 个不重复）：\n\n{annotated}"
+
+    return f"发现 {len(matches)} 个号码（{len(unique_phones)} 个不重复）：\n\n{annotated}"
 
 
 # ── 启动 ──────────────────────────────────────────────────────
