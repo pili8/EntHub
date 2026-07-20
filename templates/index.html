@@ -83,7 +83,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('stats_bp.stats_phone') }}" class="lh-card">
+      <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type='phone') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--coral">
           <i data-lucide="phone" aria-hidden="true"></i>
         </span>
@@ -94,7 +94,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('stats_bp.stats_shareholder') }}" class="lh-card">
+      <a href="{{ url_for('pages_bp.relation_discovery') }}?dup_type=shareholder" class="lh-card">
         <span class="lh-card-icon lh-card-icon--sky">
           <i data-lucide="users" aria-hidden="true"></i>
         </span>

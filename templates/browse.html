@@ -5,11 +5,10 @@
   <h1>数据浏览</h1>
 </div>
 
-{# ===== 筛选条件（带缓存，命中后毫秒级返回）===== #}
-<form class="browse-filters" method="GET" action="/browse" id="filter-form">
+{# ===== 筛选条件 ===== #}
+<form class="browse-filters" id="filter-form">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
     <div style="font-weight: 600; font-size: 15px;">筛选条件</div>
-    {# 重置按钮：清空所有筛选 + 清掉 localStorage 记忆 #}
     <a href="/browse?reset=1" id="reset-filters-btn"
        style="font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;"
        onmouseover="this.style.color='var(--danger, #dc2626)'; this.style.borderColor='var(--danger, #dc2626)'"
@@ -21,38 +20,45 @@
 
   {# 第一行：枚举型筛选 #}
   <div class="browse-filter-row">
-    <select name="city" class="form-select" onchange="this.form.submit()">
+    <select name="city" class="form-select">
       <option value="">城市</option>
       {% for c in filter_options.city %}
         <option value="{{ c }}" {{ 'selected' if filters.city == c }}>{{ c }}</option>
       {% endfor %}
     </select>
 
-    <select name="district" class="form-select" onchange="this.form.submit()">
+    <select name="district" class="form-select">
       <option value="">区县</option>
       {% for d in filter_options.district %}
         <option value="{{ d }}" {{ 'selected' if filters.district == d }}>{{ d }}</option>
       {% endfor %}
     </select>
 
-    <select name="business_status" class="form-select" onchange="this.form.submit()">
+    <select name="business_status" class="form-select">
       <option value="">经营状态</option>
       {% for s in filter_options.business_status %}
         <option value="{{ s }}" {{ 'selected' if filters.business_status == s }}>{{ s }}</option>
       {% endfor %}
     </select>
 
-    <select name="industry" class="form-select" onchange="this.form.submit()">
+    <select name="industry" class="form-select">
       <option value="">行业</option>
       {% for ind in filter_options.industry %}
         <option value="{{ ind }}" {{ 'selected' if filters.industry == ind }}>{{ ind }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="company_type" class="form-select">
+      <option value="">公司类型</option>
+      {% for ct in filter_options.company_type %}
+        <option value="{{ ct }}" {{ 'selected' if filters.company_type == ct }}>{{ ct }}</option>
       {% endfor %}
     </select>
   </div>
 
   {# 第二行：区间型筛选 #}
   <div class="browse-filter-row" style="margin-top: 8px;">
-    <select name="year_from" class="form-select" onchange="document.getElementById('year_to').value=''; this.form.submit()">
+    <select name="year_from" class="form-select" onchange="document.getElementById('year_to').value=''">
       <option value="">成立年份</option>
       {% for start, end in year_ranges %}
         <option value="{{ start }}" {{ 'selected' if filters.year_from == start }}>{{ start }}~{{ end }}年</option>
@@ -60,7 +66,7 @@
     </select>
     <input type="hidden" name="year_to" id="year_to" value="{{ filters.year_to or '' }}">
 
-    <select name="cap_from" class="form-select" onchange="document.getElementById('cap_to').value=''; this.form.submit()">
+    <select name="cap_from" class="form-select" onchange="document.getElementById('cap_to').value=''">
       <option value="">注册资本</option>
       <option value="0-100" {{ 'selected' if filters.cap_from == '0' and filters.cap_to == '100' }}>100万以下</option>
       <option value="100-500" {{ 'selected' if filters.cap_from == '100' and filters.cap_to == '500' }}>100-500万</option>
@@ -70,7 +76,7 @@
     </select>
     <input type="hidden" name="cap_to" id="cap_to" value="{{ filters.cap_to or '' }}">
 
-    <select name="insured_from" class="form-select" onchange="document.getElementById('insured_to').value=''; this.form.submit()">
+    <select name="insured_from" class="form-select" onchange="document.getElementById('insured_to').value=''">
       <option value="">社保人数</option>
       <option value="0-10" {{ 'selected' if filters.insured_from == '0' and filters.insured_to == '10' }}>10人以下</option>
       <option value="10-50" {{ 'selected' if filters.insured_from == '10' and filters.insured_to == '50' }}>10-50人</option>
@@ -82,44 +88,161 @@
   </div>
 </form>
 
-{# ===== 数据区：HTMX 异步加载 =====
-   进入页面立即显示骨架（不查数据库），然后 HTMX 触发 /browse/data
-   把当前 URL 参数透传过去，避免用户"干等 3-5 秒"。 #}
-<div id="browse-data"
-     hx-get="{{ url_for('pages_bp.browse_data') }}?{{ request.query_string.decode() if request.query_string else '' }}"
-     hx-trigger="load"
-     hx-swap="innerHTML"
-     hx-indicator="#browse-loading">
-  <div id="browse-loading" style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
-    <div style="display: inline-block; width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--primary, #3b82f6); border-radius: 50%; animation: browse-spin 0.8s linear infinite;"></div>
-    <p style="margin-top: 16px; font-size: 13px;">数据加载中...</p>
+{# ===== 激活筛选标签（动态生成）===== #}
+<div id="active-chips" class="active-chips"></div>
+
+{# ===== 加载进度条 ===== #}
+<div id="load-progress" class="load-progress" style="display: none;">
+  <div class="load-progress-bar">
+    <div class="load-progress-spinner"></div>
+    <span id="load-progress-text">查询中...</span>
   </div>
+</div>
+
+{# ===== 数据区（JavaScript 动态渲染）===== #}
+<div id="browse-data"></div>
+
+{# ===== 批量操作工具栏 ===== #}
+<div class="batch-toolbar" id="batch-toolbar" style="display: none;">
+  <span id="selected-count">已选 0 家企业</span>
+  <button onclick="batchDelete()" class="btn btn-danger btn-sm" style="margin-left: auto;">
+    批量删除
+  </button>
+  <button onclick="batchAddTag()" class="btn btn-secondary btn-sm">
+    添加标签
+  </button>
+  <button onclick="clearSelection()" class="btn btn-secondary btn-sm">
+    取消选择
+  </button>
 </div>
 
 <style>
 @keyframes browse-spin { to { transform: rotate(360deg); } }
-.htmx-indicator { opacity: 1 !important; }
+
+/* 激活筛选标签 */
+.active-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+  min-height: 0;
+}
+.active-chips:empty { display: none; }
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  background: var(--primary, #D97757);
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  animation: chip-in 0.2s ease;
+}
+.filter-chip a {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.8;
+  cursor: pointer;
+}
+.filter-chip a:hover { opacity: 1; }
+@keyframes chip-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 激活的筛选项高亮 */
+.form-select {
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-select.active-filter {
+  border-color: var(--primary, #D97757) !important;
+  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.15);
+  background-color: rgba(217, 119, 87, 0.05);
+}
+
+/* 加载进度条 */
+.load-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  margin: 8px 0;
+  background: rgba(217, 119, 87, 0.06);
+  border-radius: 6px;
+  border: 1px solid rgba(217, 119, 87, 0.15);
+}
+.load-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.load-progress-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(217, 119, 87, 0.2);
+  border-top-color: var(--primary, #D97757);
+  border-radius: 50%;
+  animation: browse-spin 0.7s linear infinite;
+}
+
+/* 骨架行 */
+.skeleton-row td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.skeleton-cell {
+  display: inline-block;
+  height: 14px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s infinite;
+  border-radius: 4px;
+  width: 80%;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 表格行 hover */
+.browse-table tbody tr.browse-row {
+  cursor: pointer;
+}
+.browse-table tbody tr.browse-row:hover {
+  background: var(--bg-hover, #f5f7fa);
+}
+/* 新行淡入动画 */
+.browse-row.row-new {
+  animation: row-fade-in 0.3s ease;
+}
+@keyframes row-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 </style>
 
-{# ===== 脚本：批量操作、整行点击、筛选记忆（被 _browse_data.html 复用）===== #}
 <script>
 // ── 筛选条件记忆（localStorage）──────────────────────────────────────────
-// 进入浏览页时自动应用上次保存的筛选；切换筛选时保存；点"清空筛选"时清除
 (function() {
   const STORAGE_KEY = 'enthub_browse_filters';
   const currentSearch = window.location.search;
 
-  // URL 含 reset=1 → 用户主动清空，删除记忆并跳到干净 URL
   if (new URLSearchParams(currentSearch).get('reset') === '1') {
     localStorage.removeItem(STORAGE_KEY);
-    // 重定向到无参数的 /browse（避免地址栏一直挂着 reset=1）
     history.replaceState(null, '', '/browse');
     return;
   }
 
-  // 当前 URL 有筛选参数 → 保存到 localStorage（数据端点请求也会保存）
   const params = new URLSearchParams(currentSearch);
-  const hasFilter = ['city','district','business_status','industry',
+  const hasFilter = ['city','district','business_status','industry','company_type',
                      'year_from','year_to','cap_from','cap_to',
                      'insured_from','insured_to','sort','dir','per_page']
     .some(k => params.has(k));
@@ -129,35 +252,522 @@
     return;
   }
 
-  // 当前 URL 没有筛选 → 检查是否有保存的记忆
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved && saved.length > 1) {
-    // 用 replace 避免产生额外历史记录（用户点"返回"能回到来源页）
     window.location.replace('/browse' + saved);
   }
 })();
 
-// ── 整行点击：跳转到企业详情 ──────────────────────────────────────────────
-// 行内的复选框、ID 列链接已经用 stopPropagation 排除，不会冲突
+// ── 筛选标签配置 ──────────────────────────────────────────────────────────
+const FILTER_LABELS = {
+  city: '城市', district: '区县', business_status: '经营状态',
+  industry: '行业', company_type: '公司类型',
+  year_from: '成立年份', cap_from: '注册资本', insured_from: '社保人数'
+};
+
+// ── 当前查询状态 ──────────────────────────────────────────────────────────
+let currentStream = null;
+let elapsedTimer = null;
+let elapsedSeconds = 0;
+
+// ── 工具函数 ──────────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+function escapeAttr(str) {
+  return String(str || '').replace(/"/g, '&quot;');
+}
+
+// ── 获取当前 URL 参数 ─────────────────────────────────────────────────────
+function getParamsFromURL() {
+  return new URLSearchParams(window.location.search);
+}
+
+// ── 从表单收集参数 ────────────────────────────────────────────────────────
+function getParamsFromForm() {
+  const form = document.getElementById('filter-form');
+  const formData = new FormData(form);
+  const params = new URLSearchParams();
+
+  // 保留当前 URL 中的排序和分页参数
+  const urlParams = getParamsFromURL();
+  ['sort', 'dir', 'per_page'].forEach(k => {
+    const v = urlParams.get(k);
+    if (v) params.set(k, v);
+  });
+  // 重置到第 1 页
+  params.delete('page');
+
+  // 添加表单字段（排除空值）
+  for (const [key, value] of formData.entries()) {
+    if (value && value.trim()) {
+      // 处理区间筛选（值格式 "from-to"）
+      if (key === 'year_from' || key === 'cap_from' || key === 'insured_from') {
+        const parts = value.split('-');
+        if (parts.length === 2) {
+          params.set(key, parts[0]);
+          const toKey = key.replace('_from', '_to');
+          params.set(toKey, parts[1]);
+        }
+      } else {
+        params.set(key, value);
+      }
+    }
+  }
+
+  return params;
+}
+
+// ── 更新激活筛选标签 chips ────────────────────────────────────────────────
+function updateActiveChips(params) {
+  const container = document.getElementById('active-chips');
+  container.innerHTML = '';
+
+  const chipKeys = ['city', 'district', 'business_status', 'industry', 'company_type',
+                    'year_from', 'cap_from', 'insured_from'];
+  let chipCount = 0;
+
+  chipKeys.forEach(key => {
+    const val = params.get(key);
+    if (!val) return;
+
+    chipCount++;
+    const label = FILTER_LABELS[key] || key;
+    let displayVal = val;
+
+    // 格式化显示值
+    if (key === 'year_from') {
+      const to = params.get('year_to');
+      displayVal = to ? `${val}~${to}年` : `${val}年起`;
+    } else if (key === 'cap_from') {
+      const to = params.get('cap_to');
+      if (val === '5000') displayVal = '5000万以上';
+      else if (to) displayVal = `${val}-${to}万`;
+    } else if (key === 'insured_from') {
+      const to = params.get('insured_to');
+      if (val === '500') displayVal = '500人以上';
+      else if (to) displayVal = `${val}-${to}人`;
+    }
+
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip';
+    chip.innerHTML = `${escapeHtml(label)}: ${escapeHtml(displayVal)} <a onclick="removeFilter('${key}')" title="移除">✕</a>`;
+    container.appendChild(chip);
+  });
+
+  // 高亮激活的 select
+  document.querySelectorAll('#filter-form select').forEach(sel => {
+    const name = sel.name;
+    const isActive = params.has(name) && params.get(name);
+    sel.classList.toggle('active-filter', !!isActive);
+
+    // 区间筛选的特殊处理：select name 是 xxx_from，但值在 xxx_from
+    if (name === 'cap_from' || name === 'year_from' || name === 'insured_from') {
+      const hasVal = sel.value && sel.value.trim();
+      sel.classList.toggle('active-filter', !!hasVal);
+    }
+  });
+}
+
+// ── 移除单个筛选 ──────────────────────────────────────────────────────────
+function removeFilter(key) {
+  const params = getParamsFromURL();
+  params.delete(key);
+
+  // 清除关联的 _to 参数
+  if (key.endsWith('_from')) {
+    params.delete(key.replace('_from', '_to'));
+  }
+
+  // 同步更新表单
+  const form = document.getElementById('filter-form');
+  const select = form.querySelector(`[name="${key}"]`);
+  if (select) select.value = '';
+
+  // 更新 URL 并重新加载
+  params.delete('page');
+  const newSearch = params.toString();
+  history.pushState(null, '', '/browse' + (newSearch ? '?' + newSearch : ''));
+  saveFiltersToStorage();
+  loadBrowseData(params);
+}
+
+// ── 保存筛选到 localStorage ───────────────────────────────────────────────
+function saveFiltersToStorage() {
+  const search = window.location.search;
+  const params = new URLSearchParams(search);
+  const hasFilter = ['city','district','business_status','industry','company_type',
+                     'year_from','year_to','cap_from','cap_to',
+                     'insured_from','insured_to','sort','dir','per_page']
+    .some(k => params.has(k));
+  if (hasFilter) {
+    localStorage.setItem('enthub_browse_filters', search);
+  }
+}
+
+// ── 计时器 ────────────────────────────────────────────────────────────────
+function startTimer() {
+  elapsedSeconds = 0;
+  updateTimerDisplay();
+  elapsedTimer = setInterval(() => {
+    elapsedSeconds++;
+    updateTimerDisplay();
+  }, 1000);
+}
+
+function stopTimer() {
+  if (elapsedTimer) {
+    clearInterval(elapsedTimer);
+    elapsedTimer = null;
+  }
+}
+
+function updateTimerDisplay() {
+  const textEl = document.getElementById('load-progress-text');
+  if (textEl) {
+    textEl.textContent = `查询中... ${elapsedSeconds}秒`;
+  }
+}
+
+// ── 表格渲染 ──────────────────────────────────────────────────────────────
+function renderTableSkeleton(perPage, params) {
+  const dataArea = document.getElementById('browse-data');
+  const skeletonRows = Array(Math.min(perPage, 10)).fill(0).map(() =>
+    `<tr class="skeleton-row">${Array(10).fill('<td><span class="skeleton-cell"></span></td>').join('')}</tr>`
+  ).join('');
+
+  const sort = (params && params.get('sort')) || 'id';
+  const dir = (params && params.get('dir')) || 'desc';
+  const perPageVal = (params && parseInt(params.get('per_page'))) || 25;
+  const sortIcon = (col) => sort === col ? (dir === 'desc' ? ' ↓' : ' ↑') : '';
+  const buildSortHeader = (col, label) => {
+    const newDir = (sort === col && dir === 'desc') ? 'asc' : 'desc';
+    return `<a href="#" onclick="return sortBy(event, '${col}')" class="sort-link" style="color: var(--primary);text-decoration:none;font-weight:500;">${label}${sortIcon(col)}</a>`;
+  };
+
+  dataArea.innerHTML = `
+    <div class="pagination pagination-top" style="display: flex; justify-content: space-between; align-items: center; margin: 12px 0; flex-wrap: wrap; gap: 8px;">
+      <div>
+        每页
+        <select id="per-page" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
+          ${[10, 25, 50, 100, 200].map(n =>
+            `<option value="${n}" ${n === perPageVal ? 'selected' : ''}>${n}</option>`
+          ).join('')}
+        </select>
+        条
+      </div>
+      <div class="pagination-links">
+        <span style="color: var(--text-muted);">统计中...</span>
+      </div>
+    </div>
+    <div class="browse-table-wrap">
+      <table class="browse-table">
+        <thead>
+          <tr>
+            <th class="col-check"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;" title="全选当前页"></th>
+            <th class="col-name">${buildSortHeader('name', '企业名称')}</th>
+            <th class="col-phone">电话</th>
+            <th class="col-legal">法人</th>
+            <th class="col-city">城市/区县</th>
+            <th class="col-capital">注册资本</th>
+            <th class="col-status">状态</th>
+            <th class="col-date">成立日期</th>
+            <th class="col-industry">行业</th>
+            <th class="col-id">${buildSortHeader('id', 'ID')}</th>
+          </tr>
+        </thead>
+        <tbody id="browse-tbody">
+          ${skeletonRows}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderRow(r, isNew) {
+  const cityDistrict = escapeHtml(r.city || '-') +
+    (r.district && r.district !== '-' ? ' ' + escapeHtml(r.district) : '');
+  const newClass = isNew ? ' row-new' : '';
+  return `
+    <tr data-href="/company/${r.id}" class="browse-row${newClass}" onclick="handleBrowseRowClick(event, this)">
+      <td onclick="event.stopPropagation()">
+        <input type="checkbox" class="row-select" value="${r.id}" onchange="updateToolbar()">
+      </td>
+      <td title="${escapeAttr(r.name)}">${escapeHtml(r.name)}</td>
+      <td title="${escapeAttr(r.phone || '')}">${escapeHtml(r.phone || '-')}</td>
+      <td title="${escapeAttr(r.legal_person || '')}">${escapeHtml(r.legal_person || '-')}</td>
+      <td title="${escapeAttr((r.city || '') + ' ' + (r.district || ''))}">${cityDistrict}</td>
+      <td title="${escapeAttr(r.registered_capital || '')}">${escapeHtml(r.registered_capital || '-')}</td>
+      <td>${escapeHtml(r.business_status || '-')}</td>
+      <td>${escapeHtml(r.established_date || '-')}</td>
+      <td title="${escapeAttr(r.industry || '')}">${escapeHtml(r.industry || '-')}</td>
+      <td title="${r.id}" onclick="event.stopPropagation()">
+        <a href="/company/${r.id}">#${String(r.id).padStart(8, '0')}</a>
+      </td>
+    </tr>`;
+}
+
+function appendRows(rows) {
+  const tbody = document.getElementById('browse-tbody');
+  if (!tbody) return;
+  // 移除骨架行
+  const skeletons = tbody.querySelectorAll('.skeleton-row');
+  if (skeletons.length) skeletons.forEach(s => s.remove());
+  // 追加新行
+  tbody.insertAdjacentHTML('beforeend', rows.map(r => renderRow(r, true)).join(''));
+}
+
+function updateProgress(loaded) {
+  const textEl = document.getElementById('load-progress-text');
+  if (textEl) {
+    textEl.textContent = `已加载 ${loaded} 条 · ${elapsedSeconds}秒`;
+  }
+}
+
+// ── 分页渲染（只更新分页栏，不重建表格）──────────────────────────────────
+function renderPagination(total, pages, page, params) {
+  const perPage = parseInt(params.get('per_page')) || 25;
+  const sort = params.get('sort') || 'id';
+  const dir = params.get('dir') || 'desc';
+
+  // 构建分页链接 HTML
+  let paginationHtml = '';
+  if (page > 1) {
+    paginationHtml += `<a href="#" onclick="return gotoPage(event, 1, ${perPage}, '${sort}', '${dir}')">«</a>`;
+    paginationHtml += `<a href="#" onclick="return gotoPage(event, ${page-1}, ${perPage}, '${sort}', '${dir}')">‹</a>`;
+  }
+  const startP = Math.max(1, page - 3);
+  const endP = Math.min(pages + 1, page + 4);
+  for (let p = startP; p < endP; p++) {
+    if (p === page) {
+      paginationHtml += `<span class="current">${p}</span>`;
+    } else {
+      paginationHtml += `<a href="#" onclick="return gotoPage(event, ${p}, ${perPage}, '${sort}', '${dir}')">${p}</a>`;
+    }
+  }
+  if (page < pages) {
+    paginationHtml += `<a href="#" onclick="return gotoPage(event, ${page+1}, ${perPage}, '${sort}', '${dir}')">›</a>`;
+    paginationHtml += `<a href="#" onclick="return gotoPage(event, ${pages}, ${perPage}, '${sort}', '${dir}')">»</a>`;
+  }
+
+  const countInfo = `${total.toLocaleString()} 条 · 第 ${page}/${pages} 页`;
+  const paginationLinksHtml = paginationHtml + `<span style="margin-left:8px;color:var(--text-secondary);">${countInfo}</span>`;
+
+  // 更新顶部分页
+  const topPagination = document.querySelector('.pagination-top');
+  if (topPagination) {
+    const perPageSelect = topPagination.querySelector('div:first-child');
+    const linksDiv = topPagination.querySelector('.pagination-links');
+    if (linksDiv) linksDiv.innerHTML = paginationLinksHtml;
+  }
+
+  // 更新或创建底部分页
+  let bottomPagination = document.querySelector('.pagination-bottom');
+  if (!bottomPagination) {
+    bottomPagination = document.createElement('div');
+    bottomPagination.className = 'pagination pagination-bottom';
+    bottomPagination.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin:12px 0;flex-wrap:wrap;gap:8px;';
+    const tableWrap = document.querySelector('.browse-table-wrap');
+    if (tableWrap && tableWrap.nextSibling) {
+      tableWrap.parentNode.insertBefore(bottomPagination, tableWrap.nextSibling);
+    } else if (tableWrap) {
+      tableWrap.parentNode.appendChild(bottomPagination);
+    }
+  }
+  bottomPagination.innerHTML = `<div></div><div class="pagination-links">${paginationLinksHtml}</div>`;
+}
+
+// ── 核心加载函数（SSE）────────────────────────────────────────────────────
+function loadBrowseData(params) {
+  // 关闭已有连接
+  if (currentStream) {
+    currentStream.close();
+    currentStream = null;
+  }
+
+  stopTimer();
+
+  // 显示加载进度
+  const progressEl = document.getElementById('load-progress');
+  progressEl.style.display = 'flex';
+  startTimer();
+
+  // 更新 chips
+  updateActiveChips(params);
+
+  // 获取 per_page
+  const perPage = parseInt(params.get('per_page')) || 25;
+
+  // 渲染骨架表格（含排序链接）
+  renderTableSkeleton(perPage, params);
+
+  // 构建 SSE URL
+  const streamParams = new URLSearchParams(params);
+  const streamUrl = '/browse/stream?' + streamParams.toString();
+
+  // 打开 SSE 连接
+  currentStream = new EventSource(streamUrl);
+
+  currentStream.addEventListener('start', (e) => {
+    // 骨架已渲染，继续等待
+  });
+
+  currentStream.addEventListener('batch', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      appendRows(data.rows);
+      updateProgress(data.loaded);
+    } catch (err) {
+      console.error('解析 batch 数据失败:', err);
+    }
+  });
+
+  currentStream.addEventListener('count', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      renderPagination(data.total, data.pages, data.page, params);
+    } catch (err) {
+      console.error('解析 count 数据失败:', err);
+    }
+  });
+
+  currentStream.addEventListener('done', (e) => {
+    if (currentStream) {
+      currentStream.close();
+      currentStream = null;
+    }
+    stopTimer();
+    progressEl.style.display = 'none';
+
+    // 检查是否有结果（移除残留的骨架行）
+    const tbody = document.getElementById('browse-tbody');
+    if (tbody) {
+      const skeletons = tbody.querySelectorAll('.skeleton-row');
+      if (skeletons.length) {
+        skeletons.forEach(s => s.remove());
+      }
+      // 如果没有任何行（也没有骨架行），显示空状态
+      if (tbody.children.length === 0) {
+        const tableWrap = document.querySelector('.browse-table-wrap');
+        if (tableWrap) {
+          tableWrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><p style="font-size:16px;margin-bottom:8px;">没有匹配的数据</p><p style="font-size:13px;">试试调整或清空筛选条件</p></div>';
+        }
+      }
+    }
+
+    // 重新初始化 Lucide 图标
+    if (window.lucide) lucide.createIcons();
+  });
+
+  currentStream.addEventListener('error', (e) => {
+    if (currentStream && currentStream.readyState === EventSource.CLOSED) {
+      stopTimer();
+      progressEl.style.display = 'none';
+      const dataArea = document.getElementById('browse-data');
+      dataArea.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">查询失败，请重试</div>';
+    }
+  });
+}
+
+// ── 导航函数 ──────────────────────────────────────────────────────────────
+function gotoPage(event, page, perPage, sort, dir) {
+  event.preventDefault();
+  const params = getParamsFromURL();
+  params.set('page', page);
+  params.set('per_page', perPage);
+  params.set('sort', sort);
+  params.set('dir', dir);
+
+  history.pushState(null, '', '/browse?' + params.toString());
+  saveFiltersToStorage();
+  loadBrowseData(params);
+  window.scrollTo(0, 0);
+  return false;
+}
+
+function sortBy(event, col) {
+  event.preventDefault();
+  const params = getParamsFromURL();
+  const currentDir = params.get('dir') || 'desc';
+  const currentSort = params.get('sort') || 'id';
+  const newDir = (currentSort === col && currentDir === 'desc') ? 'asc' : 'desc';
+
+  params.set('sort', col);
+  params.set('dir', newDir);
+  params.delete('page');
+
+  history.pushState(null, '', '/browse?' + params.toString());
+  saveFiltersToStorage();
+  loadBrowseData(params);
+  return false;
+}
+
+function changePerPage(n) {
+  const params = getParamsFromURL();
+  params.set('per_page', n);
+  params.set('page', 1);
+
+  history.pushState(null, '', '/browse?' + params.toString());
+  saveFiltersToStorage();
+  loadBrowseData(params);
+}
+
+// ── 表单 change 事件（筛选触发）──────────────────────────────────────────
+document.getElementById('filter-form').addEventListener('change', (e) => {
+  // 等待 hidden 字段更新完成
+  setTimeout(() => {
+    const params = getParamsFromForm();
+    history.pushState(null, '', '/browse?' + params.toString());
+    saveFiltersToStorage();
+    loadBrowseData(params);
+  }, 0);
+});
+
+// ── 浏览器后退/前进 ───────────────────────────────────────────────────────
+window.addEventListener('popstate', () => {
+  const params = getParamsFromURL();
+  loadBrowseData(params);
+  // 同步表单状态
+  syncFormFromParams(params);
+});
+
+// ── 从 URL 同步表单 ───────────────────────────────────────────────────────
+function syncFormFromParams(params) {
+  const form = document.getElementById('filter-form');
+  ['city', 'district', 'business_status', 'industry', 'company_type'].forEach(name => {
+    const sel = form.querySelector(`[name="${name}"]`);
+    if (sel) sel.value = params.get(name) || '';
+  });
+
+  // 区间筛选
+  const capFrom = params.get('cap_from');
+  const capTo = params.get('cap_to');
+  const capSel = form.querySelector('[name="cap_from"]');
+  if (capSel && capFrom && capTo) {
+    capSel.value = `${capFrom}-${capTo}`;
+  } else if (capSel && capFrom === '5000') {
+    capSel.value = '5000-999999';
+  } else if (capSel) {
+    capSel.value = '';
+  }
+
+  // 其他区间类似（略，因为 select 值在表单提交时会重新计算）
+}
+
+// ── 整行点击 ──────────────────────────────────────────────────────────────
 function handleBrowseRowClick(event, row) {
-  // 中键点击 → 在新标签打开
   if (event.button === 1 || event.ctrlKey || event.metaKey) {
     window.open(row.dataset.href, '_blank');
     event.preventDefault();
     return;
   }
-  // 左键点击 → 当前页跳转
   window.location.href = row.dataset.href;
 }
 
-// ── 分页 / 选择 / 工具栏 ──────────────────────────────────────────────────
-function changePerPage(n) {
-  const params = new URLSearchParams(location.search);
-  params.set('per_page', n);
-  params.set('page', 1);
-  location.href = '/browse?' + params.toString();
-}
-
+// ── 批量操作 ──────────────────────────────────────────────────────────────
 function toggleSelectAll(el) {
   document.querySelectorAll('.row-select').forEach(c => { c.checked = el.checked; });
   updateToolbar();
@@ -179,7 +789,8 @@ function updateToolbar() {
 
 function clearSelection() {
   document.querySelectorAll('.row-select').forEach(c => c.checked = false);
-  document.getElementById('select-all').checked = false;
+  const selectAll = document.getElementById('select-all');
+  if (selectAll) selectAll.checked = false;
   updateToolbar();
 }
 
@@ -190,7 +801,6 @@ async function batchDelete() {
   const count = checked.length;
   const ids = Array.from(checked).map(c => c.value);
 
-  // showConfirm 是异步的（用 callback），需要分层确认
   const doDelete = () => {
     fetch('/api/companies/batch-delete', {
       method: 'POST',
@@ -200,18 +810,17 @@ async function batchDelete() {
     .then(r => r.json())
     .then(data => {
       if (data.code === 0) {
-        alert('已删除 ' + (data.data.deleted || ids.length) + ' 家企业');
-        location.reload();
+        window._enthubToast('success', '删除成功', `已删除 ${data.data.deleted || ids.length} 家企业`);
+        setTimeout(() => location.reload(), 800);
       } else {
-        alert('删除失败：' + (data.message || '未知错误'));
+        window._enthubToast('error', '删除失败', data.message || '未知错误');
       }
     })
-    .catch(e => alert('请求失败：' + e.message));
+    .catch(e => window._enthubToast('error', '请求失败', e.message));
   };
 
   const msg1 = '确认删除选中的 ' + count + ' 家企业？此操作不可撤销。';
   if (count > 50) {
-    // 超过 50 家，二次确认
     showConfirm('⚠️ 大批量删除确认', msg1, () => {
       showConfirm('再次确认',
         '⚠️ 即将删除 <b style="color:var(--danger, #dc2626)">' + count + '</b> 家企业，数据量较大，确认继续？',
@@ -226,14 +835,13 @@ async function batchAddTag() {
   const checked = document.querySelectorAll('.row-select:checked');
   if (checked.length === 0) return;
 
-  // 拉取已有标签列表
   let tags = [];
   try {
     const resp = await fetch('/api/tags');
     const data = await resp.json();
     tags = (data.data && data.data.results) || [];
   } catch (e) {
-    alert('获取标签失败：' + e.message);
+    window._enthubToast('error', '获取标签失败', e.message);
     return;
   }
 
@@ -242,14 +850,13 @@ async function batchAddTag() {
     return;
   }
 
-  // 渲染选择列表（带颜色点 + 名称）
   const listHtml = tags.map(t => `
     <div class="tag-select-item"
          data-id="${t.id}" data-name="${escapeHtml(t.name)}"
-         onmouseover="this.style.background='var(--bg-hover, #f5f5f5)'; this.style.borderColor='var(--primary, #3b82f6)'"
+         onmouseover="this.style.background='var(--bg-hover, #f5f5f5)'; this.style.borderColor='var(--primary, #D97757)'"
          onmouseout="this.style.background=''; this.style.borderColor='var(--border)'"
          style="padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.15s;">
-      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${t.color || '#3b82f6'}; flex-shrink: 0;"></span>
+      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${t.color || '#D97757'}; flex-shrink: 0;"></span>
       <span>${escapeHtml(t.name)}</span>
     </div>
   `).join('');
@@ -258,7 +865,6 @@ async function batchAddTag() {
     { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' }
   ]);
 
-  // 绑定每个标签的点击事件
   document.querySelectorAll('.tag-select-item').forEach(item => {
     item.onclick = async () => {
       const tagId = parseInt(item.dataset.id, 10);
@@ -275,23 +881,21 @@ async function batchAddTag() {
         const data = await resp.json();
         if (data.code === 0) {
           const updated = data.data && data.data.updated;
-          alert(`成功为 ${updated} 家企业添加标签「${tagName}」`);
-          location.reload();
+          window._enthubToast('success', '添加成功', `已为 ${updated} 家企业添加标签「${tagName}」`);
         } else {
-          alert('操作失败：' + (data.message || '未知错误'));
+          window._enthubToast('error', '操作失败', data.message || '未知错误');
         }
       } catch (e) {
-        alert('请求失败：' + e.message);
+        window._enthubToast('error', '请求失败', e.message);
       }
     };
   });
 }
 
-// 防 XSS：转义标签名中的特殊字符
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, ch => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[ch]));
-}
+// ── 页面加载：启动首次查询 ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const params = getParamsFromURL();
+  loadBrowseData(params);
+});
 </script>
 {% endblock %}

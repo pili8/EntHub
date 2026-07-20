@@ -1,5 +1,6 @@
 """Excel 导入流程：上传、预览、异步导入、SSE 进度、停止/取消。"""
 import os
+import re
 import json
 import uuid
 import sqlite3
@@ -111,8 +112,7 @@ def import_upload():
         if unmatched:
             errors.append(
                 f"{file.filename}: 以下列无法匹配，已忽略: "
-                f"{', '.join(str(c) for c in unmatched[:5])}"
-                f"{'...' if len(unmatched) > 5 else ''}"
+                f"{', '.join(str(c) for c in unmatched)}"
             )
 
         file_mappings.append({
@@ -246,8 +246,22 @@ def import_preview(batch_id):
         WHERE batch_id = ? ORDER BY row_num LIMIT 30
     """, [batch_id]).fetchall()
 
+    # 数据质量提示：检测电话字段中含分隔符（多个号码塞一个单元格）的行
+    phone_sep_re = re.compile(r'[;；,，、/]')
+    quality_samples = []
+    for row in sample:
+        phone_val = row["phone"] if "phone" in row.keys() else None
+        if not phone_val:
+            continue
+        phone_str = str(phone_val).strip()
+        if phone_sep_re.search(phone_str):
+            # 脱敏：保留前 7 位，后面用 *** 代替
+            masked = phone_str[:7] + "***" if len(phone_str) > 7 else phone_str
+            quality_samples.append(masked)
+
     return render_template("import_preview.html", batch_id=batch_id,
-                           total=total, sample=sample, mappings=mappings)
+                           total=total, sample=sample, mappings=mappings,
+                           quality_samples=quality_samples)
 
 
 # ── 确认导入 ────────────────────────────────────────────────────────────────

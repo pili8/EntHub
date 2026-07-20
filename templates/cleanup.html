@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}数据清理 · EntHub{% endblock %}
+{% block title %}数据整理 · EntHub{% endblock %}
 
 {% block content %}
 <div style="max-width: 900px; margin: 0 auto;">
     <div class="page-header">
-        <div class="page-title">🗑️ 数据清理</div>
+        <div class="page-title">✨ 数据整理</div>
         <div class="page-subtitle">分析并清理重复和无效数据</div>
     </div>
 
@@ -13,23 +13,23 @@
         <div class="section-title">数据质量概览</div>
         <div class="quality-stats">
             <div class="quality-item">
-                <div class="quality-number">{{ '{:,}'.format(stats.total) }}</div>
+                <div class="quality-number" data-stat="total">—</div>
                 <div class="quality-label">总记录</div>
             </div>
             <div class="quality-item warning">
-                <div class="quality-number">{{ '{:,}'.format(stats.total_to_clean) }}</div>
+                <div class="quality-number" data-stat="total_to_clean">—</div>
                 <div class="quality-label">待清理</div>
             </div>
             <div class="quality-item success">
-                <div class="quality-number">{{ '{:,}'.format(stats.with_phone) }}</div>
+                <div class="quality-number" data-stat="with_phone">—</div>
                 <div class="quality-label">有电话</div>
             </div>
             <div class="quality-item success">
-                <div class="quality-number">{{ '{:,}'.format(stats.with_legal_person) }}</div>
+                <div class="quality-number" data-stat="with_legal_person">—</div>
                 <div class="quality-label">有法人</div>
             </div>
             <div class="quality-item success">
-                <div class="quality-number">{{ '{:,}'.format(stats.with_address) }}</div>
+                <div class="quality-number" data-stat="with_address">—</div>
                 <div class="quality-label">有地址</div>
             </div>
         </div>
@@ -42,49 +42,63 @@
             <div class="bar-item">
                 <div class="bar-label">
                     <span>电话</span>
-                    <span>{{ (stats.with_phone / stats.total * 100)|round(1) if stats.total > 0 else 0 }}%</span>
+                    <span data-stat="phone_pct">—</span>
                 </div>
                 <div class="bar-container">
-                    <div class="bar-fill" style="width: {{ (stats.with_phone / stats.total * 100) if stats.total > 0 else 0 }}%"></div>
+                    <div class="bar-fill" data-bar="phone" style="width: 0%"></div>
                 </div>
             </div>
             <div class="bar-item">
                 <div class="bar-label">
                     <span>法人</span>
-                    <span>{{ (stats.with_legal_person / stats.total * 100)|round(1) if stats.total > 0 else 0 }}%</span>
+                    <span data-stat="legal_pct">—</span>
                 </div>
                 <div class="bar-container">
-                    <div class="bar-fill" style="width: {{ (stats.with_legal_person / stats.total * 100) if stats.total > 0 else 0 }}%"></div>
+                    <div class="bar-fill" data-bar="legal" style="width: 0%"></div>
                 </div>
             </div>
             <div class="bar-item">
                 <div class="bar-label">
                     <span>地址</span>
-                    <span>{{ (stats.with_address / stats.total * 100)|round(1) if stats.total > 0 else 0 }}%</span>
+                    <span data-stat="address_pct">—</span>
                 </div>
                 <div class="bar-container">
-                    <div class="bar-fill" style="width: {{ (stats.with_address / stats.total * 100) if stats.total > 0 else 0 }}%"></div>
+                    <div class="bar-fill" data-bar="address" style="width: 0%"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <form action="{{ url_for('cleanup_flow_bp.cleanup_execute') }}" method="post">
+    <!-- 数据库压缩 -->
+    <div class="card maintenance-card">
+        <div class="card-header maintenance-header">
+            <h2 class="card-title">🗜️ 数据库压缩</h2>
+            <span id="fragmentation-badge" class="badge badge-success">碎片率 —</span>
+        </div>
+        <div class="maintenance-body">
+            <div class="maintenance-info">
+                <p><strong>当前大小：</strong><span data-stat="db_size_mb">—</span> MB</p>
+                <p><strong>预计可释放：</strong><span id="reclaimable-text">—</span></p>
+                <p style="color: var(--text-muted); font-size: 13px; margin-top: 8px;">
+                    压缩会清理历次导入/删除遗留的空闲页。压缩前会自动创建备份，操作完成后可通过备份列表回滚。
+                </p>
+            </div>
+            <form method="post" action="{{ url_for('cleanup_flow_bp.cleanup_vacuum') }}" id="vacuum-form">
+                <button type="submit" id="vacuum-btn" class="btn btn-secondary" disabled
+                    title="等待数据加载...">
+                    <i data-lucide="archive" style="width:16px;height:16px"></i>
+                    检测中...
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <form action="{{ url_for('cleanup_flow_bp.cleanup_execute') }}" method="post" id="cleanup-form">
     <!-- 待清理项 -->
     <div class="card">
         <div class="section-title">待清理项</div>
-        
-        {% if stats.total_to_clean > 0 %}
-        <div class="alert alert-warning">
-            <i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle"></i>
-            发现 <strong>{{ '{:,}'.format(stats.total_to_clean) }}</strong> 条数据需要清理，清理后预计剩余 <strong>{{ '{:,}'.format(stats.total - stats.total_to_clean) }}</strong> 条记录
-        </div>
-        {% else %}
-        <div class="alert alert-success">
-            <i data-lucide="check-circle" style="width:16px;height:16px;vertical-align:middle"></i>
-            数据很干净，没有发现需要清理的内容！
-        </div>
-        {% endif %}
+
+        <div id="alert-box" class="alert" style="display:none"></div>
 
         <table>
             <thead>
@@ -99,32 +113,32 @@
                 <tr>
                     <td><input type="checkbox" name="clean_nan" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
                     <td><span class="badge badge-danger">脏数据</span></td>
-                    <td><strong>{{ stats.nan_count }}</strong></td>
+                    <td><strong data-stat="nan_count">—</strong></td>
                     <td style="color: var(--text-secondary)">空值/无效记录（导入时未正确过滤的空白行）</td>
                 </tr>
                 <tr>
                     <td><input type="checkbox" name="clean_header" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
                     <td><span class="badge badge-danger">脏数据</span></td>
-                    <td><strong>{{ stats.header_count }}</strong></td>
+                    <td><strong data-stat="header_count">—</strong></td>
                     <td style="color: var(--text-secondary)">Excel 表头行被误导入</td>
                 </tr>
                 <tr>
                     <td><input type="checkbox" name="clean_placeholder" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
                     <td><span class="badge badge-danger">脏数据</span></td>
-                    <td><strong>{{ stats.placeholder_count }}</strong></td>
+                    <td><strong data-stat="placeholder_count">—</strong></td>
                     <td style="color: var(--text-secondary)">含"暂不予显示"等无效占位文本</td>
                 </tr>
                 <tr>
                     <td><input type="checkbox" name="clean_cc_dup" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
                     <td><span class="badge badge-warning">重复</span></td>
-                    <td><strong>{{ stats.cc_dup }}</strong></td>
-                    <td style="color: var(--text-secondary)">信用代码相同（{{ '{:,}'.format(stats.cc_unique) }} 个唯一值），电话累加后保留最完整记录</td>
+                    <td><strong data-stat="cc_dup">—</strong></td>
+                    <td style="color: var(--text-secondary)">信用代码相同（<span data-stat="cc_unique">—</span> 个唯一值），电话累加后保留最完整记录</td>
                 </tr>
                 <tr>
                     <td><input type="checkbox" name="clean_name_dup" value="1" checked style="width:18px;height:18px;cursor:pointer"></td>
                     <td><span class="badge badge-warning">重复</span></td>
-                    <td><strong>{{ stats.name_dup }}</strong></td>
-                    <td style="color: var(--text-secondary)">企业名称相同（{{ '{:,}'.format(stats.name_unique) }} 个唯一值），电话累加后保留最完整记录</td>
+                    <td><strong data-stat="name_dup">—</strong></td>
+                    <td style="color: var(--text-secondary)">企业名称相同（<span data-stat="name_unique">—</span> 个唯一值），电话累加后保留最完整记录</td>
                 </tr>
             </tbody>
         </table>
@@ -146,31 +160,20 @@
         </div>
     </div>
 
-    {% if stats.total_to_clean > 0 %}
-    <div style="text-align: center; margin: 24px 0;">
+    <div id="submit-box" style="text-align: center; margin: 24px 0; display:none">
         <button type="submit" class="btn btn-danger" style="padding: 10px 32px; font-size: 15px;"
                 onclick="return confirmSubmit(event, '数据清理', '确定要执行数据清理吗？建议先备份。')">
             <i data-lucide="trash-2" style="width:16px;height:16px"></i>
             开始清理
         </button>
     </div>
-    {% endif %}
     </form>
 </div>
 
 <style>
-.page-header {
-    margin-bottom: 24px;
-}
-.page-title {
-    font-size: 24px;
-    font-weight: 600;
-    margin: 0 0 4px 0;
-}
-.page-subtitle {
-    color: var(--text-muted);
-    font-size: 14px;
-}
+.page-header { margin-bottom: 24px; }
+.page-title { font-size: 24px; font-weight: 600; margin: 0 0 4px 0; }
+.page-subtitle { color: var(--text-muted); font-size: 14px; }
 .quality-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -183,27 +186,34 @@
     border-radius: 8px;
     text-align: center;
 }
-.quality-item.warning {
-    background: var(--warning-light, #fff3cd);
-}
-.quality-item.success {
-    background: var(--success-light, #d4edda);
-}
+.quality-item.warning { background: var(--warning-light, #fff3cd); }
+.quality-item.success { background: var(--success-light, #d4edda); }
 .quality-number {
     font-size: 24px;
     font-weight: 700;
     margin-bottom: 4px;
 }
-.quality-label {
-    font-size: 12px;
+/* 骨架屏：未加载时显示微光动画 */
+.quality-number:not(.loaded) {
     color: var(--text-muted);
+    opacity: 0.5;
 }
-.completeness-bars {
-    margin-top: 16px;
+.quality-number.loading {
+    position: relative;
+    color: transparent !important;
 }
-.bar-item {
-    margin-bottom: 16px;
+.quality-number.loading::after {
+    content: "···";
+    color: var(--text-muted);
+    animation: pulse 1.2s ease-in-out infinite;
 }
+@keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+.quality-label { font-size: 12px; color: var(--text-muted); }
+.completeness-bars { margin-top: 16px; }
+.bar-item { margin-bottom: 16px; }
 .bar-label {
     display: flex;
     justify-content: space-between;
@@ -219,7 +229,7 @@
 .bar-fill {
     background: var(--success, #28a745);
     height: 100%;
-    transition: width 0.3s ease;
+    transition: width 0.6s ease;
 }
 .alert {
     padding: 12px 16px;
@@ -236,6 +246,11 @@
     background: var(--success-light, #d4edda);
     border: 1px solid var(--success, #28a745);
     color: var(--success-dark, #155724);
+}
+.alert-info {
+    background: var(--bg-subtle, #f1f3f5);
+    border: 1px solid var(--border, #dee2e6);
+    color: var(--text-secondary, #495057);
 }
 table {
     width: 100%;
@@ -263,8 +278,212 @@ table th {
     align-items: center;
     gap: 8px;
 }
-.btn-danger:hover {
-    background: var(--danger-hover, #c82333);
+.btn-danger:hover { background: var(--danger-hover, #c82333); }
+.maintenance-card {
+    margin-top: 24px;
+}
+.maintenance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px;
+    line-height: 1.5;
+}
+.badge-success { background: var(--success-light, #d4edda); color: var(--success, #28a745); }
+.badge-warning { background: var(--warning-light, #fff3cd); color: var(--warning, #d39e00); }
+.badge-danger  { background: var(--danger-light, #f8d7da);  color: var(--danger, #dc3545); }
+.maintenance-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 8px;
+}
+.maintenance-info {
+    flex: 1;
+    min-width: 240px;
+}
+.maintenance-info p {
+    margin: 6px 0;
+    font-size: 14px;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 </style>
+
+<script>
+(function() {
+    // 给所有 data-stat 元素加上 loading 动画
+    document.querySelectorAll('[data-stat]').forEach(el => el.classList.add('loading'));
+
+    const fmt = n => (typeof n === 'number') ? n.toLocaleString() : n;
+
+    function setStat(key, value) {
+        document.querySelectorAll(`[data-stat="${key}"]`).forEach(el => {
+            el.textContent = fmt(value);
+            el.classList.remove('loading');
+            el.classList.add('loaded');
+        });
+    }
+
+    function setBar(barKey, statKey, value, total) {
+        const pct = total > 0 ? (value / total * 100) : 0;
+        const bar = document.querySelector(`[data-bar="${barKey}"]`);
+        if (bar) bar.style.width = pct + '%';
+        setStat(statKey, pct.toFixed(1) + '%');
+    }
+
+    function showAlert(type, html) {
+        const box = document.getElementById('alert-box');
+        box.className = 'alert alert-' + type;
+        box.innerHTML = html;
+        box.style.display = 'block';
+    }
+
+    const source = new EventSource("{{ url_for('cleanup_flow_bp.cleanup_stats_stream') }}");
+
+    source.addEventListener('stat', function(e) {
+        const data = JSON.parse(e.data);
+        const key = data.key;
+        const value = data.value;
+
+        setStat(key, value);
+
+        // 特殊处理：碎片率相关统计
+        if (key === 'fragmentation' || key === 'reclaimable_mb') {
+            updateVacuumUI();
+        }
+    });
+
+    function updateVacuumUI() {
+        const fragEl = document.querySelector('[data-stat="fragmentation"]');
+        const reclaimEl = document.querySelector('[data-stat="reclaimable_mb"]');
+        const badge = document.getElementById('fragmentation-badge');
+        const btn = document.getElementById('vacuum-btn');
+        const reclaimText = document.getElementById('reclaimable-text');
+
+        if (!fragEl || !badge || !btn) return;
+
+        const frag = parseFloat(fragEl.textContent) || 0;
+        const reclaim = reclaimEl ? (parseFloat(reclaimEl.textContent) || 0) : 0;
+
+        // 更新 badge
+        badge.textContent = `碎片率 ${frag}%`;
+        if (frag >= 30) {
+            badge.className = 'badge badge-danger';
+        } else if (frag >= 10) {
+            badge.className = 'badge badge-warning';
+        } else {
+            badge.className = 'badge badge-success';
+        }
+
+        // 更新可释放空间文本
+        if (reclaimText) {
+            reclaimText.textContent = reclaim > 0 ? `${reclaim} MB` : '无明显碎片';
+            reclaimText.style.color = reclaim > 0 ? '' : 'var(--text-muted)';
+        }
+
+        // 更新按钮状态
+        if (frag < 5) {
+            btn.disabled = true;
+            btn.title = '碎片率低于 5%，无需压缩';
+            btn.innerHTML = '<i data-lucide="archive" style="width:16px;height:16px"></i> 暂无需压缩';
+        } else {
+            btn.disabled = false;
+            btn.title = '';
+            const btnClass = frag >= 30 ? 'btn btn-danger' : 'btn btn-primary';
+            btn.className = btnClass;
+            btn.innerHTML = '<i data-lucide="archive" style="width:16px;height:16px"></i> 立即压缩';
+        }
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    source.addEventListener('done', function(e) {
+        source.close();
+
+        // 派生字段：完整性百分比 + 待清理提示
+        const total = parseInt(
+            document.querySelector('[data-stat="total"]').textContent.replace(/,/g, '')
+        ) || 0;
+        const withPhone = parseInt(
+            document.querySelector('[data-stat="with_phone"]').textContent.replace(/,/g, '')
+        ) || 0;
+        const withLegal = parseInt(
+            document.querySelector('[data-stat="with_legal_person"]').textContent.replace(/,/g, '')
+        ) || 0;
+        const withAddress = parseInt(
+            document.querySelector('[data-stat="with_address"]').textContent.replace(/,/g, '')
+        ) || 0;
+
+        setBar('phone', 'phone_pct', withPhone, total);
+        setBar('legal', 'legal_pct', withLegal, total);
+        setBar('address', 'address_pct', withAddress, total);
+
+        const toClean = parseInt(
+            document.querySelector('[data-stat="total_to_clean"]').textContent.replace(/,/g, '')
+        ) || 0;
+
+        if (toClean > 0) {
+            showAlert('warning',
+                '<i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle"></i> ' +
+                '发现 <strong>' + fmt(toClean) + '</strong> 条数据需要清理，清理后预计剩余 <strong>' +
+                fmt(total - toClean) + '</strong> 条记录'
+            );
+            document.getElementById('submit-box').style.display = 'block';
+        } else {
+            showAlert('success',
+                '<i data-lucide="check-circle" style="width:16px;height:16px;vertical-align:middle"></i> ' +
+                '数据很干净，没有发现需要清理的内容！'
+            );
+        }
+
+        if (window.lucide) lucide.createIcons();
+    });
+
+    source.addEventListener('error', function(e) {
+        // 浏览器自动重连会触发 error 事件；只在 source 仍 open 时提示
+        if (source.readyState === EventSource.CLOSED) {
+            showAlert('info', '⚠️ 统计加载被中断，请刷新页面重试');
+        }
+    });
+
+    // 数据库压缩表单处理
+    (function() {
+        const form = document.getElementById('vacuum-form');
+        const btn = document.getElementById('vacuum-btn');
+        if (!form || !btn) return;
+
+        form.addEventListener('submit', function(e) {
+            // 如果已经确认过，直接提交
+            if (form.dataset.confirmed === 'true') {
+                return true;
+            }
+
+            // 第一次点击：阻止默认，弹出确认框
+            e.preventDefault();
+            showConfirm('压缩数据库', '确定执行压缩？此操作会先创建备份，预计需要几十秒。', function() {
+                // 确认后：禁用按钮，显示 loading
+                btn.disabled = true;
+                btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> 压缩中...';
+
+                // 标记已确认，提交表单
+                form.dataset.confirmed = 'true';
+                form.submit();
+            });
+        });
+    })();
+})();
+</script>
 {% endblock %}

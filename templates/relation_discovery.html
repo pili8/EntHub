@@ -1,7 +1,28 @@
 {% extends "base.html" %}
-{% block title %}关联发现 · EntHub{% endblock %}
+{% block title %}{% if val %}{{ field_icon }} {{ field_label }}关联：{{ val }}{% else %}关联发现{% endif %} · EntHub{% endblock %}
 
 {% block content %}
+{% if val %}
+{# ── 详情模式：显示某个分组的企业列表 ── #}
+<div class="page-header">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="/relations?dup_type={{ dup_type }}" class="btn btn-secondary btn-sm">
+            <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
+            返回
+        </a>
+        <div>
+            <div class="page-title" style="margin-bottom: 4px;">{{ field_icon }} {{ field_label }}关联：{{ val }}</div>
+            <div class="page-subtitle">共 {{ total }} 家企业</div>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="padding: 16px;">
+    {% include "_relation_group_detail.html" %}
+</div>
+
+{% else %}
+{# ── 正常模式：关联类型选择 + 分组列表 ── #}
 <div class="page-header">
     <div class="page-title">🔗 关联发现</div>
     <div class="page-subtitle">发现企业间的隐藏关系网络</div>
@@ -28,48 +49,42 @@
                     data-type="phone"
                     hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='phone', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML"
-                    hx-push-url="true">
+                    hx-swap="innerHTML">
                 📞 电话关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="email"
                     hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='email', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML"
-                    hx-push-url="true">
+                    hx-swap="innerHTML">
                 📧 邮箱关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="legal_person"
                     hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='legal_person', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML"
-                    hx-push-url="true">
+                    hx-swap="innerHTML">
                 👤 法人关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="tag"
                     hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='tag', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML"
-                    hx-push-url="true">
+                    hx-swap="innerHTML">
                 🏷️ 标签关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="shareholder"
                     hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='shareholder', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML"
-                    hx-push-url="true">
+                    hx-swap="innerHTML">
                 💼 股东关联
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="industry"
                     hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='industry', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
-                    hx-swap="innerHTML"
-                    hx-push-url="true">
+                    hx-swap="innerHTML">
                 🏭 行业关联
             </button>
         </div>
@@ -111,6 +126,7 @@
 })();
 
 // 切换关联类型按钮样式
+let _lastClickedType = null;
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('relation-type-btn')) {
         document.querySelectorAll('.relation-type-btn').forEach(btn => btn.classList.remove('active'));
@@ -121,6 +137,7 @@ document.addEventListener('click', function(e) {
 
         // 更新当前按钮的hx-get参数
         const type = e.target.getAttribute('data-type');
+        _lastClickedType = type;
         const url = new URL(window.location);
         url.pathname = '/browse/relation-groups';
         url.searchParams.set('dup_type', type);
@@ -130,6 +147,15 @@ document.addEventListener('click', function(e) {
         // 显示加载中
         document.getElementById('relation-groups-container').innerHTML =
             '<div style="text-align: center; padding: 40px; color: var(--text-muted);">加载中，请稍候...</div>';
+    }
+});
+
+// HTMX 交换完成后，推正确的完整页 URL（避免把片段 URL 推入历史）
+document.body.addEventListener('htmx:afterSwap', function(e) {
+    if (_lastClickedType && e.detail.target && e.detail.target.id === 'relation-groups-container') {
+        const sort = document.getElementById('sort-select').value;
+        history.pushState({}, '', '/relations?dup_type=' + _lastClickedType + '&sort=' + sort);
+        _lastClickedType = null;
     }
 });
 
@@ -168,4 +194,5 @@ document.body.addEventListener('htmx:responseError', function(e) {
     }
 });
 </script>
+{% endif %}
 {% endblock %}

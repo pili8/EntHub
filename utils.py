@@ -55,8 +55,11 @@ def normalize_phone(phone):
     """
     if not phone:
         return ""
-    
+
     s = str(phone).strip()
+    # 含分隔符的输入直接拒绝（应该在外层拆分）
+    if any(ch in s for ch in [';', '；', ',', '，']):
+        return ""
     
     # Detect extension: XXXXXXX-XXX or XXXXXXXX-XXX format
     # Matches: 7-8 digit main number followed by dash and 1-6 digit extension
@@ -78,7 +81,11 @@ def normalize_phone(phone):
     # Nanchong landline: strip 0817 area code
     if digits.startswith("0817"):
         digits = digits[4:]
-    
+
+    # 防御：归一化后超过 15 位（手机+分机极限）视为无效
+    if len(digits) > 15:
+        return ""
+
     return digits + extension
 
 

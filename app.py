@@ -49,21 +49,25 @@ def _warmup_templates():
 
     Flask debug 模式下首次访问每个模板都要现场编译（base.html + 子模板合计 700+ 行），
     编译完缓存到内存，二次访问毫秒级。这个后台线程在服务就绪后主动触发关键页面编译。
+
+    start.sh 后台模式会监听 "[预热] 完成" 日志，等预热完成后再打开浏览器，
+    确保用户首次访问已经预热。
     """
-    time.sleep(8)  # 等服务完全就绪（debug 模式重启也要 3-5 秒）
+    time.sleep(1)  # 等 Flask 服务就绪（debug 模式启动约 1-2 秒）
     pages = [
         "http://127.0.0.1:5210/",
         "http://127.0.0.1:5210/browse",
         "http://127.0.0.1:5210/search",
         "http://127.0.0.1:5210/browse/data",
-        "http://127.0.0.1:5210/stats/phone",
     ]
+    print("[预热] 开始", flush=True)
     for url in pages:
         try:
             urllib.request.urlopen(url, timeout=30).read()
-            print(f"[预热] {url}")
+            print(f"[预热] {url}", flush=True)
         except Exception as e:
-            print(f"[预热失败] {url}: {e}")
+            print(f"[预热失败] {url}: {e}", flush=True)
+    print("[预热] 完成", flush=True)
 
 
 _startup_backup_check()

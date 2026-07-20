@@ -8,7 +8,7 @@
         {% for row in rows %}
         {% set names = (row.company_names or '').split('; ') if row.company_names else [] %}
 
-        <a href="{{ url_for('pages_bp.relation_group_detail', type=dup_type, val=row.val) }}"
+        <a href="{{ url_for('pages_bp.relation_group_detail', dup_type=dup_type, val=row.val) }}"
            class="relation-group"
            style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border); text-decoration: none; color: inherit; display: block; transition: all 0.2s;"
            onmouseover="this.style.borderColor='var(--accent)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'"
@@ -56,8 +56,7 @@
             <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page-1) }}"
                hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page-1) }}"
                hx-target="#relation-groups-container"
-               hx-swap="innerHTML"
-               hx-push-url="true">
+               hx-swap="innerHTML">
                 <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
             </a>
             {% endif %}
@@ -66,8 +65,7 @@
             <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page+1) }}"
                hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page+1) }}"
                hx-target="#relation-groups-container"
-               hx-swap="innerHTML"
-               hx-push-url="true">
+               hx-swap="innerHTML">
                 <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
             </a>
             {% endif %}

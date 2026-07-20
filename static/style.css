@@ -978,27 +978,42 @@ tr:hover td { background: #f8fafc; }
 .phone-list {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 10px;
 }
 
 .phone-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 12px;
-    background: var(--bg);
+    padding: 10px 14px;
+    background: var(--surface);
     border-radius: var(--radius);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    transition: border-color 0.15s;
+}
+
+.phone-row:hover {
+    border-color: var(--border-strong);
+}
+
+/* Tags wrapper: right-aligned group */
+.phone-tags {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .phone-tag {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
     flex-shrink: 0;
 }
 
@@ -1026,15 +1041,26 @@ tr:hover td { background: #f8fafc; }
 }
 
 .phone-unique {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-left: auto;
+    font-size: 11px;
+    color: var(--success);
+    font-weight: 500;
+    padding: 2px 8px;
+    background: var(--success-light, #e6f7ef);
+    border-radius: 3px;
 }
 
 .phone-row .dup-count {
-    margin-left: auto;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+
+/* Divider between phone and email within contact section */
+.contact-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
 }
 
 /* ── 关联发现样式 ── */
@@ -1925,10 +1951,10 @@ tr:hover td { background: #f8fafc; }
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     padding: 0;
-    margin-left: 4px;
+    margin-left: 2px;
     border: none;
     background: transparent;
     color: var(--text-muted);
@@ -1939,7 +1965,7 @@ tr:hover td { background: #f8fafc; }
 }
 
 .copy-btn:hover {
-    background: var(--bg-hover);
+    background: var(--border);
     color: var(--accent);
 }
 

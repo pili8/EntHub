@@ -1,4 +1,5 @@
-"""数据备份：页面、创建、下载、删除、压缩。"""
+"""数据备份：页面、创建、下载、删除。"""
+import subprocess
 from flask import Blueprint, g, render_template, redirect, url_for, flash, \
                    abort, send_file
 
@@ -18,11 +19,6 @@ def backup_page():
     db_size = db_path.stat().st_size if db_path.exists() else 0
     db_size_mb = round(db_size / 1024 / 1024, 2)
 
-    # 碎片率统计
-    db_stats = backup.get_db_stats(db_path)
-    fragmentation = db_stats["fragmentation"]
-    reclaimable_mb = round(db_stats["reclaimable_bytes"] / 1024 / 1024, 2)
-
     # 数据统计
     total_records = g.db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
     total_phones = g.db.execute("SELECT COUNT(*) FROM company_phones").fetchone()[0]
@@ -36,9 +32,7 @@ def backup_page():
                            db_size_mb=db_size_mb,
                            total_records=total_records,
                            total_phones=total_phones,
-                           last_backup=last_backup,
-                           fragmentation=fragmentation,
-                           reclaimable_mb=reclaimable_mb)
+                           last_backup=last_backup)
 
 
 @bp.route("/backup/create", methods=["POST"])
@@ -75,19 +69,28 @@ def backup_delete(filename):
     return redirect(url_for("backup_flow_bp.backup_page"))
 
 
-@bp.route("/backup/vacuum", methods=["POST"])
-def backup_vacuum():
-    """压缩数据库，回收空闲页空间。"""
-    result = backup.vacuum_database(DB_PATH)
-    if result["success"]:
-        before_mb = round(result["before_size"] / 1024 / 1024, 2)
-        after_mb = round(result["after_size"] / 1024 / 1024, 2)
-        freed_mb = round(result["freed"] / 1024 / 1024, 2)
-        flash(
-            f"压缩成功：{before_mb} MB → {after_mb} MB，释放 {freed_mb} MB"
-            f"（已自动创建备份 {result['backup_filename']}）",
-            "success"
-        )
-    else:
-        flash(f"压缩失败：{result.get('error', '未知错误')}", "error")
+@bp.route("/backup/open-dir")
+def backup_open_dir():
+    """在 Finder 中打开备份目录。"""
+    backup_dir = backup.get_backup_dir()
+    try:
+        subprocess.Popen(["open", str(backup_dir)])
+        flash(f"已在 Finder 中打开：{backup_dir}", "success")
+    except Exception as e:
+        flash(f"打开失败：{e}", "error")
+    return redirect(url_for("backup_flow_bp.backup_page"))
+
+
+@bp.route("/db/open-dir")
+def db_open_dir():
+    """在 Finder 中打开主数据库所在目录（项目 data/）。"""
+    db_dir = DB_PATH.parent
+    if not db_dir.exists():
+        flash(f"目录不存在：{db_dir}", "error")
+        return redirect(url_for("backup_flow_bp.backup_page"))
+    try:
+        subprocess.Popen(["open", str(db_dir)])
+        flash(f"已在 Finder 中打开：{db_dir}", "success")
+    except Exception as e:
+        flash(f"打开失败：{e}", "error")
     return redirect(url_for("backup_flow_bp.backup_page"))

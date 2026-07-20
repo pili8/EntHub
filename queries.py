@@ -39,7 +39,7 @@ TEXT_SEARCH_FIELDS = [
 ]
 
 # 精确筛选字段
-EXACT_FILTERS = ("city", "district", "business_status", "industry")
+EXACT_FILTERS = ("city", "district", "business_status", "industry", "company_type")
 
 # 列表查询的标准字段（含电话聚合子查询）
 COMPANY_LIST_PHONE_SUBQUERY = (

@@ -1,10 +1,13 @@
 """核心页面路由：首页、浏览、搜索、关联发现、电话页。"""
+import json
 import math
-from flask import Blueprint, g, request, render_template, redirect, url_for, flash
+import sqlite3
+from flask import Blueprint, g, request, render_template, redirect, url_for, flash, \
+                   Response
 
 from db import DB_PATH
 from queries import (
-    DEFAULT_PER_PAGE, ALLOWED_SORTS,
+    DEFAULT_PER_PAGE, ALLOWED_SORTS, COMPANY_LIST_COLUMNS,
     build_filter_clause, build_sort_clause, where_sql,
     query_company_list, get_filter_options, get_year_bounds, build_year_ranges,
     detect_query_type, text_search, search_by_phone, search_by_credit_code,
@@ -62,7 +65,7 @@ def browse():
     """
     # 当前选中的筛选值（用于模板回填 + 透传给数据端点）
     filters = {}
-    for key in ("city", "district", "business_status", "industry",
+    for key in ("city", "district", "business_status", "industry", "company_type",
                 "year_from", "year_to", "cap_from", "cap_to",
                 "insured_from", "insured_to"):
         val = (request.args.get(key) or "").strip()
@@ -106,7 +109,7 @@ def browse_data():
     )
 
     filters = {}
-    for key in ("city", "district", "business_status", "industry",
+    for key in ("city", "district", "business_status", "industry", "company_type",
                 "year_from", "year_to", "cap_from", "cap_to",
                 "insured_from", "insured_to"):
         val = (request.args.get(key) or "").strip()
@@ -119,6 +122,93 @@ def browse_data():
                            sort=request.args.get("sort", "id"),
                            direction=request.args.get("dir", "desc"),
                            filters=filters)
+
+
+# ── 流式浏览数据（SSE） ──────────────────────────────────────────────────────
+
+@bp.route("/browse/stream")
+def browse_stream():
+    """SSE：流式推送浏览页数据。
+
+    推送顺序：
+      1. start  — 查询开始（前端显示骨架屏 + 计时器）
+      2. batch  — 分批行数据（每批 10 行，前端追加到表格）
+      3. count  — 总数 + 总页数（前端更新分页栏）
+      4. done   — 完成
+
+    用户能立即看到数据出现，而不是等整个查询（尤其是 COUNT）完成。
+    """
+    page = sanitize_page(request.args)
+    per_page = sanitize_per_page(request.args)
+
+    clauses, params = build_filter_clause(request.args)
+    where_clause = where_sql(clauses)
+    sort_col, dir_sql = build_sort_clause(request.args)
+    offset = (page - 1) * per_page
+    sort_arg = request.args.get("sort", "id")
+    dir_arg = request.args.get("dir", "desc")
+
+    def generate():
+        db = sqlite3.connect(DB_PATH)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA journal_mode=WAL")
+
+        try:
+            # start 事件
+            start_data = json.dumps(
+                {"page": page, "per_page": per_page,
+                 "sort": sort_arg, "dir": dir_arg},
+                ensure_ascii=False,
+            )
+            yield f"event: start\ndata: {start_data}\n\n"
+
+            # 流式查询行数据
+            batch_size = 10
+            loaded = 0
+
+            cursor = db.execute(f"""
+                SELECT {COMPANY_LIST_COLUMNS}
+                FROM companies c
+                {where_clause}
+                ORDER BY {sort_col} {dir_sql}
+                LIMIT ? OFFSET ?
+            """, params + [per_page, offset])
+
+            while loaded < per_page:
+                batch = cursor.fetchmany(batch_size)
+                if not batch:
+                    break
+
+                rows_data = [dict(r) for r in batch]
+                payload = json.dumps(
+                    {"rows": rows_data, "loaded": loaded + len(batch)},
+                    ensure_ascii=False, default=str,
+                )
+                yield f"event: batch\ndata: {payload}\n\n"
+                loaded += len(batch)
+
+            # 总数查询（可能较慢，放在最后）
+            total = db.execute(
+                f"SELECT COUNT(*) FROM companies {where_clause}", params
+            ).fetchone()[0]
+            pages = max(1, math.ceil(total / per_page))
+
+            count_data = json.dumps(
+                {"total": total, "pages": pages, "page": page},
+                ensure_ascii=False,
+            )
+            yield f"event: count\ndata: {count_data}\n\n"
+
+            yield "event: done\ndata: {}\n\n"
+
+        except Exception as e:
+            err = json.dumps({"message": str(e)}, ensure_ascii=False)
+            yield f"event: error\ndata: {err}\n\n"
+        finally:
+            db.close()
+
+    return Response(generate(), content_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 # ── 统一搜索 ────────────────────────────────────────────────────────────────
@@ -192,7 +282,7 @@ def relation_discovery():
 @bp.route("/browse/relation-groups")
 def browse_relation_groups():
     """按关联类型列出分组（电话/邮箱/法人）"""
-    dup_type = (request.args.get("type") or "phone").strip()
+    dup_type = (request.args.get("dup_type") or "phone").strip()
     page = sanitize_page(request.args)
     per_page = sanitize_per_page(request.args, default=PER_PAGE)
     sort_by = (request.args.get("sort") or "cnt").strip()
@@ -399,76 +489,89 @@ def browse_relation_groups():
 @bp.route("/relation-group")
 def relation_group_detail():
     """单个关联分组的详情：列出该分组下的所有企业"""
-    dup_type = (request.args.get("type") or "phone").strip()
+    dup_type = (request.args.get("dup_type") or "phone").strip()
     val = (request.args.get("val") or "").strip()
     page = sanitize_page(request.args)
     per_page = sanitize_per_page(request.args, default=PER_PAGE)
     offset = (page - 1) * per_page
 
+    # 标签/图标映射（用于完整页面显示）
+    field_labels = {
+        "phone": ("电话", "📞"),
+        "email": ("邮箱", "📧"),
+        "legal_person": ("法人", "👤"),
+        "tag": ("标签", "🏷️"),
+        "shareholder": ("股东", "💼"),
+        "industry": ("行业", "🏭"),
+    }
+    field_label, field_icon = field_labels.get(dup_type, ("关联", "🔗"))
+
     if not val:
-        return render_template("_relation_group_detail.html",
-                               dup_type=dup_type, val="", rows=[],
-                               total=0, page=1, pages=1, per_page=per_page)
-
-    from queries import COMPANY_LIST_PHONE_SUBQUERY
-
-    if dup_type == "phone":
-        # 通过 company_phones 反查
-        total = g.db.execute(
-            "SELECT COUNT(DISTINCT company_id) FROM company_phones "
-            "WHERE normalized_phone = ?",
-            [val]
-        ).fetchone()[0]
-        rows = g.db.execute(f"""
-            SELECT c.id, c.name, c.address, c.city, c.business_status,
-                   {COMPANY_LIST_PHONE_SUBQUERY}
-            FROM companies c
-            JOIN company_phones cp ON cp.company_id = c.id
-            WHERE cp.normalized_phone = ?
-            ORDER BY c.name LIMIT ? OFFSET ?
-        """, [val, per_page, offset]).fetchall()
-
-    elif dup_type == "email":
-        total = g.db.execute(
-            "SELECT COUNT(*) FROM companies WHERE normalized_email = ?",
-            [val]
-        ).fetchone()[0]
-        rows = g.db.execute(f"""
-            SELECT c.id, c.name, c.address, c.city, c.business_status,
-                   {COMPANY_LIST_PHONE_SUBQUERY}
-            FROM companies c
-            WHERE c.normalized_email = ?
-            ORDER BY c.name LIMIT ? OFFSET ?
-        """, [val, per_page, offset]).fetchall()
-
-    elif dup_type == "legal_person":
-        total = g.db.execute(
-            "SELECT COUNT(*) FROM companies WHERE normalized_legal_person = ?",
-            [val]
-        ).fetchone()[0]
-        rows = g.db.execute(f"""
-            SELECT c.id, c.name, c.address, c.city, c.business_status,
-                   {COMPANY_LIST_PHONE_SUBQUERY}
-            FROM companies c
-            WHERE c.normalized_legal_person = ?
-            ORDER BY c.name LIMIT ? OFFSET ?
-        """, [val, per_page, offset]).fetchall()
-
-    else:
+        companies = []
         total = 0
-        rows = []
+    else:
+        from queries import COMPANY_LIST_PHONE_SUBQUERY
+
+        if dup_type == "phone":
+            total = g.db.execute(
+                "SELECT COUNT(DISTINCT company_id) FROM company_phones "
+                "WHERE normalized_phone = ?",
+                [val]
+            ).fetchone()[0]
+            companies = g.db.execute(f"""
+                SELECT c.id, c.name, c.address, c.city, c.business_status,
+                       {COMPANY_LIST_PHONE_SUBQUERY}
+                FROM companies c
+                JOIN company_phones cp ON cp.company_id = c.id
+                WHERE cp.normalized_phone = ?
+                ORDER BY c.name LIMIT ? OFFSET ?
+            """, [val, per_page, offset]).fetchall()
+
+        elif dup_type == "email":
+            total = g.db.execute(
+                "SELECT COUNT(*) FROM companies WHERE normalized_email = ?",
+                [val]
+            ).fetchone()[0]
+            companies = g.db.execute(f"""
+                SELECT c.id, c.name, c.address, c.city, c.business_status,
+                       {COMPANY_LIST_PHONE_SUBQUERY}
+                FROM companies c
+                WHERE c.normalized_email = ?
+                ORDER BY c.name LIMIT ? OFFSET ?
+            """, [val, per_page, offset]).fetchall()
+
+        elif dup_type == "legal_person":
+            total = g.db.execute(
+                "SELECT COUNT(*) FROM companies WHERE normalized_legal_person = ?",
+                [val]
+            ).fetchone()[0]
+            companies = g.db.execute(f"""
+                SELECT c.id, c.name, c.address, c.city, c.business_status,
+                       {COMPANY_LIST_PHONE_SUBQUERY}
+                FROM companies c
+                WHERE c.normalized_legal_person = ?
+                ORDER BY c.name LIMIT ? OFFSET ?
+            """, [val, per_page, offset]).fetchall()
+
+        else:
+            total = 0
+            companies = []
 
     pages = max(1, math.ceil(total / per_page)) if total else 1
 
-    return render_template("_relation_group_detail.html",
-                           dup_type=dup_type, val=val, rows=rows,
-                           total=total, page=page, pages=pages,
-                           per_page=per_page)
+    ctx = dict(dup_type=dup_type, val=val, companies=companies,
+               total=total, page=page, pages=pages, per_page=per_page,
+               field_label=field_label, field_icon=field_icon)
+
+    # HTMX 请求返回片段，整页请求返回完整页面
+    if request.headers.get("HX-Request"):
+        return render_template("_relation_group_detail.html", **ctx)
+    return render_template("relation_discovery.html", **ctx)
 
 
 @bp.route("/browse/relation-group-detail")
 def browse_relation_group_detail():
-    """兼容旧路径：返回完整页面而非局部片段。"""
+    """兼容旧路径"""
     return relation_group_detail()
 
 

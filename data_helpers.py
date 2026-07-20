@@ -10,35 +10,30 @@ from utils import normalize_phone, normalize_person_name
 def split_phones(phone_str, other_phone_str):
     """拆分 phone 和 other_phone 字段。
 
+    主号和副号字段都支持多号码（按 ; ； , ， 、 / 分隔）。
     返回 [(raw_phone, normalized_phone), ...]，第一条为主号。
     去重按 normalized_phone。
     """
+    SEPS = [';', '；', ',', '，', '、', '/']
+
+    def _split(s):
+        if not s:
+            return []
+        result = [str(s)]
+        for sep in SEPS:
+            new_result = []
+            for part in result:
+                new_result.extend(part.split(sep))
+            result = new_result
+        return [p.strip() for p in result if p.strip()]
+
     result = []
     seen = set()
-
-    # 主号
-    if phone_str and str(phone_str).strip():
-        raw = str(phone_str).strip()
+    for raw in _split(phone_str) + _split(other_phone_str):
         norm = normalize_phone(raw)
         if norm and norm not in seen:
             result.append((raw, norm))
             seen.add(norm)
-
-    # 副号 - 按 ; ； , 拆分
-    if other_phone_str and str(other_phone_str).strip():
-        parts = (str(other_phone_str)
-                 .replace("；", ";")
-                 .replace(",", ";")
-                 .split(";"))
-        for p in parts:
-            raw = p.strip()
-            if not raw:
-                continue
-            norm = normalize_phone(raw)
-            if norm and norm not in seen:
-                result.append((raw, norm))
-                seen.add(norm)
-
     return result
 
 
@@ -46,18 +41,21 @@ def _split_recommended(recommended_str):
     """拆分推荐电话字段。"""
     if not recommended_str or not str(recommended_str).strip():
         return []
-    parts = (str(recommended_str)
-             .replace("；", ";")
-             .replace(",", ";")
-             .split(";"))
-    result = []
-    for p in parts:
+    SEPS = [';', '；', ',', '，', '、', '/']
+    result = [str(recommended_str)]
+    for sep in SEPS:
+        new_result = []
+        for part in result:
+            new_result.extend(part.split(sep))
+        result = new_result
+    out = []
+    for p in result:
         raw = p.strip()
         if raw:
             norm = normalize_phone(raw)
             if norm:
-                result.append((raw, norm))
-    return result
+                out.append((raw, norm))
+    return out
 
 
 def sync_phones(db, company_id, phone_str, other_phone_str,
@@ -145,6 +143,7 @@ def split_shareholders(shareholders_str):
              .replace("；", ";")
              .replace(",", ";")
              .replace("，", ";")
+             .replace("、", ";")
              .split(";"))
     result = []
     for p in parts:

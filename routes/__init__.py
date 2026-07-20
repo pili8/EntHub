@@ -9,12 +9,11 @@ from flask import Blueprint
 def register_blueprints(app):
     """把 routes/ 下所有蓝图挂到 app 上。"""
     # 顺序不重要；蓝图通过 url_for 解析对方路由
-    from . import pages, companies, stats, tags
+    from . import pages, companies, tags
     from . import import_flow, cleanup_flow, backup_flow, mcp_flow, api_legacy
 
     app.register_blueprint(pages.bp)
     app.register_blueprint(companies.bp)
-    app.register_blueprint(stats.bp)
     app.register_blueprint(tags.bp)
     app.register_blueprint(import_flow.bp)
     app.register_blueprint(cleanup_flow.bp)

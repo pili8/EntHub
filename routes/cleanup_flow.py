@@ -4,9 +4,10 @@ import sqlite3
 import queue as queue_module
 
 from flask import Blueprint, g, request, render_template, redirect, url_for, \
-                   jsonify, Response
+                   flash, jsonify, Response
 
 from db import DB_PATH
+import backup
 import tasks
 from queries import invalidate_cache
 from data_helpers import merge_phones, merge_shareholders
@@ -32,70 +33,168 @@ IMPORT_FIELDS = [
 
 @bp.route("/cleanup")
 def cleanup_page():
-    """统计待清理数据量。"""
-    stats_data = {}
-    stats_data["nan_count"] = g.db.execute(
-        "SELECT COUNT(*) FROM companies "
-        "WHERE name IN ('nan','NaN','NAN') OR normalized_name IN ('nan','NaN','NAN')"
-    ).fetchone()[0]
+    """渲染清理页骨架（不查数据库），统计数据通过 SSE 异步推送。
 
-    stats_data["header_count"] = g.db.execute(
-        "SELECT COUNT(*) FROM companies WHERE name IN ('公司名称','企业名称')"
-    ).fetchone()[0]
+    避免用户点击后白屏 10+ 秒（去重 SQL 耗时较长）。
+    """
+    return render_template("cleanup.html", stats={})
 
-    stats_data["cc_total"] = g.db.execute(
-        "SELECT COUNT(*) FROM companies "
-        "WHERE credit_code IS NOT NULL AND credit_code <> '' "
-        "AND credit_code NOT IN ('nan','NaN','NAN')"
-    ).fetchone()[0]
-    stats_data["cc_unique"] = g.db.execute(
-        "SELECT COUNT(DISTINCT credit_code) FROM companies "
-        "WHERE credit_code IS NOT NULL AND credit_code <> '' "
-        "AND credit_code NOT IN ('nan','NaN','NAN')"
-    ).fetchone()[0]
-    stats_data["cc_dup"] = stats_data["cc_total"] - stats_data["cc_unique"]
 
-    stats_data["name_total"] = g.db.execute(
-        "SELECT COUNT(*) FROM companies "
-        "WHERE normalized_name IS NOT NULL AND normalized_name <> '' "
-        "AND normalized_name <> 'nan'"
-    ).fetchone()[0]
-    stats_data["name_unique"] = g.db.execute(
-        "SELECT COUNT(DISTINCT normalized_name) FROM companies "
-        "WHERE normalized_name IS NOT NULL AND normalized_name <> '' "
-        "AND normalized_name <> 'nan'"
-    ).fetchone()[0]
-    stats_data["name_dup"] = stats_data["name_total"] - stats_data["name_unique"]
+# ── 统计数据 SSE 流式推送 ──────────────────────────────────────────────────────
+#
+# 分批推送策略（按查询耗时由快到慢）：
+#   批次1（毫秒级）：总数 / nan / 表头 / 占位 / 法人 / 地址
+#   批次2（秒级）  ：信用代码重复 / 名称重复 / 电话去重
+#   批次3（约 11s）：待清理总数（SQL 去重，最慢）
+#
+# 每查完一个立即推送，前端即可显示，避免长等待。
 
-    stats_data["total"] = g.db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
 
-    stats_data["placeholder_count"] = g.db.execute("""
-        SELECT COUNT(*) FROM companies WHERE
-        business_scope LIKE '%暂不予显示%' OR business_scope LIKE '%企业信息暂不%'
-        OR name LIKE '%暂不予显示%' OR address LIKE '%暂不予显示%'
-    """).fetchone()[0]
+@bp.route("/cleanup/stats_stream")
+def cleanup_stats_stream():
+    """流式推送清理页统计数据。"""
+    db = sqlite3.connect(DB_PATH)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")
 
-    # 数据质量指标
-    stats_data["with_phone"] = g.db.execute(
-        """SELECT COUNT(DISTINCT company_id) FROM company_phones
-           WHERE phone IS NOT NULL AND phone <> '' AND phone <> '-'"""
-    ).fetchone()[0]
-    stats_data["with_legal_person"] = g.db.execute(
-        "SELECT COUNT(*) FROM companies "
-        "WHERE legal_person IS NOT NULL AND legal_person <> '' AND legal_person <> '-'"
-    ).fetchone()[0]
-    stats_data["with_address"] = g.db.execute(
-        "SELECT COUNT(*) FROM companies "
-        "WHERE address IS NOT NULL AND address <> '' AND address <> '-'"
-    ).fetchone()[0]
+    def generate():
+        def emit(key, value):
+            payload = json.dumps({"key": key, "value": value}, ensure_ascii=False)
+            return f"event: stat\ndata: {payload}\n\n"
 
-    stats_data["total_to_clean"] = (
-        stats_data["nan_count"] + stats_data["header_count"] +
-        stats_data["placeholder_count"] + stats_data["cc_dup"] +
-        stats_data["name_dup"]
+        try:
+            # ── 批次 1：毫秒级查询 ──
+            total = db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+            yield emit("total", total)
+
+            # 数据库碎片率统计（用于压缩功能）
+            db_stats = backup.get_db_stats(DB_PATH)
+            yield emit("fragmentation", db_stats["fragmentation"])
+            yield emit("reclaimable_mb", round(db_stats["reclaimable_bytes"] / 1024 / 1024, 2))
+            db_size_mb = round(DB_PATH.stat().st_size / 1024 / 1024, 2) if DB_PATH.exists() else 0
+            yield emit("db_size_mb", db_size_mb)
+
+            nan_count = db.execute(
+                "SELECT COUNT(*) FROM companies "
+                "WHERE name IN ('nan','NaN','NAN') "
+                "OR normalized_name IN ('nan','NaN','NAN')"
+            ).fetchone()[0]
+            yield emit("nan_count", nan_count)
+
+            header_count = db.execute(
+                "SELECT COUNT(*) FROM companies WHERE name IN ('公司名称','企业名称')"
+            ).fetchone()[0]
+            yield emit("header_count", header_count)
+
+            placeholder_count = db.execute("""
+                SELECT COUNT(*) FROM companies WHERE
+                business_scope LIKE '%暂不予显示%' OR business_scope LIKE '%企业信息暂不%'
+                OR name LIKE '%暂不予显示%' OR address LIKE '%暂不予显示%'
+            """).fetchone()[0]
+            yield emit("placeholder_count", placeholder_count)
+
+            with_legal_person = db.execute(
+                "SELECT COUNT(*) FROM companies "
+                "WHERE legal_person IS NOT NULL AND legal_person <> '' "
+                "AND legal_person <> '-'"
+            ).fetchone()[0]
+            yield emit("with_legal_person", with_legal_person)
+
+            with_address = db.execute(
+                "SELECT COUNT(*) FROM companies "
+                "WHERE address IS NOT NULL AND address <> '' AND address <> '-'"
+            ).fetchone()[0]
+            yield emit("with_address", with_address)
+
+            # ── 批次 2：秒级查询（DISTINCT 扫描） ──
+            cc_total = db.execute(
+                "SELECT COUNT(*) FROM companies "
+                "WHERE credit_code IS NOT NULL AND credit_code <> '' "
+                "AND credit_code NOT IN ('nan','NaN','NAN')"
+            ).fetchone()[0]
+            cc_unique = db.execute(
+                "SELECT COUNT(DISTINCT credit_code) FROM companies "
+                "WHERE credit_code IS NOT NULL AND credit_code <> '' "
+                "AND credit_code NOT IN ('nan','NaN','NAN')"
+            ).fetchone()[0]
+            yield emit("cc_total", cc_total)
+            yield emit("cc_unique", cc_unique)
+            yield emit("cc_dup", cc_total - cc_unique)
+
+            name_total = db.execute(
+                "SELECT COUNT(*) FROM companies "
+                "WHERE normalized_name IS NOT NULL AND normalized_name <> '' "
+                "AND normalized_name <> 'nan'"
+            ).fetchone()[0]
+            name_unique = db.execute(
+                "SELECT COUNT(DISTINCT normalized_name) FROM companies "
+                "WHERE normalized_name IS NOT NULL AND normalized_name <> '' "
+                "AND normalized_name <> 'nan'"
+            ).fetchone()[0]
+            yield emit("name_total", name_total)
+            yield emit("name_unique", name_unique)
+            yield emit("name_dup", name_total - name_unique)
+
+            with_phone = db.execute(
+                """SELECT COUNT(DISTINCT company_id) FROM company_phones
+                   WHERE phone IS NOT NULL AND phone <> '' AND phone <> '-'"""
+            ).fetchone()[0]
+            yield emit("with_phone", with_phone)
+
+            # ── 批次 3：慢查询（约 11s）──
+            # 准确的待清理记录数（SQL 去重）：
+            # 同一条记录可能同时命中多个规则（如既在信用代码重复里，也在企业名称重复里），
+            # 不能简单相加，否则会出现"待清理数 > 总记录数"的悖论。
+            #
+            # 规则定义（任一命中即视为待清理）：
+            #   1. nan/NaN/NAN 脏数据
+            #   2. 表头行（公司名称/企业名称）
+            #   3. "暂不予显示"等占位文本
+            #   4. 信用代码重复（每个重复组只保留 MIN(id) 的那条）
+            #   5. 企业名称重复（每个重复组只保留 MIN(id) 的那条）
+            total_to_clean = db.execute(
+                """
+                SELECT COUNT(*) FROM companies
+                WHERE
+                    name IN ('nan','NaN','NAN')
+                    OR normalized_name IN ('nan','NaN','NAN')
+                    OR name IN ('公司名称','企业名称')
+                    OR business_scope LIKE '%暂不予显示%'
+                    OR business_scope LIKE '%企业信息暂不%'
+                    OR name LIKE '%暂不予显示%'
+                    OR address LIKE '%暂不予显示%'
+                    OR (
+                        credit_code IS NOT NULL AND credit_code <> ''
+                        AND credit_code NOT IN ('nan','NaN','NAN')
+                        AND id NOT IN (SELECT MIN(id) FROM companies
+                                       WHERE credit_code IS NOT NULL AND credit_code <> ''
+                                       AND credit_code NOT IN ('nan','NaN','NAN')
+                                       GROUP BY credit_code)
+                    )
+                    OR (
+                        normalized_name IS NOT NULL AND normalized_name <> ''
+                        AND normalized_name <> 'nan'
+                        AND id NOT IN (SELECT MIN(id) FROM companies
+                                       WHERE normalized_name IS NOT NULL AND normalized_name <> ''
+                                       AND normalized_name <> 'nan'
+                                       GROUP BY normalized_name)
+                    )
+                """
+            ).fetchone()[0]
+            yield emit("total_to_clean", total_to_clean)
+
+            yield "event: done\ndata: {}\n\n"
+        except Exception as e:
+            err = json.dumps({"message": str(e)}, ensure_ascii=False)
+            yield f"event: error\ndata: {err}\n\n"
+        finally:
+            db.close()
+
+    return Response(
+        generate(),
+        content_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-    return render_template("cleanup.html", stats=stats_data)
 
 
 # ── 启动异步清理 ────────────────────────────────────────────────────────────
@@ -178,7 +277,7 @@ def _cleanup_worker(task_queue, stop_event, clean_nan, clean_header,
         if clean_cc_dup and not stop_event.is_set():
             step += 1
             send("step", {"step": step, "label": "信用代码去重"})
-            n = _dedup_by_field(db, "credit_code")
+            n = _dedup_by_field(db, "credit_code", task_queue, stop_event, send)
             deleted_total += n
             send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
 
@@ -186,7 +285,7 @@ def _cleanup_worker(task_queue, stop_event, clean_nan, clean_header,
         if clean_name_dup and not stop_event.is_set():
             step += 1
             send("step", {"step": step, "label": "企业名称去重"})
-            n = _dedup_by_field(db, "normalized_name")
+            n = _dedup_by_field(db, "normalized_name", task_queue, stop_event, send)
             deleted_total += n
             send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
 
@@ -222,13 +321,16 @@ def _cleanup_worker(task_queue, stop_event, clean_nan, clean_header,
         send("error", {"message": str(e)})
 
 
-def _dedup_by_field(db, field):
+def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
     """按字段去重，保留每组中「最好」的记录。
 
     逻辑与导入一致：
     - 保留字段最完整的记录（完整度 > updated_at > id）
     - 被删记录的电话累加到保留记录（merge_phones 自动去重）
     - 被删记录的非空字段补全保留记录的空字段
+    - source_file 字段会累加合并（保留所有来源文件的溯源信息）
+
+    支持实时进度推送和中途停止（需要传入 task_queue/stop_event/send）。
     """
     groups = db.execute(f"""
         SELECT {field}, GROUP_CONCAT(id) as ids
@@ -239,9 +341,36 @@ def _dedup_by_field(db, field):
         HAVING COUNT(*) > 1
     """).fetchall()
 
+    total_groups = len(groups)
+    # 进度推送频率：大任务按 1% 推送，小任务每 10 组推送
+    report_every = max(1, total_groups // 100) if total_groups > 100 else 10
+
     deleted = 0
+    processed = 0
+    last_commit = 0  # 每 1000 组提交一次，避免长事务
 
     for group in groups:
+        # 中途停止检查
+        if stop_event and stop_event.is_set():
+            if send:
+                send("sub_progress", {
+                    "processed": processed, "total": total_groups,
+                    "deleted": deleted, "stopped": True,
+                })
+            db.commit()  # 提交已完成的清理
+            return deleted
+
+        processed += 1
+
+        # 实时进度推送
+        if send and (processed % report_every == 0 or processed == total_groups):
+            send("sub_progress", {
+                "processed": processed,
+                "total": total_groups,
+                "deleted": deleted,
+                "percent": round(processed / total_groups * 100, 1) if total_groups else 0,
+            })
+
         ids = [int(x) for x in group["ids"].split(",")]
         if len(ids) <= 1:
             continue
@@ -256,6 +385,7 @@ def _dedup_by_field(db, field):
                    c.website, c.other_email, c.business_scope, c.enterprise_scale,
                    c.shareholders, c.mailing_address, c.english_name, c.tags,
                    c.annual_report_address, c.taxpayer_id, c.registration_no, c.org_code,
+                   c.source_file,
                    (SELECT COUNT(*) FROM company_phones WHERE company_id = c.id) AS phone_count,
                    (CASE WHEN c.name <> '' THEN 1 ELSE 0 END +
                     CASE WHEN (SELECT COUNT(*) FROM company_phones WHERE company_id = c.id) > 0 THEN 1 ELSE 0 END +
@@ -278,6 +408,11 @@ def _dedup_by_field(db, field):
         keep_id = keep["id"]
 
         # 从被删记录中合并数据到保留记录
+        # 累计 source_file（保留记录 + 被删记录），分号拼接 + 去重
+        merged_sources = []
+        if keep["source_file"]:
+            merged_sources.append(keep["source_file"])
+
         updates = {}
         for r in rows[1:]:
             # 电话累加：从被删企业的 company_phones 表读取所有电话，合并到保留企业
@@ -285,8 +420,9 @@ def _dedup_by_field(db, field):
                 "SELECT phone FROM company_phones WHERE company_id = ?", [r["id"]]
             ).fetchall()
             if dup_phone_rows:
-                dup_phones_str = ";".join([p["phone"] for p in dup_phone_rows])
-                merge_phones(db, keep_id, dup_phones_str, "", "")
+                phones_list = [p["phone"] for p in dup_phone_rows if p["phone"]]
+                if phones_list:
+                    merge_phones(db, keep_id, phones_list[0], ";".join(phones_list[1:]), "")
 
             # 股东累加
             dup_sh_rows = db.execute(
@@ -295,6 +431,14 @@ def _dedup_by_field(db, field):
             if dup_sh_rows:
                 dup_shs_str = ";".join([s["name"] for s in dup_sh_rows])
                 merge_shareholders(db, keep_id, dup_shs_str)
+
+            # source_file 累加去重（企业可能来自多个 Excel 文件，保留完整溯源）
+            dup_source = r["source_file"] if r["source_file"] else ""
+            if dup_source:
+                for part in dup_source.split(";"):
+                    part = part.strip()
+                    if part and part not in merged_sources:
+                        merged_sources.append(part)
 
             # 其他字段：保留记录为空时，从被删记录补全
             for f in IMPORT_FIELDS:
@@ -306,6 +450,10 @@ def _dedup_by_field(db, field):
                 if (not kept_val or kept_val in ("", "-", "nan")) and \
                    dup_val and dup_val not in ("", "-", "nan"):
                     updates[f] = dup_val
+
+        # 合并后的 source_file
+        if merged_sources:
+            updates["source_file"] = ";".join(merged_sources)
 
         # 应用字段补全
         if updates:
@@ -326,6 +474,12 @@ def _dedup_by_field(db, field):
                    delete_ids)
         db.execute(f"DELETE FROM companies WHERE id IN ({del_placeholders})", delete_ids)
         deleted += len(delete_ids)
+
+        # 定期提交，避免长事务占用资源
+        last_commit += 1
+        if last_commit >= 1000:
+            db.commit()
+            last_commit = 0
 
     return deleted
 
@@ -365,3 +519,23 @@ def cleanup_stop():
     if tasks.request_stop("cleanup"):
         return jsonify({"ok": True})
     return jsonify({"ok": False}), 404
+
+
+# ── 数据库压缩 ──────────────────────────────────────────────────────────────
+
+@bp.route("/cleanup/vacuum", methods=["POST"])
+def cleanup_vacuum():
+    """压缩数据库，回收空闲页空间。"""
+    result = backup.vacuum_database(DB_PATH)
+    if result["success"]:
+        before_mb = round(result["before_size"] / 1024 / 1024, 2)
+        after_mb = round(result["after_size"] / 1024 / 1024, 2)
+        freed_mb = round(result["freed"] / 1024 / 1024, 2)
+        flash(
+            f"压缩成功：{before_mb} MB → {after_mb} MB，释放 {freed_mb} MB"
+            f"（已自动创建备份 {result['backup_filename']}）",
+            "success"
+        )
+    else:
+        flash(f"压缩失败：{result.get('error', '未知错误')}", "error")
+    return redirect(url_for("cleanup_flow_bp.cleanup_page"))

@@ -149,22 +149,26 @@
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ cp.phone }}', this)" title="复制">
             <i data-lucide="copy" aria-hidden="true"></i>
           </button>
-          {% if cp.is_primary %}
-            <span class="badge badge-soft badge-info">主电话</span>
-          {% elif cp.is_recommended %}
-            <span class="badge badge-soft badge-warn">推荐</span>
-          {% endif %}
-          {% if cp.dup_count > 1 %}
-            <span class="dup-count {{ 'dup-high' if cp.dup_count >= 5 else 'dup-mid' }}">{{ cp.dup_count }} 家共用</span>
-          {% else %}
-            <span class="phone-unique">唯一</span>
-          {% endif %}
+          <div class="phone-tags">
+            {% if cp.is_primary %}
+              <span class="phone-tag phone-tag-primary">主电话</span>
+            {% elif cp.is_recommended %}
+              <span class="phone-tag phone-tag-secondary">推荐</span>
+            {% endif %}
+            {% if cp.dup_count > 1 %}
+              <span class="dup-count {{ 'dup-high' if cp.dup_count >= 5 else 'dup-mid' }}">{{ cp.dup_count }} 家共用</span>
+            {% else %}
+              <span class="phone-unique">唯一</span>
+            {% endif %}
+          </div>
         </div>
         {% endfor %}
       </div>
     {% else %}
       <div class="muted">未登记电话</div>
     {% endif %}
+
+    <div class="contact-divider"></div>
 
     <div class="detail-grid detail-grid-3">
       <div class="detail-field">

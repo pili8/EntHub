@@ -6,6 +6,7 @@ import os
 import sys
 import signal
 import subprocess
+import json
 from pathlib import Path
 
 import rumps
@@ -13,7 +14,26 @@ from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
 
 PID_FILE = Path.home() / "Library" / "Application Support" / "EntHub" / "enthub.pid"
 LOG_FILE = Path.home() / "Library" / "Logs" / "EntHub.log"
+CONFIG_FILE = Path(__file__).parent / "config.json"
 URL = "http://127.0.0.1:5210"
+
+
+def _read_config() -> dict:
+    """读取项目根目录 config.json"""
+    if CONFIG_FILE.exists():
+        try:
+            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def _write_config(config: dict) -> None:
+    """写入 config.json"""
+    CONFIG_FILE.write_text(
+        json.dumps(config, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _open(path: str) -> None:
@@ -56,6 +76,19 @@ class EntHubMenuBar(rumps.App):
         self.status_item = rumps.MenuItem("服务运行中 · 5210")
         self.status_item.set_callback(None)
 
+        # 读取配置
+        config = _read_config()
+        auto_open = config.get("auto_open_web", False)
+        mark = "✓" if auto_open else "✗"
+
+        # 配置二级菜单
+        self.auto_open_item = rumps.MenuItem(
+            f"启动时自动打开Web {mark}", callback=self.on_toggle_auto_open
+        )
+        config_submenu = rumps.MenuItem("配置")
+        config_submenu.add(self.auto_open_item)
+        config_submenu.add(rumps.MenuItem("打开日志", callback=self.on_open_log))
+
         # 主菜单
         self.menu = [
             self.status_item,
@@ -63,21 +96,28 @@ class EntHubMenuBar(rumps.App):
             rumps.MenuItem("一键标注号码", callback=self.on_quick_annotate),
             None,
             rumps.MenuItem("打开控制台", callback=self.on_open_console),
-            rumps.MenuItem("数据管理", callback=self.on_open_data),
-            rumps.MenuItem("电话统计", callback=self.on_open_stats),
-            rumps.MenuItem("股东统计", callback=self.on_open_stats_shareholder),
+            rumps.MenuItem("备份管理", callback=self.on_open_backup),
+            config_submenu,
             None,
-            rumps.MenuItem("在 Finder 中查看数据", callback=self.on_open_data_dir),
-            rumps.MenuItem("打开日志", callback=self.on_open_log),
-            None,
+            rumps.MenuItem("重启服务", callback=self.on_restart),
             rumps.MenuItem("停止服务", callback=self.on_stop),
         ]
 
     # ── 菜单回调 ─────────────────────────────────────────────
     def on_open_console(self, _):  _open("/")
-    def on_open_data(self, _):     _open("/data")
-    def on_open_stats(self, _):    _open("/stats/phone")
-    def on_open_stats_shareholder(self, _): _open("/stats/shareholder")
+    def on_open_backup(self, _):   _open("/backup")
+    def on_restart(self, _):       _open("/restart")
+
+    def on_toggle_auto_open(self, _):
+        """切换启动时是否自动打开浏览器"""
+        config = _read_config()
+        new_val = not config.get("auto_open_web", False)
+        config["auto_open_web"] = new_val
+        _write_config(config)
+        mark = "✓" if new_val else "✗"
+        self.auto_open_item.title = f"启动时自动打开Web {mark}"
+        state = "开启" if new_val else "关闭"
+        rumps.notification("EntHub", f"启动时自动打开Web已{state}", "")
 
     def on_quick_annotate(self, _):
         """一键标注：从剪贴板读取 → 标注号码 → 写回剪贴板"""
@@ -179,11 +219,6 @@ class EntHubMenuBar(rumps.App):
             t.start()
         except Exception:
             pass
-
-    def on_open_data_dir(self, _):
-        data_dir = Path(__file__).parent / "data"
-        if data_dir.exists():
-            subprocess.Popen(["open", str(data_dir)])
 
     def on_open_log(self, _):
         if LOG_FILE.exists():

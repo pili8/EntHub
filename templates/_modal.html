@@ -110,12 +110,16 @@ document.addEventListener('keydown', (e) => {
 // 表单确认（用于替换 onsubmit="return confirm(...)"）
 function confirmSubmit(event, title, message) {
     event.preventDefault();
-    const form = event.target;
-    
+    // 从触发元素向上找 form：兼容 <form onsubmit> 和 <button onclick> 两种调用方式
+    // （button onclick 时 event.target 是按钮或其内部图标，直接用会取到非 form 元素，
+    //  导致 form.submit() 静默失败，表单永远提交不了）
+    const form = event.target.closest('form');
+    if (!form) return false;
+
     showConfirm(title, message, () => {
         form.submit();
     });
-    
+
     return false;
 }
 
