@@ -296,6 +296,94 @@ def browse_relation_groups():
             ) t
         """, [min_count, per_page, offset]).fetchall()
 
+    elif dup_type == "shareholder":
+        # 股东关联：通过 company_shareholders 表反查多家公司共用的股东
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT normalized_name FROM company_shareholders
+                WHERE normalized_name IS NOT NULL AND normalized_name <> ''
+                GROUP BY normalized_name HAVING COUNT(DISTINCT company_id) >= ?
+            )
+        """, [min_count]).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT t.val, t.display_val, t.cnt,
+                   (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                       SELECT c.name AS cname
+                       FROM company_shareholders cs2
+                       JOIN companies c ON c.id = cs2.company_id
+                       WHERE cs2.normalized_name = t.val LIMIT 10
+                   )) AS company_names
+            FROM (
+                SELECT cs.normalized_name AS val,
+                       MIN(cs.name)       AS display_val,
+                       COUNT(DISTINCT cs.company_id) AS cnt
+                FROM company_shareholders cs
+                WHERE cs.normalized_name IS NOT NULL AND cs.normalized_name <> ''
+                GROUP BY cs.normalized_name
+                HAVING cnt >= ?
+                ORDER BY {order_sql}
+                LIMIT ? OFFSET ?
+            ) t
+        """, [min_count, per_page, offset]).fetchall()
+
+    elif dup_type == "industry":
+        # 行业关联：同行业的公司分组
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT industry FROM companies
+                WHERE industry IS NOT NULL AND industry <> '' AND industry <> '-'
+                GROUP BY industry HAVING COUNT(*) >= ?
+            )
+        """, [min_count]).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT t.val, t.display_val, t.cnt,
+                   (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                       SELECT name AS cname FROM companies
+                       WHERE industry = t.val LIMIT 10
+                   )) AS company_names
+            FROM (
+                SELECT industry AS val,
+                       MIN(industry) AS display_val,
+                       COUNT(*) AS cnt
+                FROM companies
+                WHERE industry IS NOT NULL AND industry <> '' AND industry <> '-'
+                GROUP BY industry
+                HAVING cnt >= ?
+                ORDER BY {order_sql}
+                LIMIT ? OFFSET ?
+            ) t
+        """, [min_count, per_page, offset]).fetchall()
+
+    elif dup_type == "tag":
+        # 标签关联：通过 company_tags 表反查同一标签下的多家公司
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT tag_id FROM company_tags
+                GROUP BY tag_id HAVING COUNT(*) >= ?
+            )
+        """, [min_count]).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT t.val, t.display_val, t.cnt, t.tag_color,
+                   (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                       SELECT c.name AS cname
+                       FROM company_tags ct2
+                       JOIN companies c ON c.id = ct2.company_id
+                       WHERE ct2.tag_id = t.val LIMIT 10
+                   )) AS company_names
+            FROM (
+                SELECT ct.tag_id AS val,
+                       tg.name  AS display_val,
+                       tg.color AS tag_color,
+                       COUNT(*) AS cnt
+                FROM company_tags ct
+                JOIN tags tg ON ct.tag_id = tg.id
+                GROUP BY ct.tag_id
+                HAVING cnt >= ?
+                ORDER BY {order_sql}
+                LIMIT ? OFFSET ?
+            ) t
+        """, [min_count, per_page, offset]).fetchall()
+
     else:
         total = 0
         rows = []

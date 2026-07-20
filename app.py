@@ -3,6 +3,10 @@
 应用入口：创建 Flask 实例、注册蓝图、启动检查。
 具体路由分散在 routes/ 目录下的各蓝图模块。
 """
+import threading
+import time
+import urllib.request
+
 from flask import Flask, g
 
 from db import get_db, init_db, DB_PATH
@@ -40,9 +44,33 @@ def _startup_backup_check():
         print(f"[备份] 今日已备份，跳过")
 
 
+def _warmup_templates():
+    """启动后预热模板编译，避免用户首次访问感知到 5-10 秒延迟。
+
+    Flask debug 模式下首次访问每个模板都要现场编译（base.html + 子模板合计 700+ 行），
+    编译完缓存到内存，二次访问毫秒级。这个后台线程在服务就绪后主动触发关键页面编译。
+    """
+    time.sleep(8)  # 等服务完全就绪（debug 模式重启也要 3-5 秒）
+    pages = [
+        "http://127.0.0.1:5210/",
+        "http://127.0.0.1:5210/browse",
+        "http://127.0.0.1:5210/search",
+        "http://127.0.0.1:5210/browse/data",
+        "http://127.0.0.1:5210/stats/phone",
+    ]
+    for url in pages:
+        try:
+            urllib.request.urlopen(url, timeout=30).read()
+            print(f"[预热] {url}")
+        except Exception as e:
+            print(f"[预热失败] {url}: {e}")
+
+
 _startup_backup_check()
 
 
 if __name__ == "__main__":
     init_db()
+    # 后台预热模板（首次访问变快）
+    threading.Thread(target=_warmup_templates, daemon=True).start()
     app.run(host="127.0.0.1", port=5210, debug=True)

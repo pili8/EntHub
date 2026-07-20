@@ -1,38 +1,37 @@
-<!-- 关联分组视图 -->
-{% if groups %}
+<!-- 关联分组视图（HTMX 局部片段） -->
+{% if rows %}
 <div style="margin-top: 12px;">
     <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
         共 {{ '{:,}'.format(total) }} 组，当前显示第 {{ page }} / {{ pages }} 页
     </div>
     <div style="display: flex; flex-direction: column; gap: 8px;">
-        {% for group in groups %}
-        {% set company_names_list = group.company_names.split('、') %}
-        {% set company_ids_list = group.company_ids.split(',') %}
-        
-        <a href="{{ url_for('pages_bp.relation_group_detail', dup_type=dup_type, field_value=group.field_value) }}" 
-           class="relation-group" 
+        {% for row in rows %}
+        {% set names = (row.company_names or '').split('; ') if row.company_names else [] %}
+
+        <a href="{{ url_for('pages_bp.relation_group_detail', type=dup_type, val=row.val) }}"
+           class="relation-group"
            style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border); text-decoration: none; color: inherit; display: block; transition: all 0.2s;"
            onmouseover="this.style.borderColor='var(--accent)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'"
            onmouseout="this.style.borderColor='var(--border)'; this.style.boxShadow='none'">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
-                    {% if group.tag_color %}
-                    <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: {{ group.tag_color }}; margin-right: 6px; vertical-align: middle;"></span>
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                    {% if row.tag_color %}
+                    <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: {{ row.tag_color }}; flex-shrink: 0;"></span>
                     {% endif %}
-                    {{ field_icon }} {{ group.field_value or '-' }}
+                    <span>{{ row.display_val or row.val or '-' }}</span>
                 </div>
                 <div style="font-size: 12px; color: var(--text-muted);">
-                    关联 <span style="color: var(--accent); font-weight: 600;">{{ group.cnt }}</span> 家企业
+                    关联 <span style="color: var(--accent); font-weight: 600;">{{ row.cnt }}</span> 家企业
                     <i data-lucide="chevron-right" style="width:14px;height:14px; vertical-align: middle; margin-left: 4px;"></i>
                 </div>
             </div>
             <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.8;">
-                {% for name in company_names_list[:5] %}
+                {% for name in names[:5] %}
                 <span style="display: inline-block; margin-right: 8px; margin-bottom: 4px;">{{ name }}</span>
                 {% if not loop.last and loop.index < 5 %}<span style="color: var(--text-muted);">·</span>{% endif %}
                 {% endfor %}
-                {% if company_names_list|length > 5 %}
-                <span style="color: var(--text-muted);">... 等{{ company_names_list|length }}家</span>
+                {% if row.cnt > 5 %}
+                <span style="color: var(--text-muted);">... 等共 {{ row.cnt }} 家</span>
                 {% endif %}
             </div>
         </a>
@@ -41,20 +40,21 @@
 
     <!-- 分页 -->
     {% if pages > 1 %}
-    <div class="pagination" style="margin-top: 20px;">
-        <div class="pagination-info">
+    <div class="pagination" style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div class="pagination-info" style="font-size: 12px; color: var(--text-muted);">
             第 {{ page }} / {{ pages }} 页
-            <select onchange="changePerPage(this.value)" style="margin-left: 8px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">
+            <select onchange="changeRelationPerPage(this.value)" style="margin-left: 8px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">
                 <option value="10" {{ 'selected' if per_page == 10 }}>10组/页</option>
                 <option value="20" {{ 'selected' if per_page == 20 }}>20组/页</option>
+                <option value="25" {{ 'selected' if per_page == 25 }}>25组/页</option>
                 <option value="50" {{ 'selected' if per_page == 50 }}>50组/页</option>
                 <option value="100" {{ 'selected' if per_page == 100 }}>100组/页</option>
             </select>
         </div>
         <div class="pagination-links">
             {% if page > 1 %}
-            <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
-               hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
+            <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page-1) }}"
+               hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page-1) }}"
                hx-target="#relation-groups-container"
                hx-swap="innerHTML"
                hx-push-url="true">
@@ -63,8 +63,8 @@
             {% endif %}
             <span class="current">{{ page }}</span>
             {% if page < pages %}
-            <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
-               hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
+            <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page+1) }}"
+               hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort_by, per_page=per_page, page=page+1) }}"
                hx-target="#relation-groups-container"
                hx-swap="innerHTML"
                hx-push-url="true">
@@ -74,25 +74,19 @@
         </div>
     </div>
     <script>
-    function changePerPage(val) {
+    function changeRelationPerPage(val) {
         const url = new URL(window.location);
         url.searchParams.set('per_page', val);
         url.searchParams.set('page', '1');
         htmx.ajax('GET', url.pathname + '?' + url.searchParams.toString(), '#relation-groups-container');
-        
-        // 更新URL
         window.history.pushState({}, '', url.pathname + '?' + url.searchParams.toString());
     }
-    
-    // 重新初始化lucide图标
-    if (window.lucide) {
-        lucide.createIcons();
-    }
+    if (window.lucide) lucide.createIcons();
     </script>
     {% endif %}
 </div>
 {% else %}
 <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-    暂无{{ field_label }}关联数据
+    暂无关联数据（当前 min_count={{ min_count }}，可调低后重试）
 </div>
 {% endif %}
