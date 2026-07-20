@@ -154,20 +154,35 @@ class EntHubMenuBar(rumps.App):
             )
 
     def _notify_result(self, title, message):
-        """多渠道反馈：系统通知 + 菜单标题短暂变化 + 终端日志"""
+        """多渠道反馈：Toast 浮窗 + 系统通知 + 菜单标题短暂变化 + 终端日志"""
         # 1. 终端日志
         print(f"[EntHub] {title} | {message}", flush=True)
 
-        # 2. 系统通知（主反馈）
+        # 2. Toast 浮窗（不依赖系统通知权限，主要反馈方式）
+        try:
+            from toast import show_toast
+            # 根据标题判断类型
+            if title.startswith("✅") or "已标注" in title:
+                toast_type = "success"
+            elif title.startswith("⚠") or "未发现" in title:
+                toast_type = "warning"
+            elif title.startswith("❌"):
+                toast_type = "error"
+            else:
+                toast_type = "info"
+            show_toast(title, message, duration=2.5, type=toast_type)
+        except Exception as e:
+            print(f"[EntHub] Toast 显示失败: {e}", flush=True)
+
+        # 3. 系统通知（备用反馈）
         try:
             rumps.notification("EntHub 一键标注", title, message)
         except Exception as e:
-            print(f"[EntHub] 通知发送失败: {e}", flush=True)
+            print(f"[EntHub] 系统通知失败: {e}", flush=True)
 
-        # 3. 菜单标题短暂变化（备用反馈）
+        # 4. 菜单栏标题短暂变化（最次反馈）
         try:
             original_title = self.title
-            # 取标题前几个字作为状态指示
             short_status = title.split()[0] if title else "✓"
             self.title = f"EntHub {short_status}"
             import threading
