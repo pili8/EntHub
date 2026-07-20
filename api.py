@@ -348,6 +348,14 @@ _PHONE_RE = re.compile(
     re.ASCII
 )
 
+# 号码 + 已有标注：匹配 "电话号码 (N)" 整体，用于覆盖旧标注而非叠加
+# 例：13800138000 (3)、0817-5552288 (0)
+_PHONE_WITH_ANNOTATION_RE = re.compile(
+    _PHONE_RE.pattern +              # 已含号码边界 (?!\d)
+    r'(\s*\(\d+\))?',                # 可选的旧标注
+    re.ASCII
+)
+
 
 def _phone_dup_count(db, normalized_phone):
     """查询号码的重复数（从 company_phones 表）"""
@@ -436,12 +444,21 @@ def phone_count_text():
 
 
 def _extract_and_annotate(db, text):
-    """共享函数：提取号码 + 标注文本
+    """共享函数：提取号码 + 标注文本（自动覆盖已有标注，不叠加）
+
+    输入：
+        "电话 13800138000 (3) 另一个 13900139000"
+    输出：
+        "电话 13800138000 (新count) 另一个 13900139000 (新count)"
+
+    不会变成 "13800138000 (3) (新count)"。
+
     返回：(annotated_text, matches, unique_phones)
     """
     matches = []
-    for m in _PHONE_RE.finditer(text):
-        raw = m.group()
+    for m in _PHONE_WITH_ANNOTATION_RE.finditer(text):
+        # m.group(0) 是"号码 + 可选旧标注"整体，剥离掉末尾的 "(N)" 得到纯号码
+        raw = re.sub(r'\s*\(\d+\)$', '', m.group(0)).rstrip()
         norm = normalize_phone(raw)
         if not norm:
             continue
@@ -450,6 +467,7 @@ def _extract_and_annotate(db, text):
             "phone": raw,
             "normalized": norm,
             "count": count,
+            # 替换范围覆盖旧标注，整体替换为新标注，避免叠加
             "position": [m.start(), m.end()]
         })
 

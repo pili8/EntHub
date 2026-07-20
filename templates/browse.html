@@ -165,26 +165,72 @@ async function batchAddTag() {
   const checked = document.querySelectorAll('.row-select:checked');
   if (checked.length === 0) return;
 
-  const tagName = prompt('请输入要添加的标签名称：');
-  if (!tagName || !tagName.trim()) return;
-
-  const ids = Array.from(checked).map(c => c.value);
+  // 拉取已有标签列表
+  let tags = [];
   try {
-    const resp = await fetch('/api/companies/batch-add-tag', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ids, tag_name: tagName.trim() })
-    });
+    const resp = await fetch('/api/tags');
     const data = await resp.json();
-    if (data.code === 0) {
-      alert('成功为 ' + data.data.updated + ' 家企业添加标签「' + tagName.trim() + '」');
-      location.reload();
-    } else {
-      alert('操作失败：' + (data.message || '未知错误'));
-    }
+    tags = (data.data && data.data.results) || [];
   } catch (e) {
-    alert('请求失败：' + e.message);
+    alert('获取标签失败：' + e.message);
+    return;
   }
+
+  if (tags.length === 0) {
+    showConfirm('暂无标签', '还没有任何标签，请先到「<a href="/tags" target="_blank">标签管理</a>」页面创建后再使用批量打标。', () => {});
+    return;
+  }
+
+  // 渲染选择列表（带颜色点 + 名称）
+  const listHtml = tags.map(t => `
+    <div class="tag-select-item"
+         data-id="${t.id}" data-name="${escapeHtml(t.name)}"
+         onmouseover="this.style.background='var(--bg-hover, #f5f5f5)'; this.style.borderColor='var(--primary, #3b82f6)'"
+         onmouseout="this.style.background=''; this.style.borderColor='var(--border)'"
+         style="padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.15s;">
+      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${t.color || '#3b82f6'}; flex-shrink: 0;"></span>
+      <span>${escapeHtml(t.name)}</span>
+    </div>
+  `).join('');
+
+  showModal(`选择标签 · 为 ${checked.length} 家企业添加`, listHtml, [
+    { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' }
+  ]);
+
+  // 绑定每个标签的点击事件
+  document.querySelectorAll('.tag-select-item').forEach(item => {
+    item.onclick = async () => {
+      const tagId = parseInt(item.dataset.id, 10);
+      const tagName = item.dataset.name;
+      closeModal();
+
+      const ids = Array.from(checked).map(c => c.value);
+      try {
+        const resp = await fetch('/api/companies/batch-add-tag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: ids, tag_id: tagId })
+        });
+        const data = await resp.json();
+        if (data.code === 0) {
+          const updated = data.data && data.data.updated;
+          alert(`成功为 ${updated} 家企业添加标签「${tagName}」`);
+          location.reload();
+        } else {
+          alert('操作失败：' + (data.message || '未知错误'));
+        }
+      } catch (e) {
+        alert('请求失败：' + e.message);
+      }
+    };
+  });
+}
+
+// 防 XSS：转义标签名中的特殊字符
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
 }
 </script>
 {% endblock %}
