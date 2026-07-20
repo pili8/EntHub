@@ -192,18 +192,30 @@ def browse_relation_groups():
                 GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) >= ?
             )
         """, [min_count]).fetchone()[0]
+        # 子查询 LIMIT 10 截断：避免大组（如某号关联 532 家）GROUP_CONCAT 拖慢，
+        # 同时绕过 SQLite 3.51+ 不支持 GROUP_CONCAT(DISTINCT col, sep) 的限制
         rows = g.db.execute(f"""
-            SELECT cp.normalized_phone AS val,
-                   MIN(cp.phone)       AS display_val,
-                   COUNT(DISTINCT cp.company_id) AS cnt,
-                   GROUP_CONCAT(DISTINCT c.name, '; ') AS company_names
-            FROM company_phones cp
-            JOIN companies c ON cp.company_id = c.id
-            WHERE cp.normalized_phone IS NOT NULL AND cp.normalized_phone <> ''
-            GROUP BY cp.normalized_phone
-            HAVING cnt >= ?
-            ORDER BY {order_sql}
-            LIMIT ? OFFSET ?
+            SELECT t.normalized_phone AS val,
+                   t.display_val,
+                   t.cnt,
+                   (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                       SELECT c.name AS cname
+                       FROM company_phones cp2
+                       JOIN companies c ON c.id = cp2.company_id
+                       WHERE cp2.normalized_phone = t.normalized_phone
+                       LIMIT 10
+                   )) AS company_names
+            FROM (
+                SELECT cp.normalized_phone,
+                       MIN(cp.phone) AS display_val,
+                       COUNT(DISTINCT cp.company_id) AS cnt
+                FROM company_phones cp
+                WHERE cp.normalized_phone IS NOT NULL AND cp.normalized_phone <> ''
+                GROUP BY cp.normalized_phone
+                HAVING cnt >= ?
+                ORDER BY {order_sql}
+                LIMIT ? OFFSET ?
+            ) t
         """, [min_count, per_page, offset]).fetchall()
 
     elif dup_type == "email":
@@ -215,16 +227,22 @@ def browse_relation_groups():
             )
         """, [min_count]).fetchone()[0]
         rows = g.db.execute(f"""
-            SELECT normalized_email AS val,
-                   MIN(email)        AS display_val,
-                   COUNT(*)          AS cnt,
-                   GROUP_CONCAT(name, '; ') AS company_names
-            FROM companies
-            WHERE normalized_email IS NOT NULL AND normalized_email <> ''
-            GROUP BY normalized_email
-            HAVING cnt >= ?
-            ORDER BY {order_sql}
-            LIMIT ? OFFSET ?
+            SELECT t.val, t.display_val, t.cnt,
+                   (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                       SELECT name AS cname FROM companies
+                       WHERE normalized_email = t.val LIMIT 10
+                   )) AS company_names
+            FROM (
+                SELECT normalized_email AS val,
+                       MIN(email)        AS display_val,
+                       COUNT(*)          AS cnt
+                FROM companies
+                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+                GROUP BY normalized_email
+                HAVING cnt >= ?
+                ORDER BY {order_sql}
+                LIMIT ? OFFSET ?
+            ) t
         """, [min_count, per_page, offset]).fetchall()
 
     elif dup_type == "legal_person":
@@ -237,17 +255,23 @@ def browse_relation_groups():
             )
         """, [min_count]).fetchone()[0]
         rows = g.db.execute(f"""
-            SELECT normalized_legal_person AS val,
-                   MIN(legal_person)       AS display_val,
-                   COUNT(*)                AS cnt,
-                   GROUP_CONCAT(name, '; ') AS company_names
-            FROM companies
-            WHERE normalized_legal_person IS NOT NULL AND normalized_legal_person <> ''
-              AND normalized_legal_person <> '-'
-            GROUP BY normalized_legal_person
-            HAVING cnt >= ?
-            ORDER BY {order_sql}
-            LIMIT ? OFFSET ?
+            SELECT t.val, t.display_val, t.cnt,
+                   (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                       SELECT name AS cname FROM companies
+                       WHERE normalized_legal_person = t.val LIMIT 10
+                   )) AS company_names
+            FROM (
+                SELECT normalized_legal_person AS val,
+                       MIN(legal_person)       AS display_val,
+                       COUNT(*)                AS cnt
+                FROM companies
+                WHERE normalized_legal_person IS NOT NULL AND normalized_legal_person <> ''
+                  AND normalized_legal_person <> '-'
+                GROUP BY normalized_legal_person
+                HAVING cnt >= ?
+                ORDER BY {order_sql}
+                LIMIT ? OFFSET ?
+            ) t
         """, [min_count, per_page, offset]).fetchall()
 
     else:

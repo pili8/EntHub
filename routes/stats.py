@@ -44,18 +44,30 @@ def stats_shareholder():
 
     pages, offset = paginate(total, page, PER_PAGE)
 
+    # 子查询 LIMIT 10 截断：避免大组 GROUP_CONCAT 拖慢，同时绕过
+    # SQLite 3.51+ 不支持 GROUP_CONCAT(DISTINCT col, sep) 的限制
     rows = g.db.execute("""
-        SELECT cs.normalized_name,
-               MIN(cs.name) AS display_name,
-               COUNT(DISTINCT cs.company_id) AS cnt,
-               GROUP_CONCAT(DISTINCT c.name, '; ') AS company_names
-        FROM company_shareholders cs
-        JOIN companies c ON cs.company_id = c.id
-        WHERE cs.normalized_name IS NOT NULL AND cs.normalized_name <> ''
-        GROUP BY cs.normalized_name
-        HAVING cnt >= ?
-        ORDER BY cnt DESC
-        LIMIT ? OFFSET ?
+        SELECT t.normalized_name,
+               t.display_name,
+               t.cnt,
+               (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                   SELECT c.name AS cname
+                   FROM company_shareholders cs2
+                   JOIN companies c ON c.id = cs2.company_id
+                   WHERE cs2.normalized_name = t.normalized_name
+                   LIMIT 10
+               )) AS company_names
+        FROM (
+            SELECT cs.normalized_name,
+                   MIN(cs.name) AS display_name,
+                   COUNT(DISTINCT cs.company_id) AS cnt
+            FROM company_shareholders cs
+            WHERE cs.normalized_name IS NOT NULL AND cs.normalized_name <> ''
+            GROUP BY cs.normalized_name
+            HAVING cnt >= ?
+            ORDER BY cnt DESC
+            LIMIT ? OFFSET ?
+        ) t
     """, [min_count, PER_PAGE, offset]).fetchall()
 
     return render_template("stats_shareholder.html", rows=rows,

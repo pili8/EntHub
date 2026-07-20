@@ -284,19 +284,30 @@ def phone_stats_grouped(db, page, per_page, min_count):
     pages = max(1, math.ceil(total / per_page))
     offset = (page - 1) * per_page
 
+    # 子查询 LIMIT 10 截断：避免大组（如某号关联 532 家）GROUP_CONCAT 拖慢，
+    # 同时绕过 SQLite 3.51+ 不支持 GROUP_CONCAT(DISTINCT col, sep) 的限制
     rows = db.execute("""
-        SELECT
-            cp.normalized_phone,
-            MIN(cp.phone)     AS display_phone,
-            COUNT(*)          AS cnt,
-            GROUP_CONCAT(DISTINCT c.name) AS company_names
-        FROM company_phones cp
-        JOIN companies c ON cp.company_id = c.id
-        WHERE cp.normalized_phone IS NOT NULL AND cp.normalized_phone <> ''
-        GROUP BY cp.normalized_phone
-        HAVING cnt >= ?
-        ORDER BY cnt DESC
-        LIMIT ? OFFSET ?
+        SELECT t.normalized_phone,
+               t.display_phone,
+               t.cnt,
+               (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                   SELECT c.name AS cname
+                   FROM company_phones cp2
+                   JOIN companies c ON c.id = cp2.company_id
+                   WHERE cp2.normalized_phone = t.normalized_phone
+                   LIMIT 10
+               )) AS company_names
+        FROM (
+            SELECT cp.normalized_phone,
+                   MIN(cp.phone) AS display_phone,
+                   COUNT(*) AS cnt
+            FROM company_phones cp
+            WHERE cp.normalized_phone IS NOT NULL AND cp.normalized_phone <> ''
+            GROUP BY cp.normalized_phone
+            HAVING cnt >= ?
+            ORDER BY cnt DESC
+            LIMIT ? OFFSET ?
+        ) t
     """, [min_count, per_page, offset]).fetchall()
 
     return total, pages, rows
