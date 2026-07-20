@@ -257,6 +257,116 @@ id, name, phone, address, credit_code, legal_person, city, matched_field
 
 ---
 
+### 8️⃣ 电话重复数查询（3 个端点）
+
+#### `GET /api/phone_count` — 单号码查询
+
+```bash
+curl "http://127.0.0.1:5210/api/phone_count?phone=13800138000"
+```
+
+```json
+{
+  "code": 0,
+  "data": {
+    "phone": "13800138000",
+    "normalized": "13800138000",
+    "count": 3
+  }
+}
+```
+
+#### `POST /api/phone_count_batch` — 批量号码查询
+
+```bash
+curl -X POST "http://127.0.0.1:5210/api/phone_count_batch" \
+  -H "Content-Type: application/json" \
+  -d '{"phones": ["13800138000", "0571-88889999"]}'
+```
+
+```json
+{
+  "code": 0,
+  "data": {
+    "results": [
+      {"phone": "13800138000", "normalized": "13800138000", "count": 3},
+      {"phone": "0571-88889999", "normalized": "057188889999", "count": 0}
+    ]
+  }
+}
+```
+
+#### `POST /api/phone_count_text` — 文本标注（JSON）
+
+```bash
+curl -X POST "http://127.0.0.1:5210/api/phone_count_text" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "联系张三 13800138000 或李四 0571-88889999"}'
+```
+
+```json
+{
+  "code": 0,
+  "data": {
+    "original_text": "...",
+    "annotated_text": "联系张三 13800138000 (3) 或李四 0571-88889999 (0)",
+    "phones": [...],
+    "phone_count": 2
+  }
+}
+```
+
+---
+
+### 9️⃣ 快速标注：`GET/POST /api/annotate` ⭐ 推荐
+
+**纯文本接口**（非 JSON），命令行友好，管道友好。
+
+#### 入参方式（自动识别）
+
+| Content-Type | 入参 | 适用场景 |
+|------|------|---------|
+| GET `?text=xxx` | URL 参数 | 短文本，浏览器测试 |
+| `application/json` | `{"text": "..."}` | 程序调用 |
+| `text/plain` 或无 | raw body | curl --data-binary |
+| 管道 stdin | raw body | `pbpaste \| curl` |
+
+#### 用法示例
+
+```bash
+# 1. 📋 剪贴板一键标注（最常用）
+pbpaste | curl -s -X POST http://127.0.0.1:5210/api/annotate --data-binary @- | pbcopy
+
+# 2. 🌐 GET 方式
+curl "http://127.0.0.1:5210/api/annotate?text=联系 13800138000"
+# 返回：联系 13800138000 (3)
+
+# 3. 📄 从文件读取
+cat 联系人.txt | curl -s -X POST http://127.0.0.1:5210/api/annotate --data-binary @-
+
+# 4. 🔧 POST JSON
+curl -X POST http://127.0.0.1:5210/api/annotate \
+  -H "Content-Type: application/json" \
+  -d '{"text": "联系 13800138000"}'
+```
+
+#### 返回值
+
+- ✅ 成功：`HTTP 200`，纯文本（标注后的原文）
+- ❌ 失败：`HTTP 400/500`，纯文本错误信息（如 `错误：文本为空`）
+
+#### 推荐用法
+
+加到 `~/.zshrc`：
+
+```bash
+alias annotate='pbpaste | curl -s -X POST http://127.0.0.1:5210/api/annotate --data-binary @- | pbcopy && echo "已标注并复制到剪贴板"'
+```
+
+复制文本后，终端输入 `annotate` 即可。
+
+---
+
 ## 四、实施顺序
 
 | 阶段 | 内容 | 依赖 |

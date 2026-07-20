@@ -94,6 +94,10 @@ cd ~/AI/EntHub && ./start.sh
 | GET | `/api/stats/shareholder` | 股东统计 |
 | GET | `/api/stats/industry` | 行业统计 |
 | GET | `/api/phone_stats` | 电话重复统计 |
+| GET | `/api/phone_count?phone=xxx` | 单号码重复数查询 |
+| POST | `/api/phone_count_batch` | 批量号码重复数查询 |
+| POST | `/api/phone_count_text` | 文本标注（JSON） |
+| GET/POST | `/api/annotate` ⭐ | **快速标注（纯文本，命令行友好）** |
 | GET | `/api/tags` | 标签列表 |
 | POST | `/api/tags` | 创建标签 |
 | PUT | `/api/tags/<id>` | 修改标签 |
@@ -120,6 +124,9 @@ curl "http://127.0.0.1:5210/api/relations?type=legal_person&value=张三"
 
 # 行业统计
 curl "http://127.0.0.1:5210/api/stats/industry?min_count=5"
+
+# 📋 剪贴板一键标注号码（最常用）
+pbpaste | curl -s -X POST http://127.0.0.1:5210/api/annotate --data-binary @- | pbcopy
 ```
 
 > 详细文档见 [docs/API.md](docs/API.md)
