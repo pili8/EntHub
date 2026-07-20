@@ -43,11 +43,6 @@
     <thead>
       <tr>
         <th class="col-check"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width: 16px; height: 16px; cursor: pointer;" title="全选当前页"></th>
-        <th class="col-id">
-          <a href="?sort=id&dir={{ 'asc' if sort=='id' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
-            ID {% if sort=='id' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
-          </a>
-        </th>
         <th class="col-name">
           <a href="?sort=name&dir={{ 'asc' if sort=='name' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
             企业名称 {% if sort=='name' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
@@ -60,14 +55,22 @@
         <th class="col-status">状态</th>
         <th class="col-date">成立日期</th>
         <th class="col-industry">行业</th>
+        <th class="col-id">
+          <a href="?sort=id&dir={{ 'asc' if sort=='id' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            ID {% if sort=='id' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
       </tr>
     </thead>
     <tbody>
       {% for r in rows %}
-      <tr>
-        <td><input type="checkbox" class="row-select" value="{{ r.id }}" onchange="updateToolbar()"></td>
-        <td title="{{ r.id }}">#{{ '%08d' % r.id }}</td>
-        <td title="{{ r.name }}"><a href="{{ url_for('companies_bp.company_detail', company_id=r.id) }}">{{ r.name }}</a></td>
+      <tr data-href="{{ url_for('companies_bp.company_detail', company_id=r.id) }}"
+          class="browse-row"
+          onclick="handleBrowseRowClick(event, this)">
+        <td onclick="event.stopPropagation()">
+          <input type="checkbox" class="row-select" value="{{ r.id }}" onchange="updateToolbar()">
+        </td>
+        <td title="{{ r.name }}">{{ r.name }}</td>
         <td title="{{ r.phone or '' }}">{{ r.phone or '-' }}</td>
         <td title="{{ r.legal_person or '' }}">{{ r.legal_person or '-' }}</td>
         <td title="{{ r.city or '' }} {{ r.district or '' }}">{{ r.city or '-' }}{% if r.district and r.district != '-' %} {{ r.district }}{% endif %}</td>
@@ -75,6 +78,9 @@
         <td>{{ r.business_status or '-' }}</td>
         <td>{{ r.established_date or '-' }}</td>
         <td title="{{ r.industry or '' }}">{{ r.industry or '-' }}</td>
+        <td title="{{ r.id }}" onclick="event.stopPropagation()">
+          <a href="{{ url_for('companies_bp.company_detail', company_id=r.id) }}">#{{ '%08d' % r.id }}</a>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -130,3 +136,13 @@
     </span>
   </div>
 </div>
+
+<style>
+/* 整行点击样式：hover 高亮，提示可点击 */
+.browse-table tbody tr.browse-row {
+  cursor: pointer;
+}
+.browse-table tbody tr.browse-row:hover {
+  background: var(--bg-hover, #f5f7fa);
+}
+</style>

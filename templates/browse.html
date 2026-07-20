@@ -7,7 +7,17 @@
 
 {# ===== 筛选条件（带缓存，命中后毫秒级返回）===== #}
 <form class="browse-filters" method="GET" action="/browse" id="filter-form">
-  <div style="font-weight: 600; margin-bottom: 10px; font-size: 15px;">筛选条件</div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <div style="font-weight: 600; font-size: 15px;">筛选条件</div>
+    {# 重置按钮：清空所有筛选 + 清掉 localStorage 记忆 #}
+    <a href="/browse?reset=1" id="reset-filters-btn"
+       style="font-size: 12px; color: var(--text-muted); text-decoration: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;"
+       onmouseover="this.style.color='var(--danger, #dc2626)'; this.style.borderColor='var(--danger, #dc2626)'"
+       onmouseout="this.style.color='var(--text-muted)'; this.style.borderColor='var(--border)'"
+       title="清空所有筛选条件">
+      ✕ 清空筛选
+    </a>
+  </div>
 
   {# 第一行：枚举型筛选 #}
   <div class="browse-filter-row">
@@ -91,8 +101,56 @@
 .htmx-indicator { opacity: 1 !important; }
 </style>
 
-{# ===== 脚本：批量操作（被 _browse_data.html 复用）===== #}
+{# ===== 脚本：批量操作、整行点击、筛选记忆（被 _browse_data.html 复用）===== #}
 <script>
+// ── 筛选条件记忆（localStorage）──────────────────────────────────────────
+// 进入浏览页时自动应用上次保存的筛选；切换筛选时保存；点"清空筛选"时清除
+(function() {
+  const STORAGE_KEY = 'enthub_browse_filters';
+  const currentSearch = window.location.search;
+
+  // URL 含 reset=1 → 用户主动清空，删除记忆并跳到干净 URL
+  if (new URLSearchParams(currentSearch).get('reset') === '1') {
+    localStorage.removeItem(STORAGE_KEY);
+    // 重定向到无参数的 /browse（避免地址栏一直挂着 reset=1）
+    history.replaceState(null, '', '/browse');
+    return;
+  }
+
+  // 当前 URL 有筛选参数 → 保存到 localStorage（数据端点请求也会保存）
+  const params = new URLSearchParams(currentSearch);
+  const hasFilter = ['city','district','business_status','industry',
+                     'year_from','year_to','cap_from','cap_to',
+                     'insured_from','insured_to','sort','dir','per_page']
+    .some(k => params.has(k));
+
+  if (hasFilter) {
+    localStorage.setItem(STORAGE_KEY, currentSearch);
+    return;
+  }
+
+  // 当前 URL 没有筛选 → 检查是否有保存的记忆
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved && saved.length > 1) {
+    // 用 replace 避免产生额外历史记录（用户点"返回"能回到来源页）
+    window.location.replace('/browse' + saved);
+  }
+})();
+
+// ── 整行点击：跳转到企业详情 ──────────────────────────────────────────────
+// 行内的复选框、ID 列链接已经用 stopPropagation 排除，不会冲突
+function handleBrowseRowClick(event, row) {
+  // 中键点击 → 在新标签打开
+  if (event.button === 1 || event.ctrlKey || event.metaKey) {
+    window.open(row.dataset.href, '_blank');
+    event.preventDefault();
+    return;
+  }
+  // 左键点击 → 当前页跳转
+  window.location.href = row.dataset.href;
+}
+
+// ── 分页 / 选择 / 工具栏 ──────────────────────────────────────────────────
 function changePerPage(n) {
   const params = new URLSearchParams(location.search);
   params.set('per_page', n);
@@ -101,8 +159,7 @@ function changePerPage(n) {
 }
 
 function toggleSelectAll(el) {
-  const checks = document.querySelectorAll('.row-select');
-  checks.forEach(c => { c.checked = el.checked; });
+  document.querySelectorAll('.row-select').forEach(c => { c.checked = el.checked; });
   updateToolbar();
 }
 
@@ -131,33 +188,37 @@ async function batchDelete() {
   if (checked.length === 0) return;
 
   const count = checked.length;
-  const secondConfirm = count > 50;
-
-  const msg1 = '确认删除选中的 ' + count + ' 家企业？此操作不可撤销。';
-  const ok1 = showConfirm(msg1);
-  if (!ok1) return;
-
-  if (secondConfirm) {
-    const msg2 = '⚠️ 即将删除 ' + count + ' 家企业，数据量较大，确认继续？';
-    const ok2 = showConfirm(msg2);
-    if (!ok2) return;
-  }
-
   const ids = Array.from(checked).map(c => c.value);
-  try {
-    const resp = await fetch('/api/companies/batch-delete', {
+
+  // showConfirm 是异步的（用 callback），需要分层确认
+  const doDelete = () => {
+    fetch('/api/companies/batch-delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: ids })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.code === 0) {
+        alert('已删除 ' + (data.data.deleted || ids.length) + ' 家企业');
+        location.reload();
+      } else {
+        alert('删除失败：' + (data.message || '未知错误'));
+      }
+    })
+    .catch(e => alert('请求失败：' + e.message));
+  };
+
+  const msg1 = '确认删除选中的 ' + count + ' 家企业？此操作不可撤销。';
+  if (count > 50) {
+    // 超过 50 家，二次确认
+    showConfirm('⚠️ 大批量删除确认', msg1, () => {
+      showConfirm('再次确认',
+        '⚠️ 即将删除 <b style="color:var(--danger, #dc2626)">' + count + '</b> 家企业，数据量较大，确认继续？',
+        doDelete);
     });
-    const data = await resp.json();
-    if (data.code === 0) {
-      location.reload();
-    } else {
-      alert('删除失败：' + (data.message || '未知错误'));
-    }
-  } catch (e) {
-    alert('请求失败：' + e.message);
+  } else {
+    showConfirm('删除企业', msg1, doDelete);
   }
 }
 
