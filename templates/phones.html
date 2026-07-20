@@ -151,16 +151,16 @@
     </div>
 </div>
 
-<!-- API 调用说明（默认折叠） -->
-<div class="card" style="padding: 0; margin-top: 16px; overflow: hidden;">
-    <button id="api-docs-toggle" type="button" style="width: 100%; padding: 16px 24px; background: transparent; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 600; color: var(--text-primary); outline: none;">
+<!-- API 调用说明（默认折叠，HTML5 原生 details 标签） -->
+<details id="api-docs-details" style="margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface);">
+    <summary style="padding: 16px 24px; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; list-style: none; user-select: none;">
         <span style="display: flex; align-items: center; gap: 8px;">
             <i data-lucide="code" style="width: 18px; height: 18px;"></i>
             API 调用说明
         </span>
-        <i id="api-docs-chevron" data-lucide="chevron-down" style="width: 16px; height: 16px; transition: transform 0.2s; color: var(--text-muted);"></i>
-    </button>
-    <div id="api-docs-content" style="display: none; padding: 0 24px 24px;">
+        <i data-lucide="chevron-down" style="width: 16px; height: 16px; color: var(--text-muted); transition: transform 0.2s;"></i>
+    </summary>
+    <div style="padding: 0 24px 24px;">
         <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
             所有 API 返回统一 JSON 格式 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">{"code": 0, "message": "ok", "data": {...}}</code>（<code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">/api/annotate</code> 除外，返回纯文本）。
         </p>
@@ -266,7 +266,8 @@ for item in r.json()["data"]["results"]:
     print(f"{item['phone']} → {item['count']}次")</code></pre>
         </div>
     </div>
-</div>
+    </div>
+</details>
 
 {% endblock %}
 
@@ -337,37 +338,7 @@ function showTextResult(data, inputText) {
     updateResultBadge(data.phone_count);
 }
 
-// API 说明折叠/展开（IIFE 立即绑定，避免 SPA 切换后失效）
-(function setupApiDocsToggle() {
-    const btn = document.getElementById('api-docs-toggle');
-    if (!btn) return;
-    // 避免重复绑定
-    if (btn._enthubToggleBound) return;
-    btn._enthubToggleBound = true;
-    btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        const content = document.getElementById('api-docs-content');
-        const chevron = document.getElementById('api-docs-chevron');
-        if (!content) return;
-        const isHidden = content.style.display === 'none';
-        content.style.display = isHidden ? 'block' : 'none';
-        if (chevron) {
-            chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-        }
-    });
-})();
-function toggleApiDocs(evt) {
-    // 兼容旧调用（如果 onclick 还在）
-    if (evt && evt.preventDefault) evt.preventDefault();
-    const content = document.getElementById('api-docs-content');
-    const chevron = document.getElementById('api-docs-chevron');
-    if (!content) return;
-    const isHidden = content.style.display === 'none';
-    content.style.display = isHidden ? 'block' : 'none';
-    if (chevron) {
-        chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-    }
-}
+// API 说明折叠/展开：使用 HTML5 <details> 原生组件，无需 JS
 
 // 单号码查询
 async function querySinglePhone(evt) {
@@ -597,7 +568,6 @@ window.queryBatchPhones = queryBatchPhones;
 window.annotateText = annotateText;
 window.copyAnnotated = copyAnnotated;
 window.clearTextInput = clearTextInput;
-window.toggleApiDocs = toggleApiDocs;
 
 // ── 初始化 ──
 setupAutoAnnotate();
@@ -606,6 +576,20 @@ setupAutoAnnotate();
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* API 折叠区（HTML5 details 原生组件） */
+#api-docs-details > summary {
+    list-style: none;
+}
+#api-docs-details > summary::-webkit-details-marker {
+    display: none;
+}
+#api-docs-details > summary::marker {
+    display: none;
+}
+#api-docs-details[open] > summary i[data-lucide="chevron-down"] {
+    transform: rotate(180deg);
 }
 </style>
 {% endblock %}
