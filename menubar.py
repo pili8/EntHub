@@ -92,12 +92,12 @@ class EntHubMenuBar(rumps.App):
             text = subprocess.check_output(["pbpaste"]).decode("utf-8")
         except Exception as e:
             print(f"[EntHub] 读取剪贴板失败: {e}", flush=True)
-            self._notify_result("❌ 读取剪贴板失败", str(e))
+            self._notify_result("读取剪贴板失败", type="error")
             return
 
         if not text.strip():
             print("[EntHub] 剪贴板为空", flush=True)
-            self._notify_result("⚠️ 剪贴板为空", "请先复制包含电话号码的文本")
+            self._notify_result("剪贴板为空", type="warning")
             return
 
         print(f"[EntHub] 剪贴板内容长度: {len(text)} 字", flush=True)
@@ -114,17 +114,17 @@ class EntHubMenuBar(rumps.App):
                 data = json.loads(resp.read())
         except urllib.error.URLError:
             print("[EntHub] 服务未运行", flush=True)
-            self._notify_result("❌ 服务未运行", "请先启动 EntHub 服务")
+            self._notify_result("服务未运行", type="error")
             return
         except Exception as e:
             print(f"[EntHub] API 调用失败: {e}", flush=True)
-            self._notify_result("❌ API 调用失败", str(e))
+            self._notify_result("API 调用失败", type="error")
             return
 
         if data.get("code") != 0:
             msg = data.get("message", "未知错误")
             print(f"[EntHub] 标注失败: {msg}", flush=True)
-            self._notify_result("❌ 标注失败", msg)
+            self._notify_result("标注失败", type="error")
             return
 
         annotated = data["data"]["annotated_text"]
@@ -138,57 +138,42 @@ class EntHubMenuBar(rumps.App):
             proc.communicate(annotated.encode("utf-8"))
         except Exception as e:
             print(f"[EntHub] 写入剪贴板失败: {e}", flush=True)
-            self._notify_result("❌ 写入剪贴板失败", str(e))
+            self._notify_result("写入剪贴板失败", type="error")
             return
 
         # 4. 多渠道反馈
         if phone_count == 0:
-            self._notify_result(
-                "⚠️ 未发现电话号码",
-                f"已处理 {len(text)} 字文本"
-            )
+            self._notify_result("未发现电话号码", type="warning")
         else:
-            self._notify_result(
-                f"✅ 已标注 {phone_count} 个号码",
-                "结果已写回剪贴板，可直接粘贴使用"
-            )
+            self._notify_result(f"已标注 {phone_count} 个号码", type="success")
 
-    def _notify_result(self, title, message):
+    def _notify_result(self, message, type="info"):
         """多渠道反馈：Toast 浮窗 + 系统通知 + 菜单标题短暂变化 + 终端日志"""
         # 1. 终端日志
-        print(f"[EntHub] {title} | {message}", flush=True)
+        print(f"[EntHub] {message}", flush=True)
 
-        # 2. Toast 浮窗（不依赖系统通知权限，主要反馈方式）
+        # 2. Toast 浮窗（主反馈，屏幕居中，紧凑）
         try:
             from toast import show_toast
-            # 根据标题判断类型
-            if title.startswith("✅") or "已标注" in title:
-                toast_type = "success"
-            elif title.startswith("⚠") or "未发现" in title:
-                toast_type = "warning"
-            elif title.startswith("❌"):
-                toast_type = "error"
-            else:
-                toast_type = "info"
-            show_toast(title, message, duration=2.5, type=toast_type)
+            show_toast(message, duration=1.8, type=type)
         except Exception as e:
             print(f"[EntHub] Toast 显示失败: {e}", flush=True)
 
         # 3. 系统通知（备用反馈）
         try:
-            rumps.notification("EntHub 一键标注", title, message)
+            rumps.notification("EntHub", message, "")
         except Exception as e:
             print(f"[EntHub] 系统通知失败: {e}", flush=True)
 
         # 4. 菜单栏标题短暂变化（最次反馈）
         try:
             original_title = self.title
-            short_status = title.split()[0] if title else "✓"
-            self.title = f"EntHub {short_status}"
+            icon = {"success": "✓", "warning": "⚠", "error": "✗", "info": "·"}.get(type, "·")
+            self.title = f"EntHub {icon}"
             import threading
             def restore():
                 import time
-                time.sleep(2)
+                time.sleep(1.5)
                 self.title = original_title
             t = threading.Thread(target=restore, daemon=True)
             t.start()
