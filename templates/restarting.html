@@ -35,7 +35,7 @@ const timer = setInterval(() => {
     if (countdown <= 0) {
         clearInterval(timer);
         // 刷新页面
-        window.location.href = '{{ url_for("index") }}';
+        window.location.href = '{{ url_for('pages_bp.index') }}';
     }
 }, 1000);
 </script>

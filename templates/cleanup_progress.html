@@ -35,7 +35,7 @@
         <div style="font-size: 48px; margin: 24px 0;">✅</div>
         <div style="font-size: 18px; font-weight: 600; margin-bottom: 16px;" id="done-title">清理完成</div>
         <div id="done-stats" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; text-align: left;"></div>
-        <a href="{{ url_for('index') }}" class="btn btn-primary" style="margin-top: 16px; padding: 10px 32px; font-size: 15px;">
+        <a href="{{ url_for('pages_bp.index') }}" class="btn btn-primary" style="margin-top: 16px; padding: 10px 32px; font-size: 15px;">
             返回首页
         </a>
     </div>
@@ -44,7 +44,7 @@
         <div style="font-size: 48px; margin: 24px 0;">❌</div>
         <div style="font-size: 18px; font-weight: 600; color: var(--danger); margin-bottom: 8px;">清理失败</div>
         <div id="error-msg" style="color: var(--text-secondary); margin-bottom: 16px;"></div>
-        <a href="{{ url_for('cleanup_page') }}" class="btn btn-primary">返回</a>
+        <a href="{{ url_for('cleanup_flow_bp.cleanup_page') }}" class="btn btn-primary">返回</a>
     </div>
 </div>
 
@@ -73,8 +73,8 @@
 
 <script>
 (function() {
-    const streamUrl = "{{ url_for('cleanup_stream') }}";
-    const stopUrl = "{{ url_for('cleanup_stop') }}";
+    const streamUrl = "{{ url_for('cleanup_flow_bp.cleanup_stream') }}";
+    const stopUrl = "{{ url_for('cleanup_flow_bp.cleanup_stop') }}";
     const source = new EventSource(streamUrl);
 
     source.addEventListener('start', function(e) {

@@ -19,7 +19,7 @@
   </header>
 
   <!-- ─────────── Big Search ─────────── -->
-  <form action="{{ url_for('search') }}" method="get" class="lh-search" role="search">
+  <form action="{{ url_for('pages_bp.search') }}" method="get" class="lh-search" role="search">
     <div class="lh-search-field">
       <i data-lucide="search" class="lh-search-icon" aria-hidden="true"></i>
       <input type="text" name="q" class="lh-search-input"
@@ -50,7 +50,7 @@
 
     <div class="lh-grid">
 
-      <a href="{{ url_for('search') }}" class="lh-card">
+      <a href="{{ url_for('pages_bp.search') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--warm">
           <i data-lucide="search" aria-hidden="true"></i>
         </span>
@@ -61,7 +61,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('add_company') }}" class="lh-card">
+      <a href="{{ url_for('companies_bp.add_company') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--leaf">
           <i data-lucide="plus" aria-hidden="true"></i>
         </span>
@@ -72,7 +72,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('import_page') }}" class="lh-card">
+      <a href="{{ url_for('import_flow_bp.import_page') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--sky">
           <i data-lucide="upload" aria-hidden="true"></i>
         </span>
@@ -83,7 +83,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('stats_phone') }}" class="lh-card">
+      <a href="{{ url_for('stats_bp.stats_phone') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--coral">
           <i data-lucide="phone" aria-hidden="true"></i>
         </span>
@@ -94,7 +94,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('stats_shareholder') }}" class="lh-card">
+      <a href="{{ url_for('stats_bp.stats_shareholder') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--sky">
           <i data-lucide="users" aria-hidden="true"></i>
         </span>
@@ -105,7 +105,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('browse') }}" class="lh-card">
+      <a href="{{ url_for('pages_bp.browse') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--ink">
           <i data-lucide="table" aria-hidden="true"></i>
         </span>
@@ -116,7 +116,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('backup_page') }}" class="lh-card">
+      <a href="{{ url_for('backup_flow_bp.backup_page') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--stone">
           <i data-lucide="database" aria-hidden="true"></i>
         </span>
@@ -127,7 +127,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
-      <a href="{{ url_for('cleanup_page') }}" class="lh-card">
+      <a href="{{ url_for('cleanup_flow_bp.cleanup_page') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--coral">
           <i data-lucide="trash-2" aria-hidden="true"></i>
         </span>
@@ -175,7 +175,7 @@
     <h2 class="lh-section-title">最近查询</h2>
     <div class="lh-recent">
       {% for r in recents %}
-      <a href="{{ url_for('search', q=r.q) }}" class="lh-recent-row">
+      <a href="{{ url_for('pages_bp.search', q=r.q) }}" class="lh-recent-row">
         <span class="lh-recent-icon">
           {% if r.query_type == 'phone' %}
             <i data-lucide="phone" aria-hidden="true"></i>
@@ -192,7 +192,7 @@
         </span>
       </a>
       {% endfor %}
-      <form action="{{ url_for('recent_clear') }}" method="post" class="lh-recent-clear">
+      <form action="{{ url_for('pages_bp.recent_clear') }}" method="post" class="lh-recent-clear">
         <button type="submit" class="lh-recent-clear-btn">清空记录</button>
       </form>
     </div>

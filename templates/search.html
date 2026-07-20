@@ -19,7 +19,7 @@
     </p>
   </header>
 
-  <form action="{{ url_for('search') }}" method="get" class="search-form" role="search">
+  <form action="{{ url_for('pages_bp.search') }}" method="get" class="search-form" role="search">
     <div class="lh-search-field">
       <i data-lucide="search" class="lh-search-icon" aria-hidden="true"></i>
       <input type="text" name="q" class="lh-search-input"
@@ -32,7 +32,7 @@
   {% if rows %}
   <section class="result-list">
     {% for row in rows %}
-    <a href="{{ url_for('company_detail', company_id=row.id) }}" class="result-card">
+    <a href="{{ url_for('companies_bp.company_detail', company_id=row.id) }}" class="result-card">
       <div class="result-card-main">
         <div class="result-card-head">
           <span class="result-card-name">{{ row.name }}</span>
@@ -76,12 +76,12 @@
     </div>
     <div class="pagination-links">
       {% if page > 1 %}
-        <a href="{{ url_for('search', q=q, page=page-1) }}" class="page-btn">
+        <a href="{{ url_for('pages_bp.search', q=q, page=page-1) }}" class="page-btn">
           <i data-lucide="chevron-left" aria-hidden="true"></i>上一页
         </a>
       {% endif %}
       {% if page < pages %}
-        <a href="{{ url_for('search', q=q, page=page+1) }}" class="page-btn page-btn-primary">
+        <a href="{{ url_for('pages_bp.search', q=q, page=page+1) }}" class="page-btn page-btn-primary">
           下一页<i data-lucide="chevron-right" aria-hidden="true"></i>
         </a>
       {% endif %}

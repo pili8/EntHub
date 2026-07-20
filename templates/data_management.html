@@ -19,7 +19,7 @@
             <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;">
                 备份路径：<code>{{ backup_dir }}</code>
             </p>
-            <form action="{{ url_for('backup_create') }}" method="post" style="display: inline;">
+            <form action="{{ url_for('backup_flow_bp.backup_create') }}" method="post" style="display: inline;">
                 <button type="submit" class="btn btn-primary">
                     <i data-lucide="plus" style="width:14px;height:14px"></i>
                     立即备份
@@ -47,10 +47,10 @@
                         <td>{{ b.created_at }}</td>
                         <td>{{ b.reason or '-' }}</td>
                         <td>
-                            <a href="{{ url_for('backup_download', filename=b.filename) }}" class="btn btn-secondary btn-sm">
+                            <a href="{{ url_for('backup_flow_bp.backup_download', filename=b.filename) }}" class="btn btn-secondary btn-sm">
                                 <i data-lucide="download" style="width:12px;height:12px"></i>
                             </a>
-                            <form action="{{ url_for('backup_delete', filename=b.filename) }}" method="post" style="display: inline;" onsubmit="return confirmSubmit(event, '删除备份', '确定要删除这个备份吗？')">
+                            <form action="{{ url_for('backup_flow_bp.backup_delete', filename=b.filename) }}" method="post" style="display: inline;" onsubmit="return confirmSubmit(event, '删除备份', '确定要删除这个备份吗？')">
                                 <button type="submit" class="btn btn-danger btn-sm">
                                     <i data-lucide="trash-2" style="width:12px;height:12px"></i>
                                 </button>
@@ -93,7 +93,7 @@
             </div>
         </div>
 
-        <form action="{{ url_for('cleanup_execute') }}" method="post">
+        <form action="{{ url_for('cleanup_flow_bp.cleanup_execute') }}" method="post">
             <table>
                 <thead>
                     <tr>

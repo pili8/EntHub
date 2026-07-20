@@ -9,7 +9,7 @@
         {% set company_names_list = group.company_names.split('、') %}
         {% set company_ids_list = group.company_ids.split(',') %}
         
-        <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=group.field_value) }}" 
+        <a href="{{ url_for('pages_bp.relation_group_detail', dup_type=dup_type, field_value=group.field_value) }}" 
            class="relation-group" 
            style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border); text-decoration: none; color: inherit; display: block; transition: all 0.2s;"
            onmouseover="this.style.borderColor='var(--accent)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'"
@@ -53,8 +53,8 @@
         </div>
         <div class="pagination-links">
             {% if page > 1 %}
-            <a href="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
-               hx-get="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
+            <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
+               hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page-1) }}"
                hx-target="#relation-groups-container"
                hx-swap="innerHTML"
                hx-push-url="true">
@@ -63,8 +63,8 @@
             {% endif %}
             <span class="current">{{ page }}</span>
             {% if page < pages %}
-            <a href="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
-               hx-get="{{ url_for('browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
+            <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
+               hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type=dup_type, sort=sort, per_page=per_page, page=page+1) }}"
                hx-target="#relation-groups-container"
                hx-swap="innerHTML"
                hx-push-url="true">

@@ -7,14 +7,14 @@
   <!-- ─────────── Hero ─────────── -->
   <header class="detail-hero">
     <div class="detail-hero-actions">
-      <a href="{{ request.referrer or url_for('index') }}" class="page-btn">
+      <a href="{{ request.referrer or url_for('pages_bp.index') }}" class="page-btn">
         <i data-lucide="arrow-left" aria-hidden="true"></i>返回
       </a>
       <div style="display: flex; gap: 8px;">
-        <a href="{{ url_for('edit_company', company_id=company.id) }}" class="page-btn page-btn-primary">
+        <a href="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" class="page-btn page-btn-primary">
           <i data-lucide="pencil" aria-hidden="true"></i>编辑
         </a>
-        <form action="{{ url_for('delete_company', company_id=company.id) }}" method="post" style="display: inline;" onsubmit="return confirmSubmit(event, '删除企业', '确定要删除这个企业吗？此操作不可恢复。')">
+        <form action="{{ url_for('companies_bp.delete_company', company_id=company.id) }}" method="post" style="display: inline;" onsubmit="return confirmSubmit(event, '删除企业', '确定要删除这个企业吗？此操作不可恢复。')">
           <button type="submit" class="page-btn page-btn-danger" style="font-size: 13px; padding: 6px 12px;">
             <i data-lucide="trash-2" aria-hidden="true" style="width: 14px; height: 14px;"></i>删除
           </button>
@@ -61,7 +61,7 @@
         <div class="detail-label">法定代表人</div>
         <div class="detail-value">
           {% if company.legal_person %}
-            <a href="{{ url_for('search', q=company.legal_person) }}">{{ company.legal_person }}</a>
+            <a href="{{ url_for('pages_bp.search', q=company.legal_person) }}">{{ company.legal_person }}</a>
             {% if field_counts.legal_person and field_counts.legal_person > 1 %}
               <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">{{ field_counts.legal_person }} 家</span>
             {% endif %}
@@ -96,7 +96,7 @@
         <div class="detail-label">所属行业</div>
         <div class="detail-value">
           {% if company.industry %}
-            <a href="{{ url_for('search', q=company.industry) }}">{{ company.industry }}</a>
+            <a href="{{ url_for('pages_bp.search', q=company.industry) }}">{{ company.industry }}</a>
             {% if field_counts.industry and field_counts.industry > 1 %}
               <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">{{ field_counts.industry }} 家</span>
             {% endif %}
@@ -127,7 +127,7 @@
         <div class="detail-field detail-field-wide">
           <div class="detail-label">股东</div>
           <div class="detail-value">
-            <a href="{{ url_for('search', q=company.shareholders) }}">{{ company.shareholders }}</a>
+            <a href="{{ url_for('pages_bp.search', q=company.shareholders) }}">{{ company.shareholders }}</a>
             {% if field_counts.shareholders and field_counts.shareholders > 1 %}
               <span class="dup-count {{ 'dup-high' if field_counts.shareholders >= 5 else 'dup-mid' }}">{{ field_counts.shareholders }} 家</span>
             {% endif %}
@@ -145,7 +145,7 @@
       <div class="phone-list">
         {% for cp in company_phones %}
         <div class="phone-row">
-          <a href="{{ url_for('search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
+          <a href="{{ url_for('pages_bp.search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ cp.phone }}', this)" title="复制">
             <i data-lucide="copy" aria-hidden="true"></i>
           </button>
@@ -171,7 +171,7 @@
         <div class="detail-label">邮箱</div>
         <div class="detail-value">
           {% if company.email %}
-            <a href="{{ url_for('search', q=company.email) }}">{{ company.email }}</a>
+            <a href="{{ url_for('pages_bp.search', q=company.email) }}">{{ company.email }}</a>
             <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.email }}', this)" title="复制邮箱">
               <i data-lucide="copy" aria-hidden="true"></i>
             </button>
@@ -202,7 +202,7 @@
     <h2 class="detail-section-title">💼 股东信息（{{ shareholders|length }}）</h2>
     <div class="shareholder-tags">
       {% for s in shareholders %}
-      <a href="{{ url_for('search', q=s.name) }}" class="shareholder-tag">{{ s.name }}</a>
+      <a href="{{ url_for('pages_bp.search', q=s.name) }}" class="shareholder-tag">{{ s.name }}</a>
       {% endfor %}
     </div>
   </section>
@@ -284,7 +284,7 @@
         <div class="rel-block-title">{{ title }} <span class="rel-count">{{ count or 0 }}</span></div>
         <div class="rel-list">
           {% for row in items %}
-          <a href="{{ url_for('company_detail', company_id=row.id) }}" class="rel-item">
+          <a href="{{ url_for('companies_bp.company_detail', company_id=row.id) }}" class="rel-item">
             <span class="rel-name">{{ row.name }}</span>
             <span class="rel-meta">{{ row.city or '—' }} · {{ row.business_status or '—' }}</span>
           </a>

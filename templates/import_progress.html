@@ -55,7 +55,7 @@
         <div style="font-size: 48px; margin: 24px 0;">✅</div>
         <div style="font-size: 18px; font-weight: 600; margin-bottom: 16px;" id="done-title">导入完成</div>
         <div id="done-stats" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 24px 0; text-align: left;"></div>
-        <a href="{{ url_for('index') }}" class="btn btn-primary" style="margin-top: 16px; padding: 10px 32px; font-size: 15px;">
+        <a href="{{ url_for('pages_bp.index') }}" class="btn btn-primary" style="margin-top: 16px; padding: 10px 32px; font-size: 15px;">
             返回首页
         </a>
     </div>
@@ -65,15 +65,15 @@
         <div style="font-size: 48px; margin: 24px 0;">❌</div>
         <div style="font-size: 18px; font-weight: 600; color: var(--danger); margin-bottom: 8px;">导入失败</div>
         <div id="error-msg" style="color: var(--text-secondary); margin-bottom: 16px;"></div>
-        <a href="{{ url_for('import_page') }}" class="btn btn-primary">返回重试</a>
+        <a href="{{ url_for('import_flow_bp.import_page') }}" class="btn btn-primary">返回重试</a>
     </div>
 </div>
 
 <script>
 (function() {
     const batchId = "{{ batch_id }}";
-    const streamUrl = "{{ url_for('import_stream', batch_id=batch_id) }}";
-    const stopUrl = "{{ url_for('import_stop', batch_id=batch_id) }}";
+    const streamUrl = "{{ url_for('import_flow_bp.import_stream', batch_id=batch_id) }}";
+    const stopUrl = "{{ url_for('import_flow_bp.import_stop', batch_id=batch_id) }}";
 
     const source = new EventSource(streamUrl);
     let total = 0;

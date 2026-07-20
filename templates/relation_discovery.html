@@ -26,7 +26,7 @@
         <div class="relation-type-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="phone"
-                    hx-get="{{ url_for('browse_relation_groups', dup_type='phone', sort='count_desc') }}"
+                    hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='phone', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
                     hx-swap="innerHTML"
                     hx-push-url="true">
@@ -34,7 +34,7 @@
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="email"
-                    hx-get="{{ url_for('browse_relation_groups', dup_type='email', sort='count_desc') }}"
+                    hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='email', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
                     hx-swap="innerHTML"
                     hx-push-url="true">
@@ -42,7 +42,7 @@
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="legal_person"
-                    hx-get="{{ url_for('browse_relation_groups', dup_type='legal_person', sort='count_desc') }}"
+                    hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='legal_person', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
                     hx-swap="innerHTML"
                     hx-push-url="true">
@@ -50,7 +50,7 @@
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="tag"
-                    hx-get="{{ url_for('browse_relation_groups', dup_type='tag', sort='count_desc') }}"
+                    hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='tag', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
                     hx-swap="innerHTML"
                     hx-push-url="true">
@@ -58,7 +58,7 @@
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="shareholder"
-                    hx-get="{{ url_for('browse_relation_groups', dup_type='shareholder', sort='count_desc') }}"
+                    hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='shareholder', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
                     hx-swap="innerHTML"
                     hx-push-url="true">
@@ -66,7 +66,7 @@
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="industry"
-                    hx-get="{{ url_for('browse_relation_groups', dup_type='industry', sort='count_desc') }}"
+                    hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='industry', sort='count_desc') }}"
                     hx-target="#relation-groups-container"
                     hx-swap="innerHTML"
                     hx-push-url="true">

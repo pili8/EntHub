@@ -7,7 +7,7 @@
     <div class="page-subtitle">被多家企业共用的电话号码，按重复次数排序</div>
 </div>
 
-<form action="{{ url_for('stats_phone') }}" method="get" style="margin-bottom: 16px">
+<form action="{{ url_for('stats_bp.stats_phone') }}" method="get" style="margin-bottom: 16px">
     <div class="search-mode">
         <label>最少重复次数：
             <select name="min" class="form-select" style="width:auto; display:inline-block" onchange="this.form.submit()">
@@ -35,7 +35,7 @@
             {% for row in rows %}
             <tr>
                 <td class="col-phone">
-                    <a href="{{ url_for('search', q=row.display_phone) }}">
+                    <a href="{{ url_for('pages_bp.search', q=row.display_phone) }}">
                         {{ row.display_phone }}
                     </a>
                 </td>
@@ -46,7 +46,7 @@
                 </td>
                 <td>{{ row.company_names[:200] }}{{ '...' if row.company_names|length > 200 }}</td>
                 <td>
-                    <a href="{{ url_for('search', q=row.display_phone) }}" class="btn btn-secondary btn-sm">
+                    <a href="{{ url_for('pages_bp.search', q=row.display_phone) }}" class="btn btn-secondary btn-sm">
                         <i data-lucide="search" style="width:13px;height:13px"></i>
                     </a>
                 </td>
@@ -60,13 +60,13 @@
     <div class="pagination-info">共 {{ total }} 个号码被 {{ min_count }} 家以上企业使用，第 {{ page }} / {{ pages }} 页</div>
     <div class="pagination-links">
         {% if page > 1 %}
-        <a href="{{ url_for('stats_phone', min=min_count, page=page-1) }}">
+        <a href="{{ url_for('stats_bp.stats_phone', min=min_count, page=page-1) }}">
             <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
         </a>
         {% endif %}
         <span class="current">{{ page }}</span>
         {% if page < pages %}
-        <a href="{{ url_for('stats_phone', min=min_count, page=page+1) }}">
+        <a href="{{ url_for('stats_bp.stats_phone', min=min_count, page=page+1) }}">
             <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
         </a>
         {% endif %}

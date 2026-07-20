@@ -9,14 +9,14 @@
 <body>
     <nav class="nav">
         <div class="nav-inner">
-            <a href="{{ url_for('index') }}" class="nav-logo">
+            <a href="{{ url_for('pages_bp.index') }}" class="nav-logo">
                 <span class="nav-logo-icon">
                     <i data-lucide="building-2" style="width:18px;height:18px"></i>
                 </span>
                 EntHub
             </a>
             <div class="nav-links">
-                <form action="{{ url_for('search') }}" method="get" class="nav-search-form">
+                <form action="{{ url_for('pages_bp.search') }}" method="get" class="nav-search-form">
                     <input type="text" name="q" class="nav-search-input"
                            placeholder="搜索企业、电话、地址、法人...">
                     <button type="submit" class="nav-search-btn">
@@ -24,31 +24,31 @@
                     </button>
                 </form>
                 <div class="nav-actions">
-                    <a href="{{ url_for('browse') }}" class="nav-link">
+                    <a href="{{ url_for('pages_bp.browse') }}" class="nav-link">
                         <i data-lucide="table" style="width:15px;height:15px"></i>
                         浏览
                     </a>
-                    <a href="{{ url_for('phones_page') }}" class="nav-link">
+                    <a href="{{ url_for('pages_bp.phones_page') }}" class="nav-link">
                         <i data-lucide="phone" style="width:15px;height:15px"></i>
                         电话
                     </a>
-                    <a href="{{ url_for('relation_discovery') }}" class="nav-link">
+                    <a href="{{ url_for('pages_bp.relation_discovery') }}" class="nav-link">
                         <i data-lucide="git-branch" style="width:15px;height:15px"></i>
                         关联
                     </a>
-                    <a href="{{ url_for('tags_page') }}" class="nav-link">
+                    <a href="{{ url_for('tags_bp.tags_page') }}" class="nav-link">
                         <i data-lucide="tag" style="width:15px;height:15px"></i>
                         标签
                     </a>
-                    <a href="{{ url_for('mcp_page') }}" class="nav-link">
+                    <a href="{{ url_for('mcp_flow_bp.mcp_page') }}" class="nav-link">
                         <i data-lucide="bot" style="width:15px;height:15px"></i>
                         MCP
                     </a>
-                    <a href="{{ url_for('add_company') }}" class="nav-link">
+                    <a href="{{ url_for('companies_bp.add_company') }}" class="nav-link">
                         <i data-lucide="plus" style="width:15px;height:15px"></i>
                         录入
                     </a>
-                    <a href="{{ url_for('import_page') }}" class="nav-link">
+                    <a href="{{ url_for('import_flow_bp.import_page') }}" class="nav-link">
                         <i data-lucide="upload" style="width:15px;height:15px"></i>
                         导入
                     </a>
@@ -57,15 +57,15 @@
                             <i data-lucide="more-vertical" style="width:15px;height:15px"></i>
                         </a>
                         <div class="nav-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 120px; z-index: 1000; margin-top: 4px;">
-                            <a href="{{ url_for('backup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px;">
+                            <a href="{{ url_for('backup_flow_bp.backup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px;">
                                 <i data-lucide="database" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
                                 备份
                             </a>
-                            <a href="{{ url_for('cleanup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+                            <a href="{{ url_for('cleanup_flow_bp.cleanup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
                                 <i data-lucide="trash-2" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
                                 清理
                             </a>
-                            <a href="{{ url_for('restart_server') }}" class="nav-dropdown-item" onclick="return confirmLink(event, '{{ url_for('restart_server') }}', '重启服务器', '确定要重启服务器吗？');" style="display: block; padding: 8px 16px; color: var(--warning); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+                            <a href="{{ url_for('pages_bp.restart_server') }}" class="nav-dropdown-item" onclick="return confirmLink(event, '{{ url_for('pages_bp.restart_server') }}', '重启服务器', '确定要重启服务器吗？');" style="display: block; padding: 8px 16px; color: var(--warning); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
                                 <i data-lucide="rotate-cw" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
                                 重启
                             </a>
