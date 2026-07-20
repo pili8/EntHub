@@ -13,4 +13,9 @@ data/
 # Backup files
 *.bak
 *.bak[0-9]
+*.backup
 .restart_trigger
+
+# Logs
+*.log
+mcp_server.log
