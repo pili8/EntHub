@@ -20,12 +20,12 @@
         <thead>
             <tr>
                 <th class="col-id">
-                    <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort='id', dir='desc' if sort == 'id' and direction == 'asc' else 'asc', per_page=per_page) }}" class="sort-link">
+                    <a href="{{ url_for('pages_bp.relation_group_detail', dup_type=dup_type, field_value=field_value, sort='id', dir='desc' if sort == 'id' and direction == 'asc' else 'asc', per_page=per_page) }}" class="sort-link">
                         ID {{ '↑' if sort == 'id' and direction == 'asc' else ('↓' if sort == 'id' else '') }}
                     </a>
                 </th>
                 <th>
-                    <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort='name', dir='asc' if sort == 'name' and direction == 'desc' else 'desc', per_page=per_page) }}" class="sort-link">
+                    <a href="{{ url_for('pages_bp.relation_group_detail', dup_type=dup_type, field_value=field_value, sort='name', dir='asc' if sort == 'name' and direction == 'desc' else 'desc', per_page=per_page) }}" class="sort-link">
                         企业名称 {{ '↑' if sort == 'name' and direction == 'asc' else ('↓' if sort == 'name' else '') }}
                     </a>
                 </th>
@@ -36,10 +36,10 @@
         </thead>
         <tbody>
             {% for company in companies %}
-            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('company_detail', company_id=company.id) }}'">
+            <tr style="cursor: pointer;" onclick="window.location='{{ url_for('companies_bp.company_detail', company_id=company.id) }}'">
                 <td class="col-id">#{{ '%08d' % company.id }}</td>
                 <td class="col-name">
-                    <a href="{{ url_for('company_detail', company_id=company.id) }}" onclick="event.stopPropagation()">{{ company.name }}</a>
+                    <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" onclick="event.stopPropagation()">{{ company.name }}</a>
                 </td>
                 <td>{{ company.legal_person or '-' }}</td>
                 <td>{{ company.city or '' }} {{ company.district or '' }}</td>
@@ -73,13 +73,13 @@
     </div>
     <div class="pagination-links">
         {% if page > 1 %}
-        <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort=sort, dir=direction, per_page=per_page, page=page-1) }}">
+        <a href="{{ url_for('pages_bp.relation_group_detail', dup_type=dup_type, field_value=field_value, sort=sort, dir=direction, per_page=per_page, page=page-1) }}">
             <i data-lucide="chevron-left" style="width:14px;height:14px"></i>
         </a>
         {% endif %}
         <span class="current">{{ page }}</span>
         {% if page < pages %}
-        <a href="{{ url_for('relation_group_detail', dup_type=dup_type, field_value=field_value, sort=sort, dir=direction, per_page=per_page, page=page+1) }}">
+        <a href="{{ url_for('pages_bp.relation_group_detail', dup_type=dup_type, field_value=field_value, sort=sort, dir=direction, per_page=per_page, page=page+1) }}">
             <i data-lucide="chevron-right" style="width:14px;height:14px"></i>
         </a>
         {% endif %}

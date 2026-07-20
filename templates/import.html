@@ -13,7 +13,7 @@
         </div>
     </div>
 
-    <form id="upload-form" action="{{ url_for('import_upload') }}" method="post" enctype="multipart/form-data">
+    <form id="upload-form" action="{{ url_for('import_flow_bp.import_upload') }}" method="post" enctype="multipart/form-data">
         <div class="import-card" id="drop-card" style="border: 2px dashed var(--border); border-radius: 16px; padding: 60px 40px; text-align: center; transition: all 0.3s ease; background: var(--bg-card);">
             <label class="import-label" for="file-input" style="cursor: pointer; display: block;">
                 <div class="import-icon" style="margin-bottom: 24px;">

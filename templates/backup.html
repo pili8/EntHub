@@ -6,7 +6,7 @@
 <div class="page">
     <div class="page-header">
         <h1 class="page-title">💾 数据备份</h1>
-        <form method="post" action="{{ url_for('backup_create') }}" style="display:inline">
+        <form method="post" action="{{ url_for('backup_flow_bp.backup_create') }}" style="display:inline">
             <button type="submit" class="btn btn-primary">
                 <i data-lucide="shield-check" style="width:16px;height:16px"></i>
                 立即备份
@@ -71,7 +71,7 @@
                     压缩会清理历次导入/删除遗留的空闲页。压缩前会自动创建备份，操作完成后可通过备份列表回滚。
                 </p>
             </div>
-            <form method="post" action="{{ url_for('backup_vacuum') }}" id="vacuum-form">
+            <form method="post" action="{{ url_for('backup_flow_bp.backup_vacuum') }}" id="vacuum-form">
                 <button type="submit" id="vacuum-btn"
                     {% if fragmentation < 5 %}
                         class="btn btn-secondary" disabled
@@ -147,11 +147,11 @@
                         <td>{{ b.time }}</td>
                         <td>{{ (b.size / 1024)|round(1) }} KB</td>
                         <td class="actions">
-                            <a href="{{ url_for('backup_download', filename=b.filename) }}" class="btn btn-sm btn-primary">
+                            <a href="{{ url_for('backup_flow_bp.backup_download', filename=b.filename) }}" class="btn btn-sm btn-primary">
                                 <i data-lucide="download" style="width:14px;height:14px"></i>
                                 下载
                             </a>
-                            <form method="post" action="{{ url_for('backup_delete', filename=b.filename) }}"
+                            <form method="post" action="{{ url_for('backup_flow_bp.backup_delete', filename=b.filename) }}"
                                   style="display:inline"
                                   onsubmit="return confirmSubmit(event, '删除备份', '确定删除备份 {{ b.filename }}？')">
                                 <button type="submit" class="btn btn-sm btn-danger">

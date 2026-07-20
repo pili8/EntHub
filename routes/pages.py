@@ -1,0 +1,373 @@
+"""核心页面路由：首页、浏览、搜索、关联发现、电话页。"""
+import math
+from flask import Blueprint, g, request, render_template, redirect, url_for, flash
+
+from db import DB_PATH
+from queries import (
+    DEFAULT_PER_PAGE, ALLOWED_SORTS,
+    build_filter_clause, build_sort_clause, where_sql,
+    query_company_list, get_filter_options, get_year_bounds, build_year_ranges,
+    detect_query_type, text_search, search_by_phone, search_by_credit_code,
+    sanitize_page, sanitize_per_page, sanitize_min_count, paginate,
+    phone_stats_grouped,
+)
+from utils import normalize_phone
+
+bp = Blueprint('pages_bp', __name__)
+
+PER_PAGE = DEFAULT_PER_PAGE
+
+
+# ── 首页 ────────────────────────────────────────────────────────────────────
+
+@bp.route("/")
+def index():
+    stats = g.db.execute("""
+        SELECT
+            COUNT(*)                                       AS total,
+            COUNT(DISTINCT normalized_name)                AS unique_names,
+            (SELECT COUNT(DISTINCT normalized_phone) FROM company_phones) AS unique_phones,
+            (SELECT COUNT(*) FROM company_phones) AS rows_with_phone
+        FROM companies
+    """).fetchone()
+    recents = g.db.execute("""
+        SELECT id, q, query_type, result_count, created_at
+        FROM recent_searches
+        ORDER BY id DESC
+        LIMIT 8
+    """).fetchall()
+    return render_template("index.html", stats=stats, recents=recents)
+
+
+# ── 重启 ────────────────────────────────────────────────────────────────────
+
+@bp.route("/restart")
+def restart_server():
+    """触发服务器重启（通过修改监控文件）"""
+    from pathlib import Path
+    import time
+    trigger_file = Path(__file__).parent.parent / ".restart_trigger"
+    trigger_file.write_text(str(time.time()))
+    return render_template("restarting.html")
+
+
+# ── 数据浏览 ────────────────────────────────────────────────────────────────
+
+@bp.route("/browse")
+def browse():
+    page = sanitize_page(request.args)
+    per_page = sanitize_per_page(request.args)
+
+    # 筛选 + 排序
+    clauses, params = build_filter_clause(request.args)
+    where_clause = where_sql(clauses)
+    sort_col, dir_sql = build_sort_clause(request.args)
+
+    # 总数
+    total = g.db.execute(
+        f"SELECT COUNT(*) FROM companies {where_clause}", params
+    ).fetchone()[0]
+    pages, offset = paginate(total, page, per_page)
+
+    # 列表
+    rows = query_company_list(
+        g.db, where_clause, params, sort_col, dir_sql, per_page, offset
+    )
+
+    # 筛选器选项（DISTINCT 值）
+    filter_options = get_filter_options(g.db)
+
+    # 年份区间（递增）
+    min_year, max_year = get_year_bounds(g.db)
+    year_ranges = build_year_ranges(min_year, max_year)
+
+    # 当前选中的筛选值（用于模板回填）
+    filters = {}
+    for key in ("city", "district", "business_status", "industry",
+                "year_from", "year_to", "cap_from", "cap_to",
+                "insured_from", "insured_to"):
+        val = (request.args.get(key) or "").strip()
+        if val:
+            filters[key] = val
+
+    return render_template("browse.html",
+                           rows=rows, total=total, page=page, pages=pages,
+                           per_page=per_page,
+                           sort=request.args.get("sort", "id"),
+                           direction=request.args.get("dir", "desc"),
+                           filters=filters, filter_options=filter_options,
+                           year_ranges=year_ranges)
+
+
+# ── 统一搜索 ────────────────────────────────────────────────────────────────
+
+@bp.route("/search")
+def search():
+    q = (request.args.get("q") or "").strip()
+    page = sanitize_page(request.args)
+
+    if not q:
+        return render_template("search.html", q="", query_type="",
+                               rows=[], total=0, page=1, pages=1)
+
+    query_type = detect_query_type(q)
+    pages, offset = paginate(0, page, PER_PAGE)  # 占位，每个分支会重算
+
+    if query_type == "phone":
+        norm_q = normalize_phone(q)
+        if not norm_q:
+            return render_template("search.html", q=q, query_type="phone",
+                                   rows=[], total=0, page=1, pages=1)
+        total, rows = search_by_phone(g.db, norm_q, PER_PAGE, offset)
+        pages, _ = paginate(total, page, PER_PAGE)
+
+    elif query_type == "credit_code":
+        from utils import normalize_credit_code
+        norm_q = normalize_credit_code(q)
+        total, rows = search_by_credit_code(g.db, norm_q, PER_PAGE, offset)
+        pages, _ = paginate(total, page, PER_PAGE)
+
+    else:
+        total, rows = text_search(g.db, q, PER_PAGE, offset)
+        pages, _ = paginate(total, page, PER_PAGE)
+
+    # 记录最近查询（仅首页查询，分页不记）
+    if page == 1 and q:
+        g.db.execute(
+            "INSERT INTO recent_searches (q, query_type, result_count) VALUES (?, ?, ?)",
+            [q, query_type, total]
+        )
+        # 超过 50 条清理一次
+        g.db.execute(
+            "DELETE FROM recent_searches WHERE id NOT IN "
+            "(SELECT id FROM recent_searches ORDER BY id DESC LIMIT 50)"
+        )
+        g.db.commit()
+
+    return render_template("search.html", q=q, query_type=query_type,
+                           rows=rows, total=total, page=page, pages=pages)
+
+
+# ── 最近查询 ────────────────────────────────────────────────────────────────
+
+@bp.route("/recent/clear", methods=["POST"])
+def recent_clear():
+    g.db.execute("DELETE FROM recent_searches")
+    g.db.commit()
+    return redirect(url_for("pages_bp.index"))
+
+
+# ── 关联发现页面 ────────────────────────────────────────────────────────────
+
+@bp.route("/relations")
+def relation_discovery():
+    """关联发现独立页面"""
+    return render_template("relation_discovery.html")
+
+
+# ── 关联发现 - HTMX 局部加载 ────────────────────────────────────────────────
+
+@bp.route("/browse/relation-groups")
+def browse_relation_groups():
+    """按关联类型列出分组（电话/邮箱/法人）"""
+    dup_type = (request.args.get("type") or "phone").strip()
+    page = sanitize_page(request.args)
+    per_page = sanitize_per_page(request.args, default=PER_PAGE)
+    sort_by = (request.args.get("sort") or "cnt").strip()
+    min_count = sanitize_min_count(request.args)
+
+    # 排序映射（白名单）
+    sort_map = {
+        "cnt": "cnt DESC",
+        "val": "val ASC",
+    }
+    order_sql = sort_map.get(sort_by, "cnt DESC")
+    offset = (page - 1) * per_page
+
+    if dup_type == "phone":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT normalized_phone FROM company_phones
+                WHERE normalized_phone IS NOT NULL AND normalized_phone <> ''
+                GROUP BY normalized_phone HAVING COUNT(DISTINCT company_id) >= ?
+            )
+        """, [min_count]).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT cp.normalized_phone AS val,
+                   MIN(cp.phone)       AS display_val,
+                   COUNT(DISTINCT cp.company_id) AS cnt,
+                   GROUP_CONCAT(DISTINCT c.name, '; ') AS company_names
+            FROM company_phones cp
+            JOIN companies c ON cp.company_id = c.id
+            WHERE cp.normalized_phone IS NOT NULL AND cp.normalized_phone <> ''
+            GROUP BY cp.normalized_phone
+            HAVING cnt >= ?
+            ORDER BY {order_sql}
+            LIMIT ? OFFSET ?
+        """, [min_count, per_page, offset]).fetchall()
+
+    elif dup_type == "email":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT normalized_email FROM companies
+                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+                GROUP BY normalized_email HAVING COUNT(*) >= ?
+            )
+        """, [min_count]).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT normalized_email AS val,
+                   MIN(email)        AS display_val,
+                   COUNT(*)          AS cnt,
+                   GROUP_CONCAT(name, '; ') AS company_names
+            FROM companies
+            WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+            GROUP BY normalized_email
+            HAVING cnt >= ?
+            ORDER BY {order_sql}
+            LIMIT ? OFFSET ?
+        """, [min_count, per_page, offset]).fetchall()
+
+    elif dup_type == "legal_person":
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT normalized_legal_person FROM companies
+                WHERE normalized_legal_person IS NOT NULL AND normalized_legal_person <> ''
+                  AND normalized_legal_person <> '-'
+                GROUP BY normalized_legal_person HAVING COUNT(*) >= ?
+            )
+        """, [min_count]).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT normalized_legal_person AS val,
+                   MIN(legal_person)       AS display_val,
+                   COUNT(*)                AS cnt,
+                   GROUP_CONCAT(name, '; ') AS company_names
+            FROM companies
+            WHERE normalized_legal_person IS NOT NULL AND normalized_legal_person <> ''
+              AND normalized_legal_person <> '-'
+            GROUP BY normalized_legal_person
+            HAVING cnt >= ?
+            ORDER BY {order_sql}
+            LIMIT ? OFFSET ?
+        """, [min_count, per_page, offset]).fetchall()
+
+    else:
+        total = 0
+        rows = []
+
+    pages = max(1, math.ceil(total / per_page)) if total else 1
+
+    return render_template("_relation_groups.html",
+                           dup_type=dup_type, rows=rows, total=total,
+                           page=page, pages=pages, per_page=per_page,
+                           sort_by=sort_by, min_count=min_count)
+
+
+@bp.route("/relation-group")
+def relation_group_detail():
+    """单个关联分组的详情：列出该分组下的所有企业"""
+    dup_type = (request.args.get("type") or "phone").strip()
+    val = (request.args.get("val") or "").strip()
+    page = sanitize_page(request.args)
+    per_page = sanitize_per_page(request.args, default=PER_PAGE)
+    offset = (page - 1) * per_page
+
+    if not val:
+        return render_template("_relation_group_detail.html",
+                               dup_type=dup_type, val="", rows=[],
+                               total=0, page=1, pages=1, per_page=per_page)
+
+    from queries import COMPANY_LIST_PHONE_SUBQUERY
+
+    if dup_type == "phone":
+        # 通过 company_phones 反查
+        total = g.db.execute(
+            "SELECT COUNT(DISTINCT company_id) FROM company_phones "
+            "WHERE normalized_phone = ?",
+            [val]
+        ).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT c.id, c.name, c.address, c.city, c.business_status,
+                   {COMPANY_LIST_PHONE_SUBQUERY}
+            FROM companies c
+            JOIN company_phones cp ON cp.company_id = c.id
+            WHERE cp.normalized_phone = ?
+            ORDER BY c.name LIMIT ? OFFSET ?
+        """, [val, per_page, offset]).fetchall()
+
+    elif dup_type == "email":
+        total = g.db.execute(
+            "SELECT COUNT(*) FROM companies WHERE normalized_email = ?",
+            [val]
+        ).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT c.id, c.name, c.address, c.city, c.business_status,
+                   {COMPANY_LIST_PHONE_SUBQUERY}
+            FROM companies c
+            WHERE c.normalized_email = ?
+            ORDER BY c.name LIMIT ? OFFSET ?
+        """, [val, per_page, offset]).fetchall()
+
+    elif dup_type == "legal_person":
+        total = g.db.execute(
+            "SELECT COUNT(*) FROM companies WHERE normalized_legal_person = ?",
+            [val]
+        ).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT c.id, c.name, c.address, c.city, c.business_status,
+                   {COMPANY_LIST_PHONE_SUBQUERY}
+            FROM companies c
+            WHERE c.normalized_legal_person = ?
+            ORDER BY c.name LIMIT ? OFFSET ?
+        """, [val, per_page, offset]).fetchall()
+
+    else:
+        total = 0
+        rows = []
+
+    pages = max(1, math.ceil(total / per_page)) if total else 1
+
+    return render_template("_relation_group_detail.html",
+                           dup_type=dup_type, val=val, rows=rows,
+                           total=total, page=page, pages=pages,
+                           per_page=per_page)
+
+
+@bp.route("/browse/relation-group-detail")
+def browse_relation_group_detail():
+    """兼容旧路径：返回完整页面而非局部片段。"""
+    return relation_group_detail()
+
+
+@bp.route("/browse/relation-top")
+def browse_relation_top():
+    """TOP 50 关联企业排行"""
+    companies = g.db.execute("""
+        SELECT
+            c.id, c.name,
+            COUNT(DISTINCT cp.normalized_phone) AS phone_count,
+            COUNT(DISTINCT cs.normalized_name) AS shareholder_count,
+            (SELECT COUNT(*) FROM companies c2
+             WHERE c2.normalized_legal_person = c.normalized_legal_person
+               AND c2.normalized_legal_person IS NOT NULL
+               AND c2.normalized_legal_person <> '') AS legal_person_count,
+            (SELECT COUNT(*) FROM companies c2
+             WHERE c2.normalized_email = c.normalized_email
+               AND c2.normalized_email IS NOT NULL
+               AND c2.normalized_email <> '') AS email_count
+        FROM companies c
+        LEFT JOIN company_phones cp ON cp.company_id = c.id
+        LEFT JOIN company_shareholders cs ON cs.company_id = c.id
+        GROUP BY c.id
+        ORDER BY (phone_count + shareholder_count + legal_person_count + email_count) DESC
+        LIMIT 50
+    """).fetchall()
+
+    return render_template("_relation_top.html", companies=companies)
+
+
+# ── 电话查询页 ──────────────────────────────────────────────────────────────
+
+@bp.route("/phones")
+def phones_page():
+    """电话查询页面"""
+    return render_template("phones.html")

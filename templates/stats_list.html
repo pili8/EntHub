@@ -36,7 +36,7 @@
             {% for row in rows %}
             <tr>
                 <td>
-                    <a href="{{ url_for('search', q=row.val) }}">{{ row.val }}</a>
+                    <a href="{{ url_for('pages_bp.search', q=row.val) }}">{{ row.val }}</a>
                 </td>
                 <td>
                     <span class="dup-count {{ 'dup-high' if row.cnt >= 5 else 'dup-mid' }}">
@@ -45,7 +45,7 @@
                 </td>
                 <td>{{ row.company_names[:200] }}{{ '...' if row.company_names|length > 200 }}</td>
                 <td>
-                    <a href="{{ url_for('search', q=row.val) }}" class="btn btn-secondary btn-sm">
+                    <a href="{{ url_for('pages_bp.search', q=row.val) }}" class="btn btn-secondary btn-sm">
                         <i data-lucide="search" style="width:13px;height:13px"></i>
                     </a>
                 </td>
