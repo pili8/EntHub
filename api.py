@@ -422,34 +422,7 @@ def phone_count_text():
     except Exception:
         return _err(1001, "请求体必须是 JSON 格式")
 
-    # 提取号码
-    matches = []
-    for m in _PHONE_RE.finditer(text):
-        raw = m.group()
-        norm = normalize_phone(raw)
-        if not norm:
-            continue
-        count = _phone_dup_count(g.db, norm)
-        matches.append({
-            "phone": raw,
-            "normalized": norm,
-            "count": count,
-            "position": [m.start(), m.end()]
-        })
-
-    # 去重（相同归一化号码只查一次）
-    seen_norms = {}
-    for m in matches:
-        seen_norms.setdefault(m["normalized"], m)
-    unique_phones = list(seen_norms.values())
-
-    # 生成标注文本（从后往前替换，避免位置偏移）
-    annotated = text
-    for m in reversed(matches):
-        raw = m["phone"]
-        count = m["count"]
-        replacement = f"{raw} ({count})"
-        annotated = annotated[:m["position"][0]] + replacement + annotated[m["position"][1]:]
+    annotated, matches, unique_phones = _extract_and_annotate(g.db, text)
 
     return _ok({
         "original_text": text,
@@ -457,3 +430,80 @@ def phone_count_text():
         "phones": unique_phones,
         "phone_count": len(unique_phones)
     })
+
+
+# ── 快速标注（纯文本接口）────────────────────────────────────
+
+
+def _extract_and_annotate(db, text):
+    """共享函数：提取号码 + 标注文本
+    返回：(annotated_text, matches, unique_phones)
+    """
+    matches = []
+    for m in _PHONE_RE.finditer(text):
+        raw = m.group()
+        norm = normalize_phone(raw)
+        if not norm:
+            continue
+        count = _phone_dup_count(db, norm)
+        matches.append({
+            "phone": raw,
+            "normalized": norm,
+            "count": count,
+            "position": [m.start(), m.end()]
+        })
+
+    # 去重
+    seen_norms = {}
+    for m in matches:
+        seen_norms.setdefault(m["normalized"], m)
+    unique_phones = list(seen_norms.values())
+
+    # 从后往前替换，避免位置偏移
+    annotated = text
+    for m in reversed(matches):
+        replacement = f"{m['phone']} ({m['count']})"
+        annotated = annotated[:m["position"][0]] + replacement + annotated[m["position"][1]:]
+
+    return annotated, matches, unique_phones
+
+
+@api_bp.route('/api/annotate', methods=['GET', 'POST'])
+def quick_annotate():
+    """快速标注：返回纯文本（管道友好）
+
+    支持多种入参方式：
+    - GET: ?text=xxx（短文本，浏览器/curl 测试）
+    - POST JSON: {"text": "xxx"}
+    - POST 纯文本: body 是原始文本（curl --data-binary）
+    - POST form: text=xxx
+
+    返回：
+    - 成功：标注后的纯文本（text/plain）
+    - 失败：错误信息纯文本 + 4xx/5xx 状态码
+    """
+    # GET
+    if request.method == 'GET':
+        text = request.args.get('text', '')
+    else:
+        # POST: 根据Content-Type 解析
+        ct = (request.content_type or '').lower()
+        if 'application/json' in ct:
+            text = (request.get_json(silent=True) or {}).get('text', '')
+        elif 'application/x-www-form-urlencoded' in ct or 'multipart/form-data' in ct:
+            text = request.form.get('text', '')
+        else:
+            # 纯文本（curl --data-binary / 管道）
+            text = request.get_data(as_text=True)
+
+    # 校验
+    if not text or not text.strip():
+        return "错误：文本为空", 400, {'Content-Type': 'text/plain; charset=utf-8'}
+    if len(text) > 10000:
+        return "错误：文本超过 10000 字", 400, {'Content-Type': 'text/plain; charset=utf-8'}
+
+    try:
+        annotated, _, _ = _extract_and_annotate(g.db, text)
+        return annotated, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+    except Exception as e:
+        return f"错误：{e}", 500, {'Content-Type': 'text/plain; charset=utf-8'}
