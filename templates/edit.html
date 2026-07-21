@@ -2,23 +2,31 @@
 {% block title %}编辑 · {{ company.name }} · EntHub{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="btn btn-secondary btn-sm" style="margin-bottom: 12px">
-        <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
-        返回详情
-    </a>
-    <div class="page-title">编辑企业</div>
-    <div class="page-subtitle">{{ company.name }}</div>
-</div>
 
-<form action="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" method="post" style="max-width: 800px">
+<div class="page page-detail">
+
+  <header class="detail-hero">
+    <div class="detail-hero-actions">
+      <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="page-btn">
+        <i data-lucide="arrow-left" aria-hidden="true"></i>返回详情
+      </a>
+    </div>
+    <h1 class="detail-name">编辑企业</h1>
+    {% if company.former_name and company.former_name != '-' %}
+      <p class="detail-former">曾用名 · {{ company.former_name }}</p>
+    {% endif %}
+  </header>
+
+  <form action="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" method="post">
     {% include '_company_form.html' %}
     <div style="display: flex; gap: 12px; margin-top: 16px;">
-        <button type="submit" class="btn btn-primary">
-            <i data-lucide="check" style="width:16px;height:16px"></i>
-            保存
-        </button>
-        <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="btn btn-secondary">取消</a>
+      <button type="submit" class="btn btn-primary">
+        <i data-lucide="check" style="width:16px;height:16px"></i>
+        保存
+      </button>
+      <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="btn btn-secondary">取消</a>
     </div>
-</form>
+  </form>
+
+</div>
 {% endblock %}

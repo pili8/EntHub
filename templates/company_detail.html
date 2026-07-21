@@ -286,11 +286,17 @@
     {% macro rel_table(title, items, count) %}
       <div class="rel-block">
         <div class="rel-block-title">{{ title }} <span class="rel-count">{{ count or 0 }}</span></div>
-        <div class="rel-list">
+        <div class="ent-list">
           {% for row in items %}
-          <a href="{{ url_for('companies_bp.company_detail', company_id=row.id) }}" class="rel-item">
-            <span class="rel-name">{{ row.name }}</span>
-            <span class="rel-meta">{{ row.city or '—' }} · {{ row.business_status or '—' }}</span>
+          <a href="{{ url_for('companies_bp.company_detail', company_id=row.id) }}" class="ent-row">
+            <span class="ent-name">{{ row.name }}</span>
+            <span class="ent-district">{{ row.district or '—' }}</span>
+            <span class="ent-legal">{{ row.legal_person or '—' }}</span>
+            <span class="ent-status">
+              {% if row.business_status %}
+                <span class="badge badge-soft {{ 'badge-success' if row.business_status == '存续' else 'badge-warn' }}">{{ row.business_status }}</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </span>
           </a>
           {% endfor %}
         </div>

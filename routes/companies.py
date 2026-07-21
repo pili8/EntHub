@@ -51,7 +51,7 @@ def company_detail(company_id):
     phone_placeholders = ",".join(["?"] * len(phone_norms)) if phone_norms else "''"
 
     related_phones = g.db.execute(f"""
-        SELECT DISTINCT c.id, c.name, c.city, c.business_status
+        SELECT DISTINCT c.id, c.name, c.district, c.legal_person, c.business_status
         FROM companies c
         JOIN company_phones cp ON cp.company_id = c.id
         WHERE c.id <> ? AND cp.normalized_phone IN ({phone_placeholders})
@@ -63,7 +63,7 @@ def company_detail(company_id):
     related_legal_person = []
     if row["normalized_legal_person"]:
         related_legal_person = g.db.execute("""
-            SELECT id, name, city, business_status
+            SELECT id, name, district, legal_person, business_status
             FROM companies
             WHERE normalized_legal_person = ? AND id != ?
             ORDER BY normalized_legal_person
@@ -81,7 +81,7 @@ def company_detail(company_id):
         norm_names = [s["normalized_name"] for s in shareholders]
         placeholders = ",".join(["?"] * len(norm_names))
         related_shareholders = g.db.execute(f"""
-            SELECT DISTINCT c.id, c.name, c.city, c.business_status
+            SELECT DISTINCT c.id, c.name, c.district, c.legal_person, c.business_status
             FROM company_shareholders s2
             JOIN companies c ON s2.company_id = c.id
             WHERE s2.normalized_name IN ({placeholders})
@@ -94,7 +94,7 @@ def company_detail(company_id):
     related_email = []
     if row["normalized_email"]:
         related_email = g.db.execute("""
-            SELECT id, name, city, business_status
+            SELECT id, name, district, legal_person, business_status
             FROM companies
             WHERE normalized_email = ? AND id != ? AND normalized_email != ''
             ORDER BY normalized_email
@@ -105,7 +105,7 @@ def company_detail(company_id):
     related_industry = []
     if row["industry"] and row["industry"] != '-':
         related_industry = g.db.execute("""
-            SELECT id, name, city, business_status
+            SELECT id, name, district, legal_person, business_status
             FROM companies
             WHERE industry = ? AND id != ? AND industry != ''
             ORDER BY industry

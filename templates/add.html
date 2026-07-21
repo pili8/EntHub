@@ -2,18 +2,28 @@
 {% block title %}录入企业 · EntHub{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div class="page-title">录入企业</div>
-</div>
 
-<form action="{{ url_for('companies_bp.add_company') }}" method="post" style="max-width: 800px">
+<div class="page page-detail">
+
+  <header class="detail-hero">
+    <div class="detail-hero-actions">
+      <a href="{{ request.referrer or url_for('pages_bp.index') }}" class="page-btn">
+        <i data-lucide="arrow-left" aria-hidden="true"></i>返回
+      </a>
+    </div>
+    <h1 class="detail-name">录入企业</h1>
+  </header>
+
+  <form action="{{ url_for('companies_bp.add_company') }}" method="post">
     {% include '_company_form.html' %}
     <div style="display: flex; gap: 12px; margin-top: 16px;">
-        <button type="submit" class="btn btn-primary">
-            <i data-lucide="plus" style="width:16px;height:16px"></i>
-            录入
-        </button>
-        <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
+      <button type="submit" class="btn btn-primary">
+        <i data-lucide="plus" style="width:16px;height:16px"></i>
+        录入
+      </button>
+      <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
     </div>
-</form>
+  </form>
+
+</div>
 {% endblock %}

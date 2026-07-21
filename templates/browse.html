@@ -85,6 +85,14 @@
       <option value="500-99999" {{ 'selected' if filters.insured_from == '500' }}>500人以上</option>
     </select>
     <input type="hidden" name="insured_to" id="insured_to" value="{{ filters.insured_to or '' }}">
+    <select name="created_at" class="form-select">
+      <option value="">录入时间</option>
+      <option value="1d" {{ 'selected' if filters.created_at == '1d' }}>一天以内</option>
+      <option value="7d" {{ 'selected' if filters.created_at == '7d' }}>一天 ~ 一周</option>
+      <option value="30d" {{ 'selected' if filters.created_at == '30d' }}>一周 ~ 一个月</option>
+      <option value="365d" {{ 'selected' if filters.created_at == '365d' }}>一个月 ~ 一年</option>
+      <option value="365d+" {{ 'selected' if filters.created_at == '365d+' }}>一年以上</option>
+    </select>
   </div>
 </form>
 
@@ -230,7 +238,11 @@
 </style>
 
 <script>
-// ── 筛选条件记忆（localStorage）──────────────────────────────────────────
+// ── 筛选条件处理 ──────────────────────────────────────────────────────────
+// 不再用 localStorage 自动重定向回旧筛选 URL。
+// 之前的自动重定向与"逐个移除筛选"冲突：移除后 localStorage 仍残留旧筛选，
+// 跨页（如电话页）再回到浏览页时被重定向，恰逢 DOMContentLoaded 不再触发，
+// 数据区会永远空白。筛选状态统一由 URL 参数承载。
 (function() {
   const STORAGE_KEY = 'enthub_browse_filters';
   const currentSearch = window.location.search;
@@ -241,28 +253,14 @@
     return;
   }
 
-  const params = new URLSearchParams(currentSearch);
-  const hasFilter = ['city','district','business_status','industry','company_type',
-                     'year_from','year_to','cap_from','cap_to',
-                     'insured_from','insured_to','sort','dir','per_page']
-    .some(k => params.has(k));
-
-  if (hasFilter) {
-    localStorage.setItem(STORAGE_KEY, currentSearch);
-    return;
-  }
-
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved && saved.length > 1) {
-    window.location.replace('/browse' + saved);
-  }
 })();
 
 // ── 筛选标签配置 ──────────────────────────────────────────────────────────
 const FILTER_LABELS = {
   city: '城市', district: '区县', business_status: '经营状态',
   industry: '行业', company_type: '公司类型',
-  year_from: '成立年份', cap_from: '注册资本', insured_from: '社保人数'
+  year_from: '成立年份', cap_from: '注册资本', insured_from: '社保人数',
+  created_at: '录入时间'
 };
 
 // ── 当前查询状态 ──────────────────────────────────────────────────────────
@@ -327,7 +325,7 @@ function updateActiveChips(params) {
   container.innerHTML = '';
 
   const chipKeys = ['city', 'district', 'business_status', 'industry', 'company_type',
-                    'year_from', 'cap_from', 'insured_from'];
+                    'year_from', 'cap_from', 'insured_from', 'created_at'];
   let chipCount = 0;
 
   chipKeys.forEach(key => {
@@ -350,6 +348,9 @@ function updateActiveChips(params) {
       const to = params.get('insured_to');
       if (val === '500') displayVal = '500人以上';
       else if (to) displayVal = `${val}-${to}人`;
+    } else if (key === 'created_at') {
+      const m = { '1d': '一天以内', '7d': '一天 ~ 一周', '30d': '一周 ~ 一个月', '365d': '一个月 ~ 一年', '365d+': '一年以上' };
+      displayVal = m[val] || val;
     }
 
     const chip = document.createElement('span');
@@ -384,8 +385,12 @@ function removeFilter(key) {
 
   // 同步更新表单
   const form = document.getElementById('filter-form');
-  const select = form.querySelector(`[name="${key}"]`);
-  if (select) select.value = '';
+  const el = form.querySelector(`[name="${key}"]`);
+  if (el) el.value = '';
+  if (key.endsWith('_from')) {
+    const toEl = form.querySelector(`[name="${key.replace('_from', '_to')}"]`);
+    if (toEl) toEl.value = '';
+  }
 
   // 更新 URL 并重新加载
   params.delete('page');
@@ -399,12 +404,15 @@ function removeFilter(key) {
 function saveFiltersToStorage() {
   const search = window.location.search;
   const params = new URLSearchParams(search);
-  const hasFilter = ['city','district','business_status','industry','company_type',
-                     'year_from','year_to','cap_from','cap_to',
-                     'insured_from','insured_to','sort','dir','per_page']
+ const hasFilter = ['city','district','business_status','industry','company_type',
+                    'year_from','year_to','cap_from','cap_to',
+                     'insured_from','insured_to','created_at','sort','dir','per_page']
     .some(k => params.has(k));
   if (hasFilter) {
     localStorage.setItem('enthub_browse_filters', search);
+  } else {
+    // 无筛选时清除旧值，避免跨页返回时残留导致空白
+    localStorage.removeItem('enthub_browse_filters');
   }
 }
 
@@ -439,7 +447,7 @@ function renderTableSkeleton(perPage, params) {
     `<tr class="skeleton-row">${Array(10).fill('<td><span class="skeleton-cell"></span></td>').join('')}</tr>`
   ).join('');
 
-  const sort = (params && params.get('sort')) || 'id';
+  const sort = (params && params.get('sort')) || 'created_at';
   const dir = (params && params.get('dir')) || 'desc';
   const perPageVal = (params && parseInt(params.get('per_page'))) || 25;
   const sortIcon = (col) => sort === col ? (dir === 'desc' ? ' ↓' : ' ↑') : '';
@@ -476,6 +484,7 @@ function renderTableSkeleton(perPage, params) {
             <th class="col-status">状态</th>
             <th class="col-date">成立日期</th>
             <th class="col-industry">行业</th>
+            <th class="col-created">${buildSortHeader('created_at', '录入时间')}</th>
             <th class="col-id">${buildSortHeader('id', 'ID')}</th>
           </tr>
         </thead>
@@ -501,9 +510,10 @@ function renderRow(r, isNew) {
       <td title="${escapeAttr(r.legal_person || '')}">${escapeHtml(r.legal_person || '-')}</td>
       <td title="${escapeAttr((r.city || '') + ' ' + (r.district || ''))}">${cityDistrict}</td>
       <td title="${escapeAttr(r.registered_capital || '')}">${escapeHtml(r.registered_capital || '-')}</td>
-      <td>${escapeHtml(r.business_status || '-')}</td>
+      <td>${r.business_status ? `<span class="badge badge-soft ${r.business_status === '存续' ? 'badge-success' : 'badge-warn'}">${escapeHtml(r.business_status)}</span>` : '-'}</td>
       <td>${escapeHtml(r.established_date || '-')}</td>
       <td title="${escapeAttr(r.industry || '')}">${escapeHtml(r.industry || '-')}</td>
+      <td title="${escapeAttr(r.created_at || '')}">${escapeHtml((r.created_at || '').slice(0, 10) || '-')}</td>
       <td title="${r.id}" onclick="event.stopPropagation()">
         <a href="/company/${r.id}">#${String(r.id).padStart(8, '0')}</a>
       </td>
@@ -580,9 +590,12 @@ function renderPagination(total, pages, page, params) {
   bottomPagination.innerHTML = `<div></div><div class="pagination-links">${paginationLinksHtml}</div>`;
 }
 
-// ── 核心加载函数（SSE）────────────────────────────────────────────────────
+// ── 核心加载函数（fetch JSON，替代 SSE）──────────────────────────────────
+// SSE（EventSource）在大数据量下连接抖动会自动重连，导致列表卡在"查询中"
+// 不渲染。这里改用一次性 fetch，查询本身很快（20w 行 COUNT 仅几十毫秒）。
+let currentLoadSeq = 0;  // 防止过期请求覆盖最新结果
 function loadBrowseData(params) {
-  // 关闭已有连接
+  // 取消之前的 SSE 连接（兼容残留引用）
   if (currentStream) {
     currentStream.close();
     currentStream = null;
@@ -598,78 +611,55 @@ function loadBrowseData(params) {
   // 更新 chips
   updateActiveChips(params);
 
-  // 获取 per_page
-  const perPage = parseInt(params.get('per_page')) || 25;
-
   // 渲染骨架表格（含排序链接）
+  const perPage = parseInt(params.get('per_page')) || 25;
   renderTableSkeleton(perPage, params);
 
-  // 构建 SSE URL
-  const streamParams = new URLSearchParams(params);
-  const streamUrl = '/browse/stream?' + streamParams.toString();
+  // 序号：若期间发起新请求，旧响应将被忽略
+  const seq = ++currentLoadSeq;
+  const url = '/browse/data.json?' + new URLSearchParams(params).toString();
 
-  // 打开 SSE 连接
-  currentStream = new EventSource(streamUrl);
+  fetch(url, { headers: { 'Accept': 'application/json' } })
+    .then(resp => {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.json();
+    })
+    .then(data => {
+      if (seq !== currentLoadSeq) return;  // 已被新请求取代，丢弃
 
-  currentStream.addEventListener('start', (e) => {
-    // 骨架已渲染，继续等待
-  });
+      stopTimer();
+      progressEl.style.display = 'none';
 
-  currentStream.addEventListener('batch', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      appendRows(data.rows);
-      updateProgress(data.loaded);
-    } catch (err) {
-      console.error('解析 batch 数据失败:', err);
-    }
-  });
-
-  currentStream.addEventListener('count', (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      renderPagination(data.total, data.pages, data.page, params);
-    } catch (err) {
-      console.error('解析 count 数据失败:', err);
-    }
-  });
-
-  currentStream.addEventListener('done', (e) => {
-    if (currentStream) {
-      currentStream.close();
-      currentStream = null;
-    }
-    stopTimer();
-    progressEl.style.display = 'none';
-
-    // 检查是否有结果（移除残留的骨架行）
-    const tbody = document.getElementById('browse-tbody');
-    if (tbody) {
-      const skeletons = tbody.querySelectorAll('.skeleton-row');
-      if (skeletons.length) {
-        skeletons.forEach(s => s.remove());
+      // 渲染数据行
+      const tbody = document.getElementById('browse-tbody');
+      if (tbody) {
+        tbody.innerHTML = '';
+        if (data.rows && data.rows.length) {
+          tbody.insertAdjacentHTML('beforeend', data.rows.map(r => renderRow(r, true)).join(''));
+        }
       }
-      // 如果没有任何行（也没有骨架行），显示空状态
-      if (tbody.children.length === 0) {
+
+      // 分页栏
+      renderPagination(data.total, data.pages, data.page, params);
+
+      // 空状态
+      if (!data.rows || data.rows.length === 0) {
         const tableWrap = document.querySelector('.browse-table-wrap');
         if (tableWrap) {
           tableWrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><p style="font-size:16px;margin-bottom:8px;">没有匹配的数据</p><p style="font-size:13px;">试试调整或清空筛选条件</p></div>';
         }
       }
-    }
 
-    // 重新初始化 Lucide 图标
-    if (window.lucide) lucide.createIcons();
-  });
-
-  currentStream.addEventListener('error', (e) => {
-    if (currentStream && currentStream.readyState === EventSource.CLOSED) {
+      if (window.lucide) lucide.createIcons();
+    })
+    .catch(err => {
+      if (seq !== currentLoadSeq) return;
       stopTimer();
       progressEl.style.display = 'none';
       const dataArea = document.getElementById('browse-data');
       dataArea.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">查询失败，请重试</div>';
-    }
-  });
+      console.error('浏览页加载失败:', err);
+    });
 }
 
 // ── 导航函数 ──────────────────────────────────────────────────────────────
@@ -893,9 +883,22 @@ async function batchAddTag() {
 }
 
 // ── 页面加载：启动首次查询 ────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const params = getParamsFromURL();
-  loadBrowseData(params);
+// 直接调用而非监听 DOMContentLoaded：SPA router 注入本脚本时 DOM 早已就绪，
+// DOMContentLoaded 不会再触发（这正是从详情页点浏览时列表空白的根因）。
+(function startBrowse() {
+  // 确保 DOM 节点存在（SPA 注入或直接刷新均成立，脚本在 body 末尾）
+  if (document.getElementById('browse-data')) {
+    const params = getParamsFromURL();
+    loadBrowseData(params);
+  }
+})();
+
+// bfcache 恢复兜底（浏览器后退时）
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    const params = getParamsFromURL();
+    loadBrowseData(params);
+  }
 });
 </script>
 {% endblock %}

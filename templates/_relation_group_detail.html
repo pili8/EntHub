@@ -1,24 +1,27 @@
 <!-- 分组详细企业列表 -->
-<div style="margin-top: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
-    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+<div style="margin-top: 12px;">
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
         共 {{ total }} 家企业，当前显示第 {{ page }} / {{ pages }} 页
     </div>
-    
-    <div style="display: flex; flex-direction: column; gap: 6px;">
+
+    <div class="ent-list">
         {% for company in companies %}
-        <div style="padding: 8px 10px; background: white; border-radius: 4px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-            <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" 
-               style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500;"
-               onmouseover="this.style.textDecoration='underline'"
-               onmouseout="this.style.textDecoration='none'">{{ company.name }}</a>
-            <span style="font-size: 11px; color: var(--text-muted);">#{{ '%08d' % company.id }}</span>
-        </div>
+        <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="ent-row">
+            <span class="ent-name">{{ company.name }}</span>
+            <span class="ent-district">{{ company.district or '—' }}</span>
+            <span class="ent-legal">{{ company.legal_person or '—' }}</span>
+            <span class="ent-status">
+                {% if company.business_status %}
+                <span class="badge badge-soft {{ 'badge-success' if company.business_status == '存续' else 'badge-warn' }}">{{ company.business_status }}</span>
+                {% else %}<span class="muted">—</span>{% endif %}
+            </span>
+        </a>
         {% endfor %}
     </div>
     
     <!-- 分页 -->
     {% if pages > 1 %}
-    <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+    <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; gap: 8px; align-items: center;">
             <span style="font-size: 12px; color: var(--text-muted);">每页</span>
             <select onchange="changeGroupPerPage(this.value)" 

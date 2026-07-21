@@ -6,6 +6,8 @@
 import math
 import time
 
+from datetime import datetime, timedelta
+
 from utils import (
     normalize_phone, normalize_credit_code, normalize_name,
 )
@@ -53,7 +55,7 @@ COMPANY_LIST_COLUMNS = f"""
     c.id, c.name, c.address, c.credit_code,
     c.legal_person, c.business_status, c.province, c.city,
     c.district, c.established_date, c.registered_capital,
-    c.industry, c.enterprise_scale,
+    c.industry, c.enterprise_scale, c.created_at,
     {COMPANY_LIST_PHONE_SUBQUERY}
 """
 
@@ -139,18 +141,44 @@ def build_filter_clause(args):
     insured_from = (args.get("insured_from") or "").strip()
     insured_to = (args.get("insured_to") or "").strip()
     if insured_from:
-        clauses.append("CAST(insured_count AS INTEGER) >= ?")
-        params.append(int(insured_from))
+       clauses.append("CAST(insured_count AS INTEGER) >= ?")
+       params.append(int(insured_from))
     if insured_to:
-        clauses.append("CAST(insured_count AS INTEGER) <= ?")
-        params.append(int(insured_to))
+       clauses.append("CAST(insured_count AS INTEGER) <= ?")
+       params.append(int(insured_to))
+
+    # 录入时间（created_at）年龄段分桶：相邻不重叠的区间
+    # 一天=0~1天 / 一周=1~7天 / 一月=7~30天 / 一年=30~365天 / 一年以上=>365天
+    # created_at 为 TEXT（YYYY-MM-DD HH:MM:SS），字符串比较与时间顺序一致。
+    created_bucket = (args.get("created_at") or "").strip()
+    if created_bucket:
+        now = datetime.now()
+        # (age_lo, age_hi) 天：年龄落在此区间的记录
+        #   created_at >= now - age_hi  （更老的一侧）
+        #   created_at <= now - age_lo  （更新的一侧）
+        bucket_map = {
+            "1d":    (0, 1),       # 一天以内
+            "7d":    (1, 7),       # 一天 ~ 一周
+            "30d":   (7, 30),      # 一周 ~ 一个月
+            "365d":  (30, 365),    # 一个月 ~ 一年
+            "365d+": (365, None),  # 一年以上
+        }
+        lo, hi = bucket_map.get(created_bucket, (None, None))
+        fmt = "%Y-%m-%d %H:%M:%S"
+        if hi is not None:
+            clauses.append("created_at >= ?")
+            params.append((now - timedelta(days=hi)).strftime(fmt))
+        if lo:
+            clauses.append("created_at <= ?")
+            params.append((now - timedelta(days=lo)).strftime(fmt))
 
     return clauses, params
 
 
-def build_sort_clause(args, default="id", default_dir="desc"):
+def build_sort_clause(args, default="created_at", default_dir="desc"):
     """从请求参数构造排序 SQL。
 
+    默认按录入时间（created_at）倒序，即最新录入的企业排最前。
     返回 (sort_col, dir_sql)。排序字段必须在白名单中，否则回退到 default。
     """
     sort = args.get("sort", default)

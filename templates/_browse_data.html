@@ -75,7 +75,9 @@
         <td title="{{ r.legal_person or '' }}">{{ r.legal_person or '-' }}</td>
         <td title="{{ r.city or '' }} {{ r.district or '' }}">{{ r.city or '-' }}{% if r.district and r.district != '-' %} {{ r.district }}{% endif %}</td>
         <td title="{{ r.registered_capital or '' }}">{{ r.registered_capital or '-' }}</td>
-        <td>{{ r.business_status or '-' }}</td>
+        <td>{% if r.business_status %}
+          <span class="badge badge-soft {{ 'badge-success' if r.business_status == '存续' else 'badge-warn' }}">{{ r.business_status }}</span>
+          {% else %}-{% endif %}</td>
         <td>{{ r.established_date or '-' }}</td>
         <td title="{{ r.industry or '' }}">{{ r.industry or '-' }}</td>
         <td title="{{ r.id }}" onclick="event.stopPropagation()">

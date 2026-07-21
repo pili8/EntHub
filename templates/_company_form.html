@@ -1,12 +1,16 @@
 {# 通用企业表单（录入/编辑共用） #}
 {# 变量：company（编辑时有值，录入时传 None） #}
 
-<div class="card">
-    <div class="section-title">基本信息</div>
+<section class="detail-section">
+    <h2 class="detail-section-title">基本信息</h2>
     <div class="form-grid">
         <div class="form-group">
             <label>企业名称 *</label>
             <input type="text" name="name" class="form-input" value="{{ company.name or '' }}" required>
+        </div>
+        <div class="form-group">
+            <label>曾用名</label>
+            <input type="text" name="former_name" class="form-input" value="{{ company.former_name or '' }}">
         </div>
         <div class="form-group">
             <label>经营状态</label>
@@ -53,10 +57,6 @@
             <input type="text" name="enterprise_scale" class="form-input" value="{{ company.enterprise_scale or '' }}">
         </div>
         <div class="form-group">
-            <label>曾用名</label>
-            <input type="text" name="former_name" class="form-input" value="{{ company.former_name or '' }}">
-        </div>
-        <div class="form-group">
             <label>英文名</label>
             <input type="text" name="english_name" class="form-input" value="{{ company.english_name or '' }}">
         </div>
@@ -69,10 +69,10 @@
             <input type="text" name="shareholders" class="form-input" value="{{ company.shareholders or '' }}">
         </div>
     </div>
-</div>
+</section>
 
-<div class="card">
-    <div class="section-title">联系方式</div>
+<section class="detail-section">
+    <h2 class="detail-section-title">联系方式</h2>
     <div class="form-grid">
         <div class="form-group">
             <label>电话</label>
@@ -95,10 +95,11 @@
             <input type="text" name="website" class="form-input" value="{{ company.website or '' }}">
         </div>
     </div>
-</div>
+    <div class="contact-divider"></div>
+</section>
 
-<div class="card">
-    <div class="section-title">地址信息</div>
+<section class="detail-section">
+    <h2 class="detail-section-title">地址信息</h2>
     <div class="form-grid">
         <div class="form-group">
             <label>所属省份</label>
@@ -125,10 +126,11 @@
             <input type="text" name="mailing_address" class="form-input" value="{{ company.mailing_address or '' }}">
         </div>
     </div>
-</div>
+    <div class="contact-divider"></div>
+</section>
 
-<div class="card">
-    <div class="section-title">注册编号</div>
+<section class="detail-section">
+    <h2 class="detail-section-title">工商注册信息</h2>
     <div class="form-grid">
         <div class="form-group">
             <label>统一社会信用代码</label>
@@ -147,11 +149,12 @@
             <input type="text" name="org_code" class="form-input" value="{{ company.org_code or '' }}">
         </div>
     </div>
-</div>
+    <div class="contact-divider"></div>
+</section>
 
-<div class="card">
-    <div class="section-title">经营范围</div>
+<section class="detail-section">
+    <h2 class="detail-section-title">经营范围</h2>
     <div class="form-group">
         <textarea name="business_scope" class="form-input" rows="4" style="resize: vertical">{{ company.business_scope or '' }}</textarea>
     </div>
-</div>
+</section>

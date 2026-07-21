@@ -3,7 +3,7 @@ import json
 import math
 import sqlite3
 from flask import Blueprint, g, request, render_template, redirect, url_for, flash, \
-                   Response
+                   Response, jsonify
 
 from db import DB_PATH
 from queries import (
@@ -66,11 +66,11 @@ def browse():
     # 当前选中的筛选值（用于模板回填 + 透传给数据端点）
     filters = {}
     for key in ("city", "district", "business_status", "industry", "company_type",
-                "year_from", "year_to", "cap_from", "cap_to",
-                "insured_from", "insured_to"):
-        val = (request.args.get(key) or "").strip()
-        if val:
-            filters[key] = val
+               "year_from", "year_to", "cap_from", "cap_to",
+               "insured_from", "insured_to", "created_at"):
+       val = (request.args.get(key) or "").strip()
+       if val:
+           filters[key] = val
 
     # 筛选器选项（5 分钟缓存，命中后毫秒级）
     filter_options = get_filter_options(g.db)
@@ -110,11 +110,11 @@ def browse_data():
 
     filters = {}
     for key in ("city", "district", "business_status", "industry", "company_type",
-                "year_from", "year_to", "cap_from", "cap_to",
-                "insured_from", "insured_to"):
-        val = (request.args.get(key) or "").strip()
-        if val:
-            filters[key] = val
+               "year_from", "year_to", "cap_from", "cap_to",
+               "insured_from", "insured_to", "created_at"):
+       val = (request.args.get(key) or "").strip()
+       if val:
+           filters[key] = val
 
     return render_template("_browse_data.html",
                            rows=rows, total=total, page=page, pages=pages,
@@ -125,6 +125,45 @@ def browse_data():
 
 
 # ── 流式浏览数据（SSE） ──────────────────────────────────────────────────────
+
+
+@bp.route("/browse/data.json")
+def browse_data_json():
+    """浏览页数据（JSON）：一次性返回当前页行 + 总数 + 分页。
+
+    替代 SSE 流式接口，规避 EventSource 在大数据量下自动重连导致列表
+    不渲染的问题。查询本身很快（20w 行 COUNT 仅几十毫秒）。
+    """
+    page = sanitize_page(request.args)
+    per_page = sanitize_per_page(request.args)
+
+    clauses, params = build_filter_clause(request.args)
+    where_clause = where_sql(clauses)
+    sort_col, dir_sql = build_sort_clause(request.args)
+
+    total = g.db.execute(
+        f"SELECT COUNT(*) FROM companies {where_clause}", params
+    ).fetchone()[0]
+    pages = max(1, math.ceil(total / per_page)) if total else 1
+    offset = (page - 1) * per_page
+
+    rows = query_company_list(
+        g.db, where_clause, params, sort_col, dir_sql, per_page, offset
+    )
+
+    def _val(v):
+        return v.isoformat() if hasattr(v, "isoformat") else v
+
+    return jsonify({
+        "rows": [{k: _val(r[k]) for k in r.keys()} for r in rows],
+        "total": total,
+        "pages": pages,
+        "page": page,
+        "per_page": per_page,
+        "sort": request.args.get("sort", "id"),
+        "dir": request.args.get("dir", "desc"),
+    })
+
 
 @bp.route("/browse/stream")
 def browse_stream():
@@ -519,7 +558,7 @@ def relation_group_detail():
                 [val]
             ).fetchone()[0]
             companies = g.db.execute(f"""
-                SELECT c.id, c.name, c.address, c.city, c.business_status,
+                SELECT c.id, c.name, c.district, c.legal_person, c.business_status,
                        {COMPANY_LIST_PHONE_SUBQUERY}
                 FROM companies c
                 JOIN company_phones cp ON cp.company_id = c.id
@@ -533,7 +572,7 @@ def relation_group_detail():
                 [val]
             ).fetchone()[0]
             companies = g.db.execute(f"""
-                SELECT c.id, c.name, c.address, c.city, c.business_status,
+                SELECT c.id, c.name, c.district, c.legal_person, c.business_status,
                        {COMPANY_LIST_PHONE_SUBQUERY}
                 FROM companies c
                 WHERE c.normalized_email = ?
@@ -546,7 +585,7 @@ def relation_group_detail():
                 [val]
             ).fetchone()[0]
             companies = g.db.execute(f"""
-                SELECT c.id, c.name, c.address, c.city, c.business_status,
+                SELECT c.id, c.name, c.district, c.legal_person, c.business_status,
                        {COMPANY_LIST_PHONE_SUBQUERY}
                 FROM companies c
                 WHERE c.normalized_legal_person = ?

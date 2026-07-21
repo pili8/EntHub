@@ -510,6 +510,7 @@ tr:hover td { background: #f8fafc; }
 .col-date    { width: 110px; }
 .col-capital { width: 120px; }
 .col-industry{ width: 160px; }
+.col-created { width: 100px; }
 
 /* ----------------------------------------------------------------------- */
 /*  Badges                                                                 */
@@ -1739,6 +1740,20 @@ tr:hover td { background: #f8fafc; }
 }
 .detail-value.mono { font-family: var(--mono); font-size: 13px; }
 
+/* 企业表单复用详情区块样式：label 对齐 detail-label 风格，仅在 detail-section 内生效 */
+.detail-section .form-group label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+.detail-section .form-grid {
+    gap: 14px 20px;
+}
+.detail-section + .detail-section,
+.detail-section .contact-divider {
+    /* 区块间距由 detail-section 的 margin-bottom 负责；分隔线用于视觉分组 */
+}
+
 .detail-scope {
     font-size: 13.5px;
     line-height: 1.7;
@@ -1814,6 +1829,46 @@ tr:hover td { background: #f8fafc; }
     color: var(--text-secondary);
     flex-shrink: 0;
 }
+
+/* ─────────── 统一企业列表行（关联企业 / 关联分组详情共用） ───────────
+   每行四列：企业名称 · 区县 · 法人 · 存续状态
+   这是所有「展示公司列表」的统一样式来源。 */
+.ent-list {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.ent-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px 96px 64px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--border);
+    transition: background .12s;
+}
+.ent-row:last-child { border-bottom: 0; }
+.ent-row:hover { background: var(--bg); text-decoration: none; }
+.ent-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+.ent-district,
+.ent-legal {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+.ent-status { justify-self: end; }
 
 /* 股东标签 */
 .shareholder-tags {

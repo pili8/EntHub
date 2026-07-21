@@ -30,8 +30,8 @@
                     </a>
                 </th>
                 <th>法人</th>
-                <th>城市/区县</th>
-                <th>状态</th>
+                <th>区县</th>
+                <th>存续</th>
             </tr>
         </thead>
         <tbody>
@@ -42,10 +42,10 @@
                     <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" onclick="event.stopPropagation()">{{ company.name }}</a>
                 </td>
                 <td>{{ company.legal_person or '-' }}</td>
-                <td>{{ company.city or '' }} {{ company.district or '' }}</td>
+                <td>{{ company.district or '-' }}</td>
                 <td>
                     {% if company.business_status %}
-                    <span class="badge {{ 'badge-info' if company.business_status == '存续' else 'badge-warning' }}">
+                    <span class="badge badge-soft {{ 'badge-success' if company.business_status == '存续' else 'badge-warn' }}">
                         {{ company.business_status }}
                     </span>
                     {% else %}-{% endif %}
