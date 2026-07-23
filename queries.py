@@ -27,6 +27,8 @@ ALLOWED_SORTS = {
     "created_at": "created_at",
     "legal_person": "legal_person",
     "registered_capital": "registered_capital",
+    "phone": "phone",
+    "industry": "industry",
 }
 
 # 文本搜索字段（按优先级排序）。第一项是 normalized_name，匹配时用归一化值。
@@ -479,7 +481,7 @@ def sanitize_page(args, key="page", default=1):
 
 
 def sanitize_per_page(args, default=DEFAULT_PER_PAGE,
-                      minimum=10, maximum=100):
+                      minimum=10, maximum=500):
     """从 args 中安全读取每页条数（夹在 [minimum, maximum]）。"""
     try:
         return max(minimum, min(maximum, int(args.get("per_page", default))))

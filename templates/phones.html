@@ -348,11 +348,17 @@ async function querySinglePhone(evt) {
         return;
     }
 
-    const btn = evt.currentTarget.closest('button');
-    const originalHTML = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
-    if (window.lucide) lucide.createIcons();
+    // 用 evt.target 代替 evt.currentTarget：
+    // currentTarget 在异步执行后会被浏览器重置为 null，导致 TypeError
+    // 注意：本函数也可能从 input 的 onkeypress 调用，此时 evt.target 是
+    // input 而非 button，closest('button') 返回 null——此时跳过按钮状态管理即可
+    const btn = evt ? evt.target.closest('button') : null;
+    const originalHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
+        if (window.lucide) lucide.createIcons();
+    }
 
     try {
         const resp = await fetch('/api/phone_count?phone=' + encodeURIComponent(phone));
@@ -377,7 +383,7 @@ async function querySinglePhone(evt) {
             companiesPanel.style.display = 'block';
 
             const viewAllLink = document.getElementById('single-view-all');
-            viewAllLink.href = '/relation-group?dup_type=phone&field_value=' + encodeURIComponent(result.normalized);
+            viewAllLink.href = '/relation-group?dup_type=phone&val=' + encodeURIComponent(result.normalized);
 
             const resp2 = await fetch('/api/relations?type=phone&value=' + encodeURIComponent(result.phone) + '&limit=10');
             const data2 = await resp2.json();
@@ -399,9 +405,11 @@ async function querySinglePhone(evt) {
     } catch (e) {
         window._enthubToast('error', '请求失败', e.message);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-        if (window.lucide) lucide.createIcons();
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            if (window.lucide) lucide.createIcons();
+        }
     }
 }
 
@@ -419,7 +427,8 @@ async function queryBatchPhones(evt) {
         return;
     }
 
-    const btn = evt.currentTarget.closest('button');
+    const btn = evt ? evt.target.closest('button') : null;
+    if (!btn) return;
     const originalHTML = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader-2" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> 查询中...';
@@ -444,7 +453,7 @@ async function queryBatchPhones(evt) {
         const tbody = document.getElementById('batch-results-body');
         tbody.innerHTML = results.map(r => {
             const relUrl = r.count > 0
-                ? '/relation-group?dup_type=phone&field_value=' + encodeURIComponent(r.normalized)
+                ? '/relation-group?dup_type=phone&val=' + encodeURIComponent(r.normalized)
                 : null;
             return '<tr style="border-bottom: 1px solid var(--border);">' +
                 '<td style="padding: 10px 16px; font-family: monospace;">' +
@@ -481,7 +490,9 @@ async function annotateText(evt) {
         return;
     }
 
-    const btn = evt ? evt.currentTarget.closest('button') : null;
+    // 用 evt.target 代替 evt.currentTarget：
+    // currentTarget 在事件分发结束后会被浏览器重置为 null
+    const btn = evt ? evt.target.closest('button') : null;
     const originalHTML = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
@@ -489,15 +500,24 @@ async function annotateText(evt) {
         if (window.lucide) lucide.createIcons();
     }
 
-    const data = await window.doAnnotate(text);
+    try {
+        const data = await window.doAnnotate(text);
 
-    if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-        if (window.lucide) lucide.createIcons();
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            if (window.lucide) lucide.createIcons();
+        }
+
+        if (data) showTextResult(data);
+    } catch (err) {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+            if (window.lucide) lucide.createIcons();
+        }
+        window._enthubToast('error', '标注失败', err.message);
     }
-
-    if (data) showTextResult(data);
 }
 
 // 粘贴自动标注
@@ -548,13 +568,18 @@ function clearTextInput(evt) {
 // 复制标注结果
 function copyAnnotated(evt) {
     const text = document.getElementById('text-annotated').textContent;
+    // 必须在异步操作之前捕获按钮引用：
+    // evt.currentTarget 在 .then() 回调执行时已被浏览器重置为 null
+    const btn = evt ? evt.target.closest('button') : document.getElementById('copy-annotated-btn');
+    if (!btn) return;
     navigator.clipboard.writeText(text).then(() => {
-        const btn = evt ? evt.currentTarget : document.getElementById('copy-annotated-btn');
         btn.innerHTML = '<i data-lucide="check" style="width: 16px; height: 16px;"></i> 已复制';
         btn.style.color = '#16A34A';
+        if (window.lucide) lucide.createIcons();
         setTimeout(() => {
             btn.innerHTML = '<i data-lucide="copy" style="width: 16px; height: 16px;"></i> 复制结果';
             btn.style.color = '';
+            if (window.lucide) lucide.createIcons();
         }, 2000);
     }).catch(e => {
         window._enthubToast('error', '复制失败', e.message);

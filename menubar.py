@@ -12,9 +12,11 @@ from pathlib import Path
 import rumps
 from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
 
+PROJECT_DIR = Path(__file__).parent
 PID_FILE = Path.home() / "Library" / "Application Support" / "EntHub" / "enthub.pid"
 LOG_FILE = Path.home() / "Library" / "Logs" / "EntHub.log"
-CONFIG_FILE = Path(__file__).parent / "config.json"
+CONFIG_FILE = PROJECT_DIR / "config.json"
+LAUNCHD_PLIST = Path.home() / "Library" / "LaunchAgents" / "com.enthub.startup.plist"
 URL = "http://127.0.0.1:5210"
 
 
@@ -38,6 +40,43 @@ def _write_config(config: dict) -> None:
 
 def _open(path: str) -> None:
     subprocess.Popen(["open", f"{URL}{path}"])
+
+
+def _install_launch_agent() -> None:
+    """创建 LaunchAgent plist，实现开机自启动"""
+    plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.enthub.startup</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{PROJECT_DIR / 'start.sh'}</string>
+        <string>--bg</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+"""
+    LAUNCHD_PLIST.parent.mkdir(parents=True, exist_ok=True)
+    LAUNCHD_PLIST.write_text(plist_content, encoding="utf-8")
+
+
+def _uninstall_launch_agent() -> None:
+    """删除 LaunchAgent plist，取消开机自启动"""
+    # 先 unload 再删除，确保系统不再加载
+    if LAUNCHD_PLIST.exists():
+        subprocess.run(
+            ["launchctl", "unload", str(LAUNCHD_PLIST)],
+            capture_output=True,
+        )
+        try:
+            LAUNCHD_PLIST.unlink()
+        except OSError:
+            pass
 
 
 def _read_pid() -> int | None:
@@ -79,14 +118,20 @@ class EntHubMenuBar(rumps.App):
         # 读取配置
         config = _read_config()
         auto_open = config.get("auto_open_web", False)
-        mark = "✓" if auto_open else "✗"
+        auto_start = config.get("auto_start", False)
 
-        # 配置二级菜单
+        # 配置二级菜单（✓/✗ 前缀）
         self.auto_open_item = rumps.MenuItem(
-            f"启动时自动打开Web {mark}", callback=self.on_toggle_auto_open
+            f"{'✓' if auto_open else '✗'} 启动时自动打开Web",
+            callback=self.on_toggle_auto_open,
+        )
+        self.auto_start_item = rumps.MenuItem(
+            f"{'✓' if auto_start else '✗'} 开机启动",
+            callback=self.on_toggle_auto_start,
         )
         config_submenu = rumps.MenuItem("配置")
         config_submenu.add(self.auto_open_item)
+        config_submenu.add(self.auto_start_item)
         config_submenu.add(rumps.MenuItem("打开日志", callback=self.on_open_log))
 
         # 主菜单
@@ -115,9 +160,26 @@ class EntHubMenuBar(rumps.App):
         config["auto_open_web"] = new_val
         _write_config(config)
         mark = "✓" if new_val else "✗"
-        self.auto_open_item.title = f"启动时自动打开Web {mark}"
+        self.auto_open_item.title = f"{mark} 启动时自动打开Web"
         state = "开启" if new_val else "关闭"
         rumps.notification("EntHub", f"启动时自动打开Web已{state}", "")
+
+    def on_toggle_auto_start(self, _):
+        """切换开机自启动（通过 macOS LaunchAgent）"""
+        config = _read_config()
+        new_val = not config.get("auto_start", False)
+        config["auto_start"] = new_val
+        _write_config(config)
+
+        if new_val:
+            _install_launch_agent()
+        else:
+            _uninstall_launch_agent()
+
+        mark = "✓" if new_val else "✗"
+        self.auto_start_item.title = f"{mark} 开机启动"
+        state = "开启" if new_val else "关闭"
+        rumps.notification("EntHub", f"开机启动已{state}", "")
 
     def on_quick_annotate(self, _):
         """一键标注：从剪贴板读取 → 标注号码 → 写回剪贴板"""

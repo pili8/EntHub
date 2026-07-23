@@ -83,7 +83,8 @@
                     压缩会清理历次导入/删除遗留的空闲页。压缩前会自动创建备份，操作完成后可通过备份列表回滚。
                 </p>
             </div>
-            <form method="post" action="{{ url_for('cleanup_flow_bp.cleanup_vacuum') }}" id="vacuum-form">
+            <form method="post" action="{{ url_for('cleanup_flow_bp.cleanup_vacuum') }}" id="vacuum-form"
+                  onsubmit="return confirmSubmit(event, '数据库压缩', '确定要执行数据库压缩吗？\n\n操作前会自动创建备份，过程通常需要数秒，期间数据库会被锁定。')">
                 <button type="submit" id="vacuum-btn" class="btn btn-secondary" disabled
                     title="等待数据加载...">
                     <i data-lucide="archive" style="width:16px;height:16px"></i>
@@ -346,10 +347,15 @@ table th {
 
     function showAlert(type, html) {
         const box = document.getElementById('alert-box');
+        if (!box) return;
         box.className = 'alert alert-' + type;
         box.innerHTML = html;
         box.style.display = 'block';
     }
+
+    // 碎片率 / 可释放空间值（由 SSE stat 事件写入，供 updateVacuumUI 读取）
+    let fragValue = null;
+    let reclaimValue = null;
 
     const source = new EventSource("{{ url_for('cleanup_flow_bp.cleanup_stats_stream') }}");
 
@@ -361,22 +367,27 @@ table th {
         setStat(key, value);
 
         // 特殊处理：碎片率相关统计
-        if (key === 'fragmentation' || key === 'reclaimable_mb') {
+        if (key === 'fragmentation') {
+            fragValue = value;
+            updateVacuumUI();
+        } else if (key === 'reclaimable_mb') {
+            reclaimValue = value;
             updateVacuumUI();
         }
     });
 
     function updateVacuumUI() {
-        const fragEl = document.querySelector('[data-stat="fragmentation"]');
-        const reclaimEl = document.querySelector('[data-stat="reclaimable_mb"]');
+        // 碎片率或可释放空间尚未收到时，保持等待状态
+        if (fragValue === null) return;
+
         const badge = document.getElementById('fragmentation-badge');
         const btn = document.getElementById('vacuum-btn');
         const reclaimText = document.getElementById('reclaimable-text');
 
-        if (!fragEl || !badge || !btn) return;
+        if (!badge || !btn) return;
 
-        const frag = parseFloat(fragEl.textContent) || 0;
-        const reclaim = reclaimEl ? (parseFloat(reclaimEl.textContent) || 0) : 0;
+        const frag = fragValue;
+        const reclaim = reclaimValue || 0;
 
         // 更新 badge
         badge.textContent = `碎片率 ${frag}%`;
@@ -413,9 +424,13 @@ table th {
     source.addEventListener('done', function(e) {
         source.close();
 
+        // SPA 导航后页面元素可能已被移除，直接返回避免 TypeError
+        const totalEl = document.querySelector('[data-stat="total"]');
+        if (!totalEl) return;
+
         // 派生字段：完整性百分比 + 待清理提示
         const total = parseInt(
-            document.querySelector('[data-stat="total"]').textContent.replace(/,/g, '')
+            totalEl.textContent.replace(/,/g, '')
         ) || 0;
         const withPhone = parseInt(
             document.querySelector('[data-stat="with_phone"]').textContent.replace(/,/g, '')
@@ -441,7 +456,8 @@ table th {
                 '发现 <strong>' + fmt(toClean) + '</strong> 条数据需要清理，清理后预计剩余 <strong>' +
                 fmt(total - toClean) + '</strong> 条记录'
             );
-            document.getElementById('submit-box').style.display = 'block';
+            const submitBox = document.getElementById('submit-box');
+            if (submitBox) submitBox.style.display = 'block';
         } else {
             showAlert('success',
                 '<i data-lucide="check-circle" style="width:16px;height:16px;vertical-align:middle"></i> ' +

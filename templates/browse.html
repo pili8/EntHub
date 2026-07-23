@@ -99,6 +99,23 @@
 {# ===== 激活筛选标签（动态生成）===== #}
 <div id="active-chips" class="active-chips"></div>
 
+{# ===== 操作工具栏（选择后出现）===== #}
+<div class="batch-toolbar" id="batch-toolbar" style="display:none;align-items:center;gap:12px;margin:8px 0;">
+  <span id="selected-count" style="font-size:13px;color:var(--text-secondary);">已选 0 家企业</span>
+  <button id="btn-batch-delete" onclick="batchDelete()" class="btn btn-danger btn-sm">
+    批量删除
+  </button>
+  <button id="btn-batch-tag" onclick="batchAddTag()" class="btn btn-secondary btn-sm">
+    添加标签
+  </button>
+  <button id="btn-clear-selection" onclick="clearSelection()" class="btn btn-secondary btn-sm">
+    取消选择
+  </button>
+  <button id="browse-export-btn" onclick="exportCompanies()" class="btn btn-primary btn-sm">
+    导出
+  </button>
+</div>
+
 {# ===== 加载进度条 ===== #}
 <div id="load-progress" class="load-progress" style="display: none;">
   <div class="load-progress-bar">
@@ -109,20 +126,6 @@
 
 {# ===== 数据区（JavaScript 动态渲染）===== #}
 <div id="browse-data"></div>
-
-{# ===== 批量操作工具栏 ===== #}
-<div class="batch-toolbar" id="batch-toolbar" style="display: none;">
-  <span id="selected-count">已选 0 家企业</span>
-  <button onclick="batchDelete()" class="btn btn-danger btn-sm" style="margin-left: auto;">
-    批量删除
-  </button>
-  <button onclick="batchAddTag()" class="btn btn-secondary btn-sm">
-    添加标签
-  </button>
-  <button onclick="clearSelection()" class="btn btn-secondary btn-sm">
-    取消选择
-  </button>
-</div>
 
 <style>
 @keyframes browse-spin { to { transform: rotate(360deg); } }
@@ -254,6 +257,9 @@
   }
 
 })();
+
+// ── 主逻辑 IIFE：防止 SPA 重复执行时 const/let 重声明报错 ──
+(function() {
 
 // ── 筛选标签配置 ──────────────────────────────────────────────────────────
 const FILTER_LABELS = {
@@ -461,7 +467,7 @@ function renderTableSkeleton(perPage, params) {
       <div>
         每页
         <select id="per-page" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
-          ${[10, 25, 50, 100, 200].map(n =>
+          ${[10, 25, 50, 100, 200, 500].map(n =>
             `<option value="${n}" ${n === perPageVal ? 'selected' : ''}>${n}</option>`
           ).join('')}
         </select>
@@ -477,13 +483,13 @@ function renderTableSkeleton(perPage, params) {
           <tr>
             <th class="col-check"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;" title="全选当前页"></th>
             <th class="col-name">${buildSortHeader('name', '企业名称')}</th>
-            <th class="col-phone">电话</th>
-            <th class="col-legal">法人</th>
-            <th class="col-city">城市/区县</th>
-            <th class="col-capital">注册资本</th>
-            <th class="col-status">状态</th>
-            <th class="col-date">成立日期</th>
-            <th class="col-industry">行业</th>
+            <th class="col-phone">${buildSortHeader('phone', '电话')}</th>
+            <th class="col-legal">${buildSortHeader('legal_person', '法人')}</th>
+            <th class="col-city">${buildSortHeader('city', '城市/区县')}</th>
+            <th class="col-capital">${buildSortHeader('registered_capital', '注册资本')}</th>
+            <th class="col-status">${buildSortHeader('business_status', '状态')}</th>
+            <th class="col-date">${buildSortHeader('established_date', '成立日期')}</th>
+            <th class="col-industry">${buildSortHeader('industry', '行业')}</th>
             <th class="col-created">${buildSortHeader('created_at', '录入时间')}</th>
             <th class="col-id">${buildSortHeader('id', 'ID')}</th>
           </tr>
@@ -590,11 +596,17 @@ function renderPagination(total, pages, page, params) {
   bottomPagination.innerHTML = `<div></div><div class="pagination-links">${paginationLinksHtml}</div>`;
 }
 
+
+
 // ── 核心加载函数（fetch JSON，替代 SSE）──────────────────────────────────
 // SSE（EventSource）在大数据量下连接抖动会自动重连，导致列表卡在"查询中"
 // 不渲染。这里改用一次性 fetch，查询本身很快（20w 行 COUNT 仅几十毫秒）。
 let currentLoadSeq = 0;  // 防止过期请求覆盖最新结果
 function loadBrowseData(params) {
+  // SPA 导航离开浏览页后，popstate 仍可能触发本函数；
+  // 此时 DOM 中没有浏览页元素，直接返回避免 TypeError。
+  if (!document.getElementById('browse-data')) return;
+
   // 取消之前的 SSE 连接（兼容残留引用）
   if (currentStream) {
     currentStream.close();
@@ -717,7 +729,10 @@ document.getElementById('filter-form').addEventListener('change', (e) => {
 });
 
 // ── 浏览器后退/前进 ───────────────────────────────────────────────────────
+// SPA 导航离开浏览页后 popstate 监听器仍在 window 上，需先检查当前页面
+// 是否仍为浏览页（避免在电话页/详情页等触发 loadBrowseData 报错）。
 window.addEventListener('popstate', () => {
+  if (!document.getElementById('browse-data')) return;
   const params = getParamsFromURL();
   loadBrowseData(params);
   // 同步表单状态
@@ -727,6 +742,7 @@ window.addEventListener('popstate', () => {
 // ── 从 URL 同步表单 ───────────────────────────────────────────────────────
 function syncFormFromParams(params) {
   const form = document.getElementById('filter-form');
+  if (!form) return;
   ['city', 'district', 'business_status', 'industry', 'company_type'].forEach(name => {
     const sel = form.querySelector(`[name="${name}"]`);
     if (sel) sel.value = params.get(name) || '';
@@ -763,14 +779,18 @@ function toggleSelectAll(el) {
   updateToolbar();
 }
 
+function getSelectedIds() {
+  return Array.from(document.querySelectorAll('.row-select:checked')).map(c => c.value);
+}
+
 function updateToolbar() {
   const checked = document.querySelectorAll('.row-select:checked');
   const toolbar = document.getElementById('batch-toolbar');
   const countEl = document.getElementById('selected-count');
-  if (checked.length > 0) {
+  const hasSelection = checked.length > 0;
+
+  if (hasSelection) {
     toolbar.style.display = 'flex';
-    toolbar.style.alignItems = 'center';
-    toolbar.style.gap = '12px';
     countEl.textContent = '已选 ' + checked.length + ' 家企业';
   } else {
     toolbar.style.display = 'none';
@@ -782,6 +802,26 @@ function clearSelection() {
   const selectAll = document.getElementById('select-all');
   if (selectAll) selectAll.checked = false;
   updateToolbar();
+}
+
+function exportCompanies() {
+  const selected = getSelectedIds();
+  const params = new URLSearchParams(window.location.search);
+  const filterParts = ['city','district','business_status','industry','company_type',
+    'year_from','year_to','cap_from','cap_to','insured_from','insured_to','created_at']
+    .filter(k => params.get(k))
+    .map(k => `${k}=${encodeURIComponent(params.get(k))}`)
+    .join('&');
+  const idsParam = selected.length ? `ids=${selected.join(',')}` : '';
+  const href = `/browse/export?${idsParam ? idsParam + '&' : ''}${filterParts}`;
+
+  const msg = selected.length
+    ? `确认导出选中的 <b>${selected.length}</b> 家企业？`
+    : '确认导出当前筛选条件下的全部企业？';
+
+  showConfirm('导出确认', msg, () => {
+    window.location.href = href;
+  });
 }
 
 async function batchDelete() {
@@ -895,10 +935,23 @@ async function batchAddTag() {
 
 // bfcache 恢复兜底（浏览器后退时）
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted) {
+  if (event.persisted && document.getElementById('browse-data')) {
     const params = getParamsFromURL();
     loadBrowseData(params);
   }
 });
+
+// 显式挂到 window（避免 SPA 路由切换后 onclick 找不到函数）
+window.removeFilter = removeFilter;
+window.sortBy = sortBy;
+window.gotoPage = gotoPage;
+window.changePerPage = changePerPage;
+window.toggleSelectAll = toggleSelectAll;
+window.handleBrowseRowClick = handleBrowseRowClick;
+window.batchDelete = batchDelete;
+window.batchAddTag = batchAddTag;
+window.clearSelection = clearSelection;
+window.exportCompanies = exportCompanies;
+})();
 </script>
 {% endblock %}

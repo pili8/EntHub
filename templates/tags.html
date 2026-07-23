@@ -65,6 +65,7 @@
 {% endif %}
 
 <script>
+(function() {
 // 颜色选择
 let selectedColor = '#3b82f6';
 
@@ -92,12 +93,12 @@ document.getElementById('createTagForm').addEventListener('submit', async (e) =>
     });
     
     const result = await response.json();
-    if (result.success) {
+    if (result.code === 0) {
         showConfirm('创建成功', '标签创建成功，是否刷新页面？', () => {
             location.reload();
         });
     } else {
-        showConfirm('创建失败', result.error, () => {});
+        showConfirm('创建失败', result.message || '未知错误', () => {});
     }
 });
 
@@ -160,14 +161,14 @@ function editTag(id, name, color) {
         });
         
         const result = await response.json();
-        if (result.success) {
+        if (result.code === 0) {
             closeModal();
             showConfirm('更新成功', '标签更新成功，是否刷新页面？', () => {
                 location.reload();
             });
         } else {
             closeModal();
-            showConfirm('更新失败', result.error, () => {});
+            showConfirm('更新失败', result.message || '未知错误', () => {});
         }
     };
 }
@@ -183,15 +184,20 @@ function deleteTag(id, name) {
             });
             
             const result = await response.json();
-            if (result.success) {
+            if (result.code === 0) {
                 showConfirm('删除成功', '标签删除成功，是否刷新页面？', () => {
                     location.reload();
                 });
             } else {
-                showConfirm('删除失败', result.error, () => {});
+                showConfirm('删除失败', result.message || '未知错误', () => {});
             }
         }
     );
 }
+
+// 显式挂到 window（避免 SPA 路由切换后 onclick 找不到函数）
+window.editTag = editTag;
+window.deleteTag = deleteTag;
+})();
 </script>
 {% endblock %}

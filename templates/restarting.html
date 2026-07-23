@@ -22,6 +22,7 @@
 </style>
 
 <script>
+(function() {
 // 倒计时
 let countdown = 3;
 const countdownEl = document.getElementById('countdown');
@@ -38,5 +39,6 @@ const timer = setInterval(() => {
         window.location.href = '{{ url_for('pages_bp.index') }}';
     }
 }, 1000);
+})();
 </script>
 {% endblock %}

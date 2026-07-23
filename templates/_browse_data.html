@@ -6,7 +6,7 @@
   <div>
     每页
     <select id="per-page" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
-      {% for n in [10, 25, 50, 100, 200] %}
+      {% for n in [10, 25, 50, 100, 200, 500] %}
         <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
       {% endfor %}
     </select>
@@ -48,13 +48,41 @@
             企业名称 {% if sort=='name' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
           </a>
         </th>
-        <th class="col-phone">电话</th>
-        <th class="col-legal">法人</th>
-        <th class="col-city">城市/区县</th>
-        <th class="col-capital">注册资本</th>
-        <th class="col-status">状态</th>
-        <th class="col-date">成立日期</th>
-        <th class="col-industry">行业</th>
+        <th class="col-phone">
+          <a href="?sort=phone&dir={{ 'asc' if sort=='phone' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            电话 {% if sort=='phone' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-legal">
+          <a href="?sort=legal_person&dir={{ 'asc' if sort=='legal_person' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            法人 {% if sort=='legal_person' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-city">
+          <a href="?sort=city&dir={{ 'asc' if sort=='city' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            城市/区县 {% if sort=='city' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-capital">
+          <a href="?sort=registered_capital&dir={{ 'asc' if sort=='registered_capital' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            注册资本 {% if sort=='registered_capital' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-status">
+          <a href="?sort=business_status&dir={{ 'asc' if sort=='business_status' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            状态 {% if sort=='business_status' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-date">
+          <a href="?sort=established_date&dir={{ 'asc' if sort=='established_date' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            成立日期 {% if sort=='established_date' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="col-industry">
+          <a href="?sort=industry&dir={{ 'asc' if sort=='industry' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
+            行业 {% if sort=='industry' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
+          </a>
+        </th>
         <th class="col-id">
           <a href="?sort=id&dir={{ 'asc' if sort=='id' and direction=='desc' else 'desc' }}{% for k,v in filters.items() %}&{{ k }}={{ v }}{% endfor %}" class="sort-link">
             ID {% if sort=='id' %}{{ '↓' if direction=='desc' else '↑' }}{% endif %}
@@ -108,7 +136,7 @@
   <div>
     每页
     <select id="per-page-2" onchange="changePerPage(this.value)" class="form-select" style="width: auto; display: inline-block;">
-      {% for n in [10, 25, 50, 100, 200] %}
+      {% for n in [10, 25, 50, 100, 200, 500] %}
         <option value="{{ n }}" {{ 'selected' if per_page == n }}>{{ n }}</option>
       {% endfor %}
     </select>

@@ -327,13 +327,16 @@
 
 {% block scripts %}
 <script>
+(function() {
 const companyId = {{ company.id }};
 
 // 加载企业标签
 async function loadCompanyTags() {
     const response = await fetch(`/api/companies/${companyId}/tags`);
-    const tags = await response.json();
-    
+    const result = await response.json();
+    // 响应格式：{code, message, data: {results: [...]}}
+    const tags = (result.data && result.data.results) || [];
+
     const tagsList = document.getElementById('tagsList');
     if (tags.length === 0) {
         tagsList.innerHTML = '<span style="font-size: 12px; color: var(--text-muted);">暂无标签</span>';
@@ -352,13 +355,14 @@ async function loadCompanyTags() {
 
 // 打开标签选择器
 async function openTagSelector() {
-    const response = await fetch('/api/tags');
-    const allTags = await response.json();
-    
-    const companyTagsResponse = await fetch(`/api/companies/${companyId}/tags`);
-    const companyTags = await companyTagsResponse.json();
+    // 响应格式：{code, message, data: {results: [...]}}
+    const allTagsResp = await (await fetch('/api/tags')).json();
+    const allTags = (allTagsResp.data && allTagsResp.data.results) || [];
+
+    const companyTagsResp = await (await fetch(`/api/companies/${companyId}/tags`)).json();
+    const companyTags = (companyTagsResp.data && companyTagsResp.data.results) || [];
     const companyTagIds = new Set(companyTags.map(t => t.id));
-    
+
     const availableTags = allTags.filter(t => !companyTagIds.has(t.id));
     
     let content = `
@@ -422,12 +426,12 @@ async function openTagSelector() {
             });
             
             const createResult = await createResponse.json();
-            if (createResult.success) {
+            if (createResult.code === 0) {
                 // 获取新创建的标签ID
-                const tagsResponse = await fetch('/api/tags');
-                const tags = await tagsResponse.json();
+                const tagsResp = await (await fetch('/api/tags')).json();
+                const tags = (tagsResp.data && tagsResp.data.results) || [];
                 const newTag = tags.find(t => t.name === name);
-                
+
                 if (newTag) {
                     // 添加标签到企业
                     await addTag(newTag.id);
@@ -435,7 +439,7 @@ async function openTagSelector() {
                     showConfirm('创建成功', `标签"${name}"已创建并添加`, () => {});
                 }
             } else {
-                showConfirm('创建失败', createResult.error, () => {});
+                showConfirm('创建失败', createResult.message || '未知错误', () => {});
             }
         });
     }, 100);
@@ -448,13 +452,13 @@ async function addTag(tagId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tag_id: tagId })
     });
-    
+
     const result = await response.json();
-    if (result.success) {
+    if (result.code === 0) {
         loadCompanyTags();
         closeModal();
     } else {
-        showConfirm('添加失败', result.error, () => {});
+        showConfirm('添加失败', result.message || '未知错误', () => {});
     }
 }
 
@@ -467,18 +471,30 @@ async function removeTag(tagId) {
             const response = await fetch(`/api/companies/${companyId}/tags/${tagId}`, {
                 method: 'DELETE'
             });
-            
+
             const result = await response.json();
-            if (result.success) {
+            if (result.code === 0) {
                 loadCompanyTags();
             } else {
-                showConfirm('删除失败', result.error, () => {});
+                showConfirm('删除失败', result.message || '未知错误', () => {});
             }
         }
     );
 }
 
 // 页面加载时加载标签
-document.addEventListener('DOMContentLoaded', loadCompanyTags);
+// 兼容 SPA 路由：DOMContentLoaded 仅在首次整页加载时触发，
+// SPA 切换页面时不会再次触发，因此直接调用确保标签始终加载。
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadCompanyTags);
+} else {
+    loadCompanyTags();
+}
+
+// 显式挂到 window（避免 SPA 路由切换后 onclick 找不到函数）
+window.openTagSelector = openTagSelector;
+window.addTag = addTag;
+window.removeTag = removeTag;
+})();
 </script>
 {% endblock %}

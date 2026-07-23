@@ -125,6 +125,15 @@
                 oldMain.remove();
             }
 
+            // Swap page-specific scripts/styles (#page-scripts is outside #main-content,
+            // containing the page scripts block with <script> and <style> tags)
+            const newPageScripts = doc.getElementById('page-scripts');
+            const oldPageScripts = document.getElementById('page-scripts');
+            if (newPageScripts && oldPageScripts) {
+                oldPageScripts.parentNode.insertBefore(newPageScripts, oldPageScripts);
+                oldPageScripts.remove();
+            }
+
             // Re-init Lucide icons
             if (window.lucide) lucide.createIcons();
 
@@ -133,22 +142,39 @@
                 htmx.process(newMain);
             }
 
-            // Execute page-specific scripts from the new main
+            // Execute inline scripts from the new main content
             newMain.querySelectorAll('script').forEach(function(s) {
                 const ns = document.createElement('script');
                 ns.textContent = s.textContent;
                 document.body.appendChild(ns).remove();
             });
 
+            // Execute page-specific scripts from the scripts block
+            if (newPageScripts) {
+                newPageScripts.querySelectorAll('script').forEach(function(s) {
+                    const ns = document.createElement('script');
+                    ns.textContent = s.textContent;
+                    document.body.appendChild(ns).remove();
+                });
+            }
+
             window._enthubReady = true;
         }
 
         function handleClick(e) {
-            const link = e.target.closest('.nav-link, .nav-logo');
+            // Skip if another handler (e.g. confirmLink) already prevented default
+            if (e.defaultPrevented) return;
+            const link = e.target.closest('.nav-link, .nav-logo, .nav-dropdown-item');
             if (!link) return;
             // Ignore if user held modifier keys (Cmd-click, etc.)
             if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+            // Ignore links with href="#" (dropdown toggle, etc.)
+            if (!link.href || link.getAttribute('href') === '#') return;
             e.preventDefault();
+            // Close any open dropdown menus
+            document.querySelectorAll('.nav-dropdown-menu').forEach(menu => {
+                menu.style.display = 'none';
+            });
             history.pushState(null, '', link.href);
             loadPage(link.href);
         }
@@ -219,11 +245,11 @@
 
     // ── 一键标注：双模式（读剪贴板 / 降级到粘贴）──
     async function quickAnnotate(evt) {
-        const btn = evt ? evt.currentTarget : null;
+        const btn = evt ? evt.target.closest('button') : null;
         const originalHTML = btn ? btn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" style="width: 14px; height: 14px; animation: qa-spin 1s linear infinite;"></i> 处理中...';
+            btn.innerHTML = '<i data-lucide="loader-2" style="width: 14px; height: 14px; animation: spin 1s linear infinite;"></i> 处理中...';
             if (window.lucide) lucide.createIcons();
         }
 
@@ -417,6 +443,8 @@
     window._enthubToast = _enthubToast;
     </script>
     {% include "_modal.html" %}
-    {% block scripts %}{% endblock %}
+    <div id="page-scripts">
+        {% block scripts %}{% endblock %}
+    </div>
 </body>
 </html>

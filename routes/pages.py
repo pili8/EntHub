@@ -1,7 +1,9 @@
 """核心页面路由：首页、浏览、搜索、关联发现、电话页。"""
+import io
 import json
 import math
 import sqlite3
+from urllib.parse import quote
 from flask import Blueprint, g, request, render_template, redirect, url_for, flash, \
                    Response, jsonify
 
@@ -250,6 +252,154 @@ def browse_stream():
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+# ── 浏览页导出 XLSX ─────────────────────────────────────────────────────────
+
+_EXPORT_COLUMNS = [
+    ("id",                    "ID"),
+    ("name",                  "企业名称"),
+    ("former_name",           "曾用名"),
+    ("english_name",          "英文名"),
+    ("legal_person",          "法人"),
+    ("phone",                 "电话"),
+    ("email",                 "邮箱"),
+    ("other_email",           "其他邮箱"),
+    ("website",               "网站"),
+    ("credit_code",           "统一信用代码"),
+    ("taxpayer_id",           "纳税人识别号"),
+    ("registration_no",       "注册号"),
+    ("org_code",              "组织机构代码"),
+    ("registered_capital",    "注册资本"),
+    ("paid_capital",          "实缴资本"),
+    ("established_date",      "成立日期"),
+    ("approved_date",         "核准日期"),
+    ("business_term",         "营业期限"),
+    ("business_status",       "经营状态"),
+    ("company_type",          "公司类型"),
+    ("industry",              "行业"),
+    ("enterprise_scale",      "企业规模"),
+    ("insured_count",         "社保人数"),
+    ("province",              "省份"),
+    ("city",                  "城市"),
+    ("district",              "区县"),
+    ("address",               "注册地址"),
+    ("annual_report_address", "年报地址"),
+    ("mailing_address",       "通信地址"),
+    ("shareholders",          "股东"),
+    ("business_scope",        "经营范围"),
+    ("tags",                  "标签"),
+    ("source_file",           "来源文件"),
+    ("source",                "来源"),
+    ("created_at",            "创建时间"),
+    ("updated_at",            "更新时间"),
+]
+
+
+@bp.route("/browse/export")
+def browse_export():
+    """导出当前筛选结果或选中企业为 XLSX。
+
+    - 有 ids 参数 → 导出指定 ID 的企业
+    - 无 ids 参数 → 导出当前筛选条件下的全部企业
+    """
+    ids_raw = request.args.get("ids", "").strip()
+    selected_ids = [int(x) for x in ids_raw.split(",") if x.strip().isdigit()]
+
+    # 全字段列表（排除 normalized_* 和 status）
+    _all_cols = [c[0] for c in _EXPORT_COLUMNS if c[0] != "phone"]
+    _select_cols = ", ".join(f"c.{c}" for c in _all_cols)
+
+    if selected_ids:
+        placeholders = ",".join("?" * len(selected_ids))
+        rows = g.db.execute(f"""
+            SELECT {_select_cols},
+                   (SELECT GROUP_CONCAT(p.normalized_phone, ';')
+                      FROM company_phones p WHERE p.company_id = c.id) AS phone
+              FROM companies c
+             WHERE c.id IN ({placeholders})
+             ORDER BY c.id
+        """, selected_ids).fetchall()
+    else:
+        clauses, params = build_filter_clause(request.args)
+        where_clause = where_sql(clauses)
+        rows = g.db.execute(f"""
+            SELECT {_select_cols},
+                   (SELECT GROUP_CONCAT(p.normalized_phone, ';')
+                      FROM company_phones p WHERE p.company_id = c.id) AS phone
+              FROM companies c
+              {where_clause}
+             ORDER BY c.id
+        """, params).fetchall()
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "企业列表"
+
+    # 表头样式
+    header_font = Font(bold=True, size=11)
+    header_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="CCCCCC"),
+        right=Side(style="thin", color="CCCCCC"),
+        top=Side(style="thin", color="CCCCCC"),
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+
+    headers = [col[1] for col in _EXPORT_COLUMNS]
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    # 数据行
+    for row_idx, row in enumerate(rows, 2):
+        for col_idx, col in enumerate(_EXPORT_COLUMNS, 1):
+            val = row[col[0]] if row[col[0]] is not None else ""
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = thin_border
+
+    # 列宽自适应
+    col_widths = {
+        "id": 8, "name": 30, "former_name": 20, "english_name": 20,
+        "legal_person": 10, "phone": 25, "email": 22, "other_email": 22,
+        "website": 20, "credit_code": 22, "taxpayer_id": 20,
+        "registration_no": 18, "org_code": 14,
+        "registered_capital": 14, "paid_capital": 14,
+        "established_date": 12, "approved_date": 12, "business_term": 14,
+        "business_status": 8, "company_type": 14, "industry": 18,
+        "enterprise_scale": 8, "insured_count": 8,
+        "province": 6, "city": 8, "district": 10,
+        "address": 30, "annual_report_address": 30, "mailing_address": 30,
+        "shareholders": 25, "business_scope": 40,
+        "tags": 15, "source_file": 15, "source": 8,
+        "created_at": 18, "updated_at": 18,
+    }
+    for col_idx, (key, _) in enumerate(_EXPORT_COLUMNS, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = col_widths.get(key, 15)
+
+    # 冻结首行
+    ws.freeze_panes = "A2"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"企业列表_{len(rows)}条.xlsx"
+    encoded_filename = quote(filename)
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+        }
+    )
+
+
 # ── 统一搜索 ────────────────────────────────────────────────────────────────
 
 @bp.route("/search")
@@ -328,9 +478,15 @@ def browse_relation_groups():
     min_count = sanitize_min_count(request.args)
 
     # 排序映射（白名单）
+    # 关联发现页的排序选择器传 count_desc/count_asc/name_asc/name_desc
     sort_map = {
-        "cnt": "cnt DESC",
-        "val": "val ASC",
+        "count_desc": "cnt DESC",
+        "count_asc":  "cnt ASC",
+        "name_asc":   "display_val ASC",
+        "name_desc":  "display_val DESC",
+        # 旧值兼容（部分早期模板/书签可能还在用）
+        "cnt":        "cnt DESC",
+        "val":        "display_val ASC",
     }
     order_sql = sort_map.get(sort_by, "cnt DESC")
     offset = (page - 1) * per_page

@@ -94,12 +94,14 @@
     const source = new EventSource(streamUrl);
 
     source.addEventListener('start', function(e) {
-        document.getElementById('step-stats').style.display = 'block';
+        const el = document.getElementById('step-stats');
+        if (el) el.style.display = 'block';
     });
 
     source.addEventListener('step', function(e) {
         const data = JSON.parse(e.data);
         const dots = document.getElementById('step-dots');
+        if (!dots) return; // SPA 导航后元素可能已移除
         // Mark all existing dots as done if past
         dots.querySelectorAll('.step-dot.active').forEach(el => {
             el.classList.remove('active');
@@ -145,7 +147,9 @@
     source.addEventListener('done', function(e) {
         const data = JSON.parse(e.data);
         source.close();
-        document.getElementById('progress-section').style.display = 'none';
+        const progSection = document.getElementById('progress-section');
+        if (!progSection) return; // SPA 导航后元素可能已移除
+        progSection.style.display = 'none';
         document.getElementById('done-section').style.display = 'block';
         // Mark all steps done
         document.querySelectorAll('.step-dot').forEach(el => {
@@ -161,7 +165,9 @@
 
     source.addEventListener('stopped', function(e) {
         source.close();
-        document.getElementById('progress-section').style.display = 'none';
+        const progSection = document.getElementById('progress-section');
+        if (!progSection) return;
+        progSection.style.display = 'none';
         document.getElementById('done-section').style.display = 'block';
         document.getElementById('done-title').textContent = '已停止清理';
     });
@@ -170,7 +176,9 @@
         if (e.data) {
             const data = JSON.parse(e.data);
             source.close();
-            document.getElementById('progress-section').style.display = 'none';
+            const progSection = document.getElementById('progress-section');
+            if (!progSection) return;
+            progSection.style.display = 'none';
             document.getElementById('error-section').style.display = 'block';
             document.getElementById('error-msg').textContent = data.message || '未知错误';
         }
@@ -178,7 +186,9 @@
 
     source.onerror = function() {
         source.close();
-        document.getElementById('progress-section').style.display = 'none';
+        const progSection = document.getElementById('progress-section');
+        if (!progSection) return;
+        progSection.style.display = 'none';
         document.getElementById('error-section').style.display = 'block';
         document.getElementById('error-msg').textContent = '连接中断';
     };

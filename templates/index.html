@@ -192,7 +192,8 @@
         </span>
       </a>
       {% endfor %}
-      <form action="{{ url_for('pages_bp.recent_clear') }}" method="post" class="lh-recent-clear">
+      <form action="{{ url_for('pages_bp.recent_clear') }}" method="post" class="lh-recent-clear"
+            onsubmit="return confirmSubmit(event, '清空查询记录', '确定要清空所有最近查询记录吗？此操作不可撤销。')">
         <button type="submit" class="lh-recent-clear-btn">清空记录</button>
       </form>
     </div>

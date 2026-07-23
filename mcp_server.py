@@ -323,7 +323,7 @@ def get_companies_list(
     """
     db = get_db()
     page = max(1, page)
-    per_page = min(100, max(10, per_page))
+    per_page = min(500, max(10, per_page))
     
     clauses = []
     params = []
@@ -479,7 +479,7 @@ def get_stats(
         统计结果
     """
     page = max(1, page)
-    per_page = min(100, max(10, per_page))
+    per_page = min(500, max(10, per_page))
     min_count = max(2, min_count)
     
     field_map = {

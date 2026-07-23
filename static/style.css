@@ -493,7 +493,7 @@ tr:hover td { background: #f8fafc; }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 6px 8px;
+    padding: 10px 12px;
     vertical-align: middle;
 }
 .browse-table tbody td {

@@ -49,6 +49,8 @@
                 <option value="25" {{ 'selected' if per_page == 25 }}>25组/页</option>
                 <option value="50" {{ 'selected' if per_page == 50 }}>50组/页</option>
                 <option value="100" {{ 'selected' if per_page == 100 }}>100组/页</option>
+                <option value="200" {{ 'selected' if per_page == 200 }}>200组/页</option>
+                <option value="500" {{ 'selected' if per_page == 500 }}>500组/页</option>
             </select>
         </div>
         <div class="pagination-links">
@@ -73,11 +75,13 @@
     </div>
     <script>
     function changeRelationPerPage(val) {
-        const url = new URL(window.location);
-        url.searchParams.set('per_page', val);
-        url.searchParams.set('page', '1');
-        htmx.ajax('GET', url.pathname + '?' + url.searchParams.toString(), '#relation-groups-container');
-        window.history.pushState({}, '', url.pathname + '?' + url.searchParams.toString());
+        const params = new URLSearchParams(window.location.search);
+        params.set('per_page', val);
+        params.set('page', '1');
+        const queryString = params.toString();
+        // HTMX 请求发往片段端点 /browse/relation-groups，而非页面路由 /relations
+        htmx.ajax('GET', '/browse/relation-groups?' + queryString, '#relation-groups-container');
+        window.history.pushState({}, '', '/relations?' + queryString);
     }
     if (window.lucide) lucide.createIcons();
     </script>

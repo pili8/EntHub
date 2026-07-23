@@ -106,12 +106,42 @@
     </div>
 </div>
 
-<!-- AI 工具配置 -->
+<!-- 使用示例 -->
 <div class="card" style="padding: 24px; margin-bottom: 24px;">
-    <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-        <i data-lucide="settings" style="width: 18px; height: 18px;"></i>
-        AI 工具配置
+    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="message-circle" style="width: 18px; height: 18px;"></i>
+        使用示例
     </h3>
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">配置完成后，在 AI 工具中用自然语言提问：</p>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #3b82f6; font-size: 13px;">
+            <span style="color: var(--text-muted);">🔍 </span>"帮我找所有叫<span style="font-weight: 500;">科技</span>的公司"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #22c55e; font-size: 13px;">
+            <span style="color: var(--text-muted);">📄 </span>"查一下 ID 为 <span style="font-weight: 500;">2</span> 的企业详情"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #f97316; font-size: 13px;">
+            <span style="color: var(--text-muted);">🔗 </span>"找和<span style="font-weight: 500;">张三</span>有关联的企业"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #ec4899; font-size: 13px;">
+            <span style="color: var(--text-muted);">📊 </span>"统计出现 <span style="font-weight: 500;">5 次</span>以上的法人"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #8b5cf6; font-size: 13px;">
+            <span style="color: var(--text-muted);">📋 </span>"列出<span style="font-weight: 500;">杭州</span>地区的科技公司"
+        </div>
+    </div>
+</div>
+
+<!-- AI 工具配置（默认折叠，HTML5 原生 details 标签） -->
+<details id="ai-tool-config-details" style="margin-bottom: 24px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface);">
+    <summary style="padding: 16px 24px; cursor: pointer; font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; list-style: none; user-select: none;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="settings" style="width: 18px; height: 18px;"></i>
+            AI 工具配置
+        </span>
+        <i data-lucide="chevron-down" style="width: 16px; height: 16px; color: var(--text-muted); transition: transform 0.2s;"></i>
+    </summary>
+    <div style="padding: 0 24px 24px;">
     <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0;">
         主流 AI 工具都使用相同的 <code style="background: var(--bg-secondary); padding: 1px 6px; border-radius: 3px; font-size: 12px;">mcpServers</code> JSON 格式（MCP 协议标准）。复制配置 → 粘贴到对应文件 → 重启 AI 工具。
     </p>
@@ -400,38 +430,14 @@
         <i data-lucide="alert-triangle" style="width: 14px; height: 14px; flex-shrink: 0;"></i>
         <span>修改配置后必须 <strong>Cmd+Q 完全退出</strong> AI 工具再重新打开（不是关窗口）</span>
     </div>
-</div>
-
-<!-- 使用示例 -->
-<div class="card" style="padding: 24px; margin-bottom: 24px;">
-    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-        <i data-lucide="message-circle" style="width: 18px; height: 18px;"></i>
-        使用示例
-    </h3>
-    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 12px 0;">配置完成后，在 AI 工具中用自然语言提问：</p>
-    <div style="display: flex; flex-direction: column; gap: 8px;">
-        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #3b82f6; font-size: 13px;">
-            <span style="color: var(--text-muted);">🔍 </span>"帮我找所有叫<span style="font-weight: 500;">科技</span>的公司"
-        </div>
-        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #22c55e; font-size: 13px;">
-            <span style="color: var(--text-muted);">📄 </span>"查一下 ID 为 <span style="font-weight: 500;">2</span> 的企业详情"
-        </div>
-        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #f97316; font-size: 13px;">
-            <span style="color: var(--text-muted);">🔗 </span>"找和<span style="font-weight: 500;">张三</span>有关联的企业"
-        </div>
-        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #ec4899; font-size: 13px;">
-            <span style="color: var(--text-muted);">📊 </span>"统计出现 <span style="font-weight: 500;">5 次</span>以上的法人"
-        </div>
-        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #8b5cf6; font-size: 13px;">
-            <span style="color: var(--text-muted);">📋 </span>"列出<span style="font-weight: 500;">杭州</span>地区的科技公司"
-        </div>
     </div>
-</div>
+</details>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
+(function() {
 // 自动刷新状态（仅未运行时）
 {% if not running %}
 setTimeout(function() {
@@ -595,11 +601,26 @@ async function stopMcp(btn) {
         }
     });
 }
+})();
 </script>
 <style>
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* 折叠区 chevron 旋转（与 phones.html 一致） */
+#ai-tool-config-details > summary {
+    list-style: none;
+}
+#ai-tool-config-details > summary::-webkit-details-marker {
+    display: none;
+}
+#ai-tool-config-details > summary::marker {
+    display: none;
+}
+#ai-tool-config-details[open] > summary i[data-lucide="chevron-down"] {
+    transform: rotate(180deg);
 }
 </style>
 {% endblock %}

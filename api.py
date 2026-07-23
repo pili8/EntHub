@@ -29,7 +29,7 @@ def companies():
     """企业列表 + 筛选 + 分页 + 排序"""
     try:
         page = max(1, request.args.get('page', 1, type=int))
-        per_page = min(100, max(10, request.args.get('per_page', 25, type=int)))
+        per_page = min(500, max(10, request.args.get('per_page', 25, type=int)))
 
         clauses = []
         params = []
@@ -307,7 +307,7 @@ def _stats_grouped(field, page, per_page, min_count):
 @api_bp.route('/api/stats/legal_person')
 def stats_legal_person():
     page = max(1, request.args.get('page', 1, type=int))
-    per_page = min(100, max(10, request.args.get('per_page', 25, type=int)))
+    per_page = min(500, max(10, request.args.get('per_page', 25, type=int)))
     min_count = max(2, request.args.get('min', 2, type=int))
     return _ok(_stats_grouped('legal_person', page, per_page, min_count))
 
@@ -315,7 +315,7 @@ def stats_legal_person():
 @api_bp.route('/api/stats/shareholder')
 def stats_shareholder():
     page = max(1, request.args.get('page', 1, type=int))
-    per_page = min(100, max(10, request.args.get('per_page', 25, type=int)))
+    per_page = min(500, max(10, request.args.get('per_page', 25, type=int)))
     min_count = max(2, request.args.get('min', 2, type=int))
     return _ok(_stats_grouped('shareholders', page, per_page, min_count))
 
@@ -323,7 +323,7 @@ def stats_shareholder():
 @api_bp.route('/api/stats/industry')
 def stats_industry():
     page = max(1, request.args.get('page', 1, type=int))
-    per_page = min(100, max(10, request.args.get('per_page', 25, type=int)))
+    per_page = min(500, max(10, request.args.get('per_page', 25, type=int)))
     min_count = max(2, request.args.get('min', 2, type=int))
     return _ok(_stats_grouped('industry', page, per_page, min_count))
 

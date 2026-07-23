@@ -104,7 +104,9 @@
     source.addEventListener('done', function(e) {
         const data = JSON.parse(e.data);
         source.close();
-        document.getElementById('progress-section').style.display = 'none';
+        const progSection = document.getElementById('progress-section');
+        if (!progSection) return; // SPA 导航后元素可能已移除
+        progSection.style.display = 'none';
         document.getElementById('done-section').style.display = 'block';
 
         let html = '';
@@ -123,7 +125,9 @@
     source.addEventListener('stopped', function(e) {
         const data = JSON.parse(e.data);
         source.close();
-        document.getElementById('progress-section').style.display = 'none';
+        const progSection = document.getElementById('progress-section');
+        if (!progSection) return;
+        progSection.style.display = 'none';
         document.getElementById('done-section').style.display = 'block';
         document.getElementById('done-title').textContent = '已停止导入';
 
@@ -139,7 +143,9 @@
         if (e.data) {
             const data = JSON.parse(e.data);
             source.close();
-            document.getElementById('progress-section').style.display = 'none';
+            const progSection = document.getElementById('progress-section');
+            if (!progSection) return;
+            progSection.style.display = 'none';
             document.getElementById('error-section').style.display = 'block';
             document.getElementById('error-msg').textContent = data.message || '未知错误';
         }
@@ -147,7 +153,9 @@
 
     source.onerror = function() {
         source.close();
-        document.getElementById('progress-section').style.display = 'none';
+        const progSection = document.getElementById('progress-section');
+        if (!progSection) return;
+        progSection.style.display = 'none';
         document.getElementById('error-section').style.display = 'block';
         document.getElementById('error-msg').textContent = '连接中断，请检查网络后返回首页查看导入结果';
     };

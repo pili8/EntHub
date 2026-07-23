@@ -103,6 +103,7 @@
 </div>
 
 <script>
+(function() {
 // 页面加载时检查URL参数，自动加载对应的关联类型
 (function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -128,25 +129,30 @@
 // 切换关联类型按钮样式
 let _lastClickedType = null;
 document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('relation-type-btn')) {
-        document.querySelectorAll('.relation-type-btn').forEach(btn => btn.classList.remove('active'));
-        e.target.classList.add('active');
+    const btn = e.target.closest('.relation-type-btn');
+    if (btn) {
+        document.querySelectorAll('.relation-type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
 
         // 获取当前排序方式
-        const sort = document.getElementById('sort-select').value;
+        const sortSel = document.getElementById('sort-select');
+        const sort = sortSel ? sortSel.value : 'count_desc';
 
-        // 更新当前按钮的hx-get参数
-        const type = e.target.getAttribute('data-type');
+        // 更新当前按钮的 hx-get 参数
+        const type = btn.getAttribute('data-type');
         _lastClickedType = type;
         const url = new URL(window.location);
         url.pathname = '/browse/relation-groups';
         url.searchParams.set('dup_type', type);
         url.searchParams.set('sort', sort);
-        e.target.setAttribute('hx-get', url.pathname + '?' + url.searchParams.toString());
+        btn.setAttribute('hx-get', url.pathname + '?' + url.searchParams.toString());
 
         // 显示加载中
-        document.getElementById('relation-groups-container').innerHTML =
-            '<div style="text-align: center; padding: 40px; color: var(--text-muted);">加载中，请稍候...</div>';
+        const container = document.getElementById('relation-groups-container');
+        if (container) {
+            container.innerHTML =
+                '<div style="text-align: center; padding: 40px; color: var(--text-muted);">加载中，请稍候...</div>';
+        }
     }
 });
 
@@ -160,27 +166,33 @@ document.body.addEventListener('htmx:afterSwap', function(e) {
 });
 
 // 排序选择器变化时重新加载
-document.getElementById('sort-select').addEventListener('change', function() {
-    const activeBtn = document.querySelector('.relation-type-btn.active');
-    if (activeBtn) {
-        const sort = this.value;
-        const type = activeBtn.getAttribute('data-type');
-        const url = new URL(window.location);
-        url.pathname = '/browse/relation-groups';
-        url.searchParams.set('dup_type', type);
-        url.searchParams.set('sort', sort);
+const sortSelectEl = document.getElementById('sort-select');
+if (sortSelectEl) {
+    sortSelectEl.addEventListener('change', function() {
+        const activeBtn = document.querySelector('.relation-type-btn.active');
+        if (activeBtn) {
+            const sort = this.value;
+            const type = activeBtn.getAttribute('data-type');
+            const url = new URL(window.location);
+            url.pathname = '/browse/relation-groups';
+            url.searchParams.set('dup_type', type);
+            url.searchParams.set('sort', sort);
 
-        // 更新按钮的hx-get参数
-        activeBtn.setAttribute('hx-get', url.pathname + '?' + url.searchParams.toString());
+            // 更新按钮的hx-get参数
+            activeBtn.setAttribute('hx-get', url.pathname + '?' + url.searchParams.toString());
 
-        // 使用htmx.ajax触发请求
-        htmx.ajax('GET', url.pathname + '?' + url.searchParams.toString(), '#relation-groups-container');
+            // 使用htmx.ajax触发请求
+            htmx.ajax('GET', url.pathname + '?' + url.searchParams.toString(), '#relation-groups-container');
 
-        // 显示加载中
-        document.getElementById('relation-groups-container').innerHTML =
-            '<div style="text-align: center; padding: 40px; color: var(--text-muted);">加载中，请稍候...</div>';
-    }
-});
+            // 显示加载中
+            const container = document.getElementById('relation-groups-container');
+            if (container) {
+                container.innerHTML =
+                    '<div style="text-align: center; padding: 40px; color: var(--text-muted);">加载中，请稍候...</div>';
+            }
+        }
+    });
+}
 
 // HTMX 错误兜底：请求失败时把"加载中"替换为错误提示，避免一直卡住
 document.body.addEventListener('htmx:responseError', function(e) {
@@ -193,6 +205,7 @@ document.body.addEventListener('htmx:responseError', function(e) {
             '</div>';
     }
 });
+})();
 </script>
 {% endif %}
 {% endblock %}
