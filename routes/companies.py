@@ -1,11 +1,15 @@
-"""企业 CRUD：详情、编辑、删除、新增。"""
-from flask import Blueprint, g, request, render_template, redirect, url_for, flash, abort
+"""企业 CRUD：详情、编辑、删除、新增、API 获取工商信息。"""
+import re
+from flask import Blueprint, g, request, render_template, redirect, url_for, flash, \
+                   abort, jsonify
 
 from utils import (
     normalize_name, normalize_credit_code,
     normalize_person_name, normalize_email,
 )
 from data_helpers import sync_phones, sync_shareholders
+from config import is_provider_ready
+import enthub_api
 
 bp = Blueprint('companies_bp', __name__)
 
@@ -256,3 +260,465 @@ def add_company():
         return redirect(url_for("companies_bp.add_company"))
 
     return render_template("add.html", company={})
+
+
+# ── API 获取/更新工商信息 ────────────────────────────────────────────────────
+
+# 映射后的字段中，哪些需要更新 normalized_* 辅助字段
+_NORMALIZED_FIELDS = {
+    "name": "normalized_name",
+    "legal_person": "normalized_legal_person",
+    "email": "normalized_email",
+}
+
+
+@bp.route("/api/company/fetch-info", methods=["POST"])
+def fetch_company_info_api():
+    """通过企业名称从鲸海数据 API 获取工商信息（用于录入页自动填充）。
+
+    不写入数据库，仅返回映射后的字段数据供前端填充表单。
+    每次调用消耗 1 次 API 配额。
+
+    请求 JSON：{"name": "企业名称"}
+    返回 JSON：{code, message, data: {mapped_fields...}}
+    """
+    if not is_provider_ready("jinghai"):
+        return jsonify({
+            "code": 2001,
+            "message": "API 未配置或未启用，请到设置页面配置鲸海数据 API 密钥",
+            "data": None,
+        })
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+
+    if not name:
+        return jsonify({
+            "code": 1001,
+            "message": "请提供企业名称",
+            "data": None,
+        })
+
+    result = enthub_api.fetch_company_info(company_name=name)
+
+    if not result["success"]:
+        return jsonify({
+            "code": 2001,
+            "message": result.get("error", "获取失败"),
+            "data": None,
+        })
+
+    return jsonify({
+        "code": 0,
+        "message": "ok",
+        "data": {
+            "mapped": result["mapped"],
+            "raw": result.get("raw"),  # 返回原始数据供调试
+        },
+    })
+
+
+@bp.route("/api/company/<int:company_id>/update-info", methods=["POST"])
+def update_company_info_api(company_id):
+    """通过鲸海数据 API 更新已存在企业的工商信息（用于详情页更新按钮）。
+
+    请求 JSON：{"mode": "overwrite" | "merge"}
+      - overwrite: API 返回的字段覆盖数据库旧值
+      - merge: 仅填充数据库中为空的字段，不覆盖已有值
+
+    每次调用消耗 1 次 API 配额。
+    """
+    if not is_provider_ready("jinghai"):
+        return jsonify({
+            "code": 2001,
+            "message": "API 未配置或未启用，请到设置页面配置",
+            "data": None,
+        })
+
+    # 检查企业是否存在
+    row = g.db.execute(
+        "SELECT id, name, credit_code FROM companies WHERE id = ?",
+        [company_id]
+    ).fetchone()
+    if not row:
+        return jsonify({
+            "code": 1002,
+            "message": "企业不存在",
+            "data": None,
+        })
+
+    body = request.get_json(silent=True) or {}
+    mode = body.get("mode", "merge")  # 默认 merge 模式（仅填充空字段）
+
+    # 优先用信用代码查询，其次用名称
+    result = enthub_api.fetch_company_info(
+        company_name=row["name"],
+        credit_code=row["credit_code"] if row["credit_code"] else None,
+    )
+
+    if not result["success"]:
+        return jsonify({
+            "code": 2001,
+            "message": result.get("error", "获取失败"),
+            "data": None,
+        })
+
+    mapped = result["mapped"]
+    if not mapped:
+        return jsonify({
+            "code": 2001,
+            "message": "API 返回数据为空，可能是未找到该企业",
+            "data": None,
+        })
+
+    # 按模式更新数据库
+    updated_fields = []
+    skipped_fields = []
+
+    # 这些字段不入 companies 主表
+    SKIP_FIELDS = {"phone", "other_phone", "shareholders", "tags", "source_file"}
+
+    for field, value in mapped.items():
+        if field in SKIP_FIELDS:
+            continue
+
+        if mode == "overwrite":
+            # 覆盖模式：直接更新
+            g.db.execute(
+                f"UPDATE companies SET {field} = ? WHERE id = ?",
+                [value, company_id]
+            )
+            updated_fields.append(field)
+        else:
+            # merge 模式：仅填充空字段
+            current = g.db.execute(
+                f"SELECT {field} FROM companies WHERE id = ?",
+                [company_id]
+            ).fetchone()
+            current_val = current[0] if current else None
+            if not current_val or current_val.strip() in ("", "-", "--"):
+                g.db.execute(
+                    f"UPDATE companies SET {field} = ? WHERE id = ?",
+                    [value, company_id]
+                )
+                updated_fields.append(field)
+            else:
+                skipped_fields.append(field)
+
+    # 更新 normalized_* 辅助字段
+    for field, norm_field in _NORMALIZED_FIELDS.items():
+        if field in updated_fields:
+            val = mapped.get(field, "")
+            if field == "name":
+                norm_val = normalize_name(val)
+            elif field == "legal_person":
+                norm_val = normalize_person_name(val)
+            elif field == "email":
+                norm_val = normalize_email(val)
+            else:
+                continue
+            g.db.execute(
+                f"UPDATE companies SET {norm_field} = ? WHERE id = ?",
+                [norm_val, company_id]
+            )
+
+    # 更新信用代码归一化
+    if "credit_code" in updated_fields and mapped.get("credit_code"):
+        norm_cc = normalize_credit_code(mapped["credit_code"])
+        g.db.execute(
+            "UPDATE companies SET credit_code = ? WHERE id = ?",
+            [norm_cc, company_id]
+        )
+
+    # 更新电话（增量合并，不覆盖已有主号）
+    if mapped.get("phone") or mapped.get("other_phone"):
+        from data_helpers import merge_phones
+        merge_phones(
+            g.db, company_id,
+            mapped.get("phone", ""),
+            mapped.get("other_phone", ""),
+        )
+        updated_fields.append("phone")
+
+    # 更新股东（增量合并）
+    if mapped.get("shareholders"):
+        from data_helpers import merge_shareholders
+        merge_shareholders(g.db, company_id, mapped["shareholders"])
+        updated_fields.append("shareholders")
+
+    # 更新 updated_at 时间戳
+    g.db.execute(
+        "UPDATE companies SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+        [company_id]
+    )
+
+    g.db.commit()
+
+    return jsonify({
+        "code": 0,
+        "message": f"已更新 {len(updated_fields)} 个字段"
+                   + (f"，跳过 {len(skipped_fields)} 个已有字段" if skipped_fields else ""),
+        "data": {
+            "updated_fields": updated_fields,
+            "skipped_fields": skipped_fields,
+            "mode": mode,
+            "mapped": mapped,
+        },
+    })
+
+
+# ── 合并端点：一键获取工商信息 ─────────────────────────────────────────
+
+@bp.route("/api/company/check-duplicate")
+def check_duplicate():
+    """检查公司名是否已存在于数据库（不消耗 API 配额）。"""
+    name = (request.args.get("name") or "").strip()
+    if not name:
+        return jsonify({"code": 0, "data": {"exists": False}})
+
+    norm_name = normalize_name(name)
+    existing = g.db.execute(
+        "SELECT id, name FROM companies WHERE normalized_name = ? LIMIT 1",
+        [norm_name]
+    ).fetchone()
+
+    if existing:
+        return jsonify({
+            "code": 0,
+            "data": {"exists": True, "id": existing["id"], "name": existing["name"]}
+        })
+    return jsonify({"code": 0, "data": {"exists": False}})
+
+
+@bp.route("/api/company/fetch-all", methods=["POST"])
+def fetch_all_api():
+    """录入页：一键获取工商信息 + 联系方式（不写库，返回字段供前端填充）。
+
+    先检查数据库是否已有该公司，再调用 API。聯系方式接口不可用时不影响工商信息结果。
+    """
+    if not is_provider_ready("jinghai"):
+        return jsonify({"code": 2001, "message": "API 未配置或未启用，请到设置页面配置", "data": None})
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        return jsonify({"code": 1001, "message": "请提供企业名称", "data": None})
+
+    # 0. 重复检查：查询数据库是否已有该公司
+    norm_name = normalize_name(name)
+    existing = g.db.execute(
+        "SELECT id, name FROM companies WHERE normalized_name = ? LIMIT 1",
+        [norm_name]
+    ).fetchone()
+    if existing:
+        return jsonify({
+            "code": 2002,
+            "message": f"该公司已存在于数据库中",
+            "data": {"existing_id": existing["id"], "existing_name": existing["name"]}
+        })
+
+    # 1. 工商信息
+    biz_result = enthub_api.fetch_company_info(company_name=name)
+    if not biz_result["success"]:
+        return jsonify({"code": 2001, "message": biz_result.get("error", "获取失败"), "data": None})
+
+    mapped = dict(biz_result.get("mapped") or {})
+
+    return jsonify({"code": 0, "message": "ok", "data": {"mapped": mapped}})
+
+
+# 字段中文标签（用于对比展示）
+FIELD_LABELS = {
+    "name": "企业名称", "legal_person": "法定代表人", "credit_code": "统一社会信用代码",
+    "taxpayer_id": "纳税人识别号", "registration_no": "注册号", "org_code": "组织机构代码",
+    "registered_capital": "注册资本", "paid_capital": "实缴资本",
+    "established_date": "成立日期", "approved_date": "核准日期",
+    "business_term": "营业期限", "business_status": "经营状态",
+    "company_type": "公司类型", "industry": "所属行业", "insured_count": "参保人数",
+    "province": "省份", "city": "城市", "district": "区县",
+    "address": "注册地址", "business_scope": "经营范围",
+    "former_name": "曾用名", "phone": "电话", "email": "邮箱", "website": "网址",
+}
+
+
+def _normalize_for_compare(field, val):
+    """归一化字段值用于对比（避免格式差异导致的假阳性变更）。"""
+    if not val:
+        return ""
+    s = str(val).strip()
+    # 合并多个空格
+    s = re.sub(r'\s+', ' ', s)
+    # 全角转半角（常见中文标点）
+    trans = str.maketrans('（）：，；', '():,;')
+    s = s.translate(trans)
+    # 数字归一化：去掉无意义的 .00（如 "10.00万" → "10万"）
+    s = re.sub(r'(\d+)\.0+(\D)', r'\1\2', s)
+    s = re.sub(r'(\d+)\.0+$', r'\1', s)
+    # 信用代码/纳税人识别号/组织机构代码：去掉连字符和空格
+    if field in ('credit_code', 'taxpayer_id', 'org_code', 'registration_no'):
+        s = s.replace("-", "").replace(" ", "")
+    # 日期格式统一：2023/07/11 → 2023-07-11
+    s = re.sub(r'(\d{4})/(\d{1,2})/(\d{1,2})', r'\1-\2-\3', s)
+    # 去掉日期中的"年""月""日"（2023年07月11日 → 2023-07-11）
+    s = re.sub(r'(\d{4})年(\d{1,2})月(\d{1,2})日?', r'\1-\2-\3', s)
+    return s
+
+
+@bp.route("/api/company/<int:company_id>/refresh", methods=["POST"])
+def refresh_company_api(company_id):
+    """详情页：调用 API 获取最新数据，返回与现有数据的对比 diff。
+
+    不直接写库，用户在前端选择要更新的字段后调用 /apply 端点。
+    消耗 1 次 API 配额。
+    """
+    if not is_provider_ready("jinghai"):
+        return jsonify({"code": 2001, "message": "API 未配置或未启用，请到设置页面配置", "data": None})
+
+    row = g.db.execute("SELECT id, name, credit_code FROM companies WHERE id = ?", [company_id]).fetchone()
+    if not row:
+        return jsonify({"code": 1002, "message": "企业不存在", "data": None})
+
+    name = row["name"]
+    credit_code = row["credit_code"] if row["credit_code"] else None
+
+    # 1. 工商信息
+    biz_result = enthub_api.fetch_company_info(company_name=name, credit_code=credit_code)
+    if not biz_result["success"]:
+        return jsonify({"code": 2001, "message": biz_result.get("error", "获取失败"), "data": None})
+
+    mapped = dict(biz_result.get("mapped") or {})
+
+    # 2. 逐字段对比现有数据库值
+    SKIP_FIELDS = {"other_phone", "tags", "source_file", "shareholders"}
+    diff = []
+    same_count = 0
+
+    for field, new_value in mapped.items():
+        if field in SKIP_FIELDS:
+            continue
+
+        # phone 特殊处理：查 company_phones 表
+        if field == "phone":
+            existing_phones = g.db.execute(
+                "SELECT phone FROM company_phones WHERE company_id = ?", [company_id]
+            ).fetchall()
+            existing_str = "; ".join(p["phone"] for p in existing_phones) if existing_phones else ""
+            if not existing_str:
+                diff.append({"field": field, "label": FIELD_LABELS.get(field, field),
+                             "old": "", "new": new_value, "status": "new"})
+            elif new_value not in existing_str:
+                diff.append({"field": field, "label": FIELD_LABELS.get(field, field),
+                             "old": existing_str, "new": new_value, "status": "changed"})
+            else:
+                same_count += 1
+            continue
+
+        # 其余字段查 companies 表
+        try:
+            current = g.db.execute(
+                f"SELECT {field} FROM companies WHERE id = ?", [company_id]
+            ).fetchone()
+            old_value = current[0] if current else ""
+        except Exception:
+            old_value = ""
+
+        old_str = str(old_value).strip() if old_value else ""
+        new_str = str(new_value).strip() if new_value else ""
+
+        # 使用归一化对比，避免格式差异导致假阳性变更
+        old_norm = _normalize_for_compare(field, old_str)
+        new_norm = _normalize_for_compare(field, new_str)
+
+        if not old_norm or old_norm in ("", "-", "--"):
+            diff.append({"field": field, "label": FIELD_LABELS.get(field, field),
+                         "old": "", "new": new_str, "status": "new"})
+        elif old_norm != new_norm:
+            diff.append({"field": field, "label": FIELD_LABELS.get(field, field),
+                         "old": old_str, "new": new_str, "status": "changed"})
+        else:
+            same_count += 1
+
+    return jsonify({
+        "code": 0,
+        "message": f"{len(diff)} 个字段有变化，{same_count} 个字段一致",
+        "data": {
+            "diff": diff,
+            "same_count": same_count,
+            "mapped": mapped,
+        },
+    })
+
+
+@bp.route("/api/company/<int:company_id>/apply", methods=["POST"])
+def apply_refresh_api(company_id):
+    """详情页：应用用户选中的字段更新到数据库（不调用 API，不消耗配额）。
+
+    请求 JSON: {"mapped": {...}, "selected_fields": ["field1", "field2", ...]}
+    """
+    if not is_provider_ready("jinghai"):
+        return jsonify({"code": 2001, "message": "API 未配置或未启用", "data": None})
+
+    row = g.db.execute("SELECT id FROM companies WHERE id = ?", [company_id]).fetchone()
+    if not row:
+        return jsonify({"code": 1002, "message": "企业不存在", "data": None})
+
+    body = request.get_json(silent=True) or {}
+    mapped = body.get("mapped", {})
+    selected_fields = body.get("selected_fields", [])
+
+    updated_fields = []
+
+    for field in selected_fields:
+        if field not in mapped:
+            continue
+        value = mapped[field]
+
+        # phone 特殊处理
+        if field == "phone":
+            from data_helpers import merge_phones
+            merge_phones(g.db, company_id, value, "")
+            updated_fields.append("phone")
+            continue
+
+        # shareholders 特殊处理
+        if field == "shareholders":
+            from data_helpers import merge_shareholders
+            merge_shareholders(g.db, company_id, value)
+            updated_fields.append("shareholders")
+            continue
+
+        # 常规字段
+        try:
+            g.db.execute(f"UPDATE companies SET {field} = ? WHERE id = ?", [value, company_id])
+            updated_fields.append(field)
+        except Exception:
+            pass
+
+    # 更新 normalized_* 辅助字段
+    for field, norm_field in _NORMALIZED_FIELDS.items():
+        if field in updated_fields:
+            val = mapped.get(field, "")
+            if field == "name":
+                norm_val = normalize_name(val)
+            elif field == "legal_person":
+                norm_val = normalize_person_name(val)
+            elif field == "email":
+                norm_val = normalize_email(val)
+            else:
+                continue
+            g.db.execute(f"UPDATE companies SET {norm_field} = ? WHERE id = ?", [norm_val, company_id])
+
+    # 信用代码归一化
+    if "credit_code" in updated_fields and mapped.get("credit_code"):
+        g.db.execute("UPDATE companies SET credit_code = ? WHERE id = ?",
+                     [normalize_credit_code(mapped["credit_code"]), company_id])
+
+    # 更新时间戳
+    g.db.execute("UPDATE companies SET updated_at = datetime('now', 'localtime') WHERE id = ?", [company_id])
+    g.db.commit()
+
+    return jsonify({
+        "code": 0,
+        "message": f"已更新 {len(updated_fields)} 个字段",
+        "data": {"updated_fields": updated_fields},
+    })

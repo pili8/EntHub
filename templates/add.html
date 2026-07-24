@@ -15,15 +15,157 @@
   </header>
 
   <form action="{{ url_for('companies_bp.add_company') }}" method="post">
-    {% include '_company_form.html' %}
-    <div style="display: flex; gap: 12px; margin-top: 16px;">
+    <!-- 顶部按钮栏 -->
+    <div style="display: flex; gap: 12px; margin-bottom: 16px;">
       <button type="submit" class="btn btn-primary">
-        <i data-lucide="plus" style="width:16px;height:16px"></i>
-        录入
+        <i data-lucide="plus" style="width:16px;height:16px"></i>录入
       </button>
       <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
+      <button type="button" onclick="fetchAllByName()" class="btn btn-secondary" style="margin-left: auto;" title="输入企业名称后，通过 API 获取工商信息和联系方式">
+        <i data-lucide="download-cloud" style="width:14px;height:14px"></i>在线获取
+      </button>
+    </div>
+
+    {% include '_company_form.html' %}
+
+    <!-- 底部按钮栏 -->
+    <div style="display: flex; gap: 12px; margin-top: 16px;">
+      <button type="submit" class="btn btn-primary">
+        <i data-lucide="plus" style="width:16px;height:16px"></i>录入
+      </button>
+      <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
+      <button type="button" onclick="fetchAllByName()" class="btn btn-secondary" style="margin-left: auto;" title="通过 API 获取工商信息和联系方式">
+        <i data-lucide="download-cloud" style="width:14px;height:14px"></i>在线获取
+      </button>
     </div>
   </form>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── 实时查重：公司名输入框失焦时检查 ──
+const nameInput = document.getElementById('company-name-input');
+if (nameInput) {
+    nameInput.addEventListener('blur', async function() {
+        const name = this.value.trim();
+        const resultDiv = document.getElementById('name-check-result');
+        if (!resultDiv) return;
+
+        if (!name) {
+            resultDiv.innerHTML = '';
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/api/company/check-duplicate?name=${encodeURIComponent(name)}`);
+            const result = await resp.json();
+
+            if (result.data && result.data.exists) {
+                resultDiv.innerHTML = `<span style="color: #dc2626;">⚠️ 该公司已存在 — <a href="/company/${result.data.id}" style="color: #dc2626; text-decoration: underline;">查看</a></span>`;
+            } else {
+                resultDiv.innerHTML = `<span style="color: #16a34a;">✓ 未重复</span>`;
+            }
+        } catch (e) {
+            resultDiv.innerHTML = '';
+        }
+    });
+}
+
+// ── 在线获取 ──
+async function fetchAllByName() {
+    const nameInput = document.querySelector('input[name="name"]');
+    if (!nameInput) return;
+
+    const name = nameInput.value.trim();
+    if (!name) {
+        window._enthubToast('warning', '请先输入企业名称', '输入名称后再点击获取');
+        nameInput.focus();
+        return;
+    }
+
+    showConfirm(
+        '在线获取',
+        `将通过 API 获取「${name}」的工商信息和联系方式。\n\n每次调用消耗 API 配额，请确认。`,
+        async () => { await _doFetchAll(name); }
+    );
+}
+
+async function _doFetchAll(name) {
+    window._enthubToast('info', '正在获取数据...', 'API 调用可能需要几秒');
+
+    try {
+        const resp = await fetch('/api/company/fetch-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name })
+        });
+        const result = await resp.json();
+
+        if (result.code === 2002) {
+            const existingId = result.data.existing_id;
+            const existingName = result.data.existing_name;
+            showConfirm(
+                '该公司已存在',
+                `「${existingName}」已在数据库中，是否仍要继续录入？`,
+                () => {},
+                [
+                    { text: '查看已有', class: 'btn btn-secondary', action: () => { window.location.href = `/company/${existingId}` } },
+                    { text: '继续录入', class: 'btn btn-primary', action: 'closeModal()' }
+                ]
+            );
+            return;
+        }
+
+        if (result.code !== 0) {
+            window._enthubToast('error', '获取失败', result.message || '未知错误');
+            return;
+        }
+
+        const mapped = result.data.mapped;
+        if (!mapped) {
+            window._enthubToast('warning', '未找到数据', 'API 返回为空，请检查企业名称');
+            return;
+        }
+
+        let filledCount = 0;
+        const fieldMap = {
+            'name': 'name', 'former_name': 'former_name',
+            'business_status': 'business_status', 'legal_person': 'legal_person',
+            'registered_capital': 'registered_capital', 'paid_capital': 'paid_capital',
+            'established_date': 'established_date', 'approved_date': 'approved_date',
+            'business_term': 'business_term', 'company_type': 'company_type',
+            'industry': 'industry', 'insured_count': 'insured_count',
+            'phone': 'phone', 'email': 'email', 'website': 'website',
+            'province': 'province', 'city': 'city', 'district': 'district',
+            'address': 'address', 'credit_code': 'credit_code',
+            'taxpayer_id': 'taxpayer_id', 'registration_no': 'registration_no',
+            'org_code': 'org_code', 'business_scope': 'business_scope',
+            'shareholders': 'shareholders',
+        };
+
+        for (const [enthubField, formField] of Object.entries(fieldMap)) {
+            if (mapped[enthubField] !== undefined) {
+                const input = document.querySelector(`input[name="${formField}"]`) ||
+                              document.querySelector(`textarea[name="${formField}"]`);
+                if (input && (!input.value.trim() || input.value.trim() === '-')) {
+                    input.value = mapped[enthubField];
+                    filledCount++;
+                }
+            }
+        }
+
+        if (filledCount > 0) {
+            window._enthubToast('success', `已填充 ${filledCount} 个字段`, '请检查并确认信息后点击录入');
+        } else {
+            window._enthubToast('info', '所有字段已有数据', '如需更新，请清空对应字段后重新获取');
+        }
+    } catch (e) {
+        window._enthubToast('error', '操作失败', e.message);
+    }
+}
+
+window.fetchAllByName = fetchAllByName;
+</script>
 {% endblock %}

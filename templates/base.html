@@ -65,6 +65,10 @@
                                 <i data-lucide="sparkles" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
                                 整理
                             </a>
+                            <a href="{{ url_for('settings_flow_bp.settings_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+                                <i data-lucide="settings" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
+                                设置
+                            </a>
                             <a href="{{ url_for('pages_bp.restart_server') }}" class="nav-dropdown-item" onclick="return confirmLink(event, '{{ url_for('pages_bp.restart_server') }}', '重启服务器', '确定要重启服务器吗？');" style="display: block; padding: 8px 16px; color: var(--warning); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
                                 <i data-lucide="rotate-cw" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
                                 重启

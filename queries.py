@@ -18,17 +18,18 @@ DEFAULT_PER_PAGE = 25
 
 # 允许的排序字段（白名单，防 SQL 注入）
 ALLOWED_SORTS = {
-    "id": "id",
-    "name": "normalized_name",
-    "province": "province",
-    "city": "city",
-    "established_date": "established_date",
-    "business_status": "business_status",
-    "created_at": "created_at",
-    "legal_person": "legal_person",
-    "registered_capital": "registered_capital",
-    "phone": "phone",
-    "industry": "industry",
+"id": "id",
+"name": "normalized_name",
+"province": "province",
+"city": "city",
+"established_date": "established_date",
+"business_status": "business_status",
+"created_at": "created_at",
+"updated_at": "updated_at",
+"legal_person": "legal_person",
+"registered_capital": "registered_capital",
+"phone": "phone",
+"industry": "industry",
 }
 
 # 文本搜索字段（按优先级排序）。第一项是 normalized_name，匹配时用归一化值。
@@ -177,10 +178,10 @@ def build_filter_clause(args):
     return clauses, params
 
 
-def build_sort_clause(args, default="created_at", default_dir="desc"):
+def build_sort_clause(args, default="updated_at", default_dir="desc"):
     """从请求参数构造排序 SQL。
 
-    默认按录入时间（created_at）倒序，即最新录入的企业排最前。
+    默认按更新时间（updated_at）倒序，即最近添加或更新的企业排最前。
     返回 (sort_col, dir_sql)。排序字段必须在白名单中，否则回退到 default。
     """
     sort = args.get("sort", default)

@@ -10,6 +10,9 @@ venv/
 # Data
 data/
 
+# 工商源文件（本地数据，不提交到git）
+工商源文件/
+
 # Backup files
 *.bak
 *.bak[0-9]

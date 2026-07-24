@@ -11,6 +11,9 @@
         <i data-lucide="arrow-left" aria-hidden="true"></i>返回
       </a>
       <div style="display: flex; gap: 8px;">
+        <button type="button" class="page-btn" onclick="refreshCompany({{ company.id }})" style="font-size: 13px; padding: 6px 12px; border: 1px solid var(--border); background: white; color: var(--text-primary); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="通过 API 获取最新工商信息和联系方式">
+          <i data-lucide="refresh-cw" aria-hidden="true" style="width: 14px; height: 14px;"></i>在线更新
+        </button>
         <a href="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" class="page-btn page-btn-primary">
           <i data-lucide="pencil" aria-hidden="true"></i>编辑
         </a>
@@ -482,6 +485,111 @@ async function removeTag(tagId) {
     );
 }
 
+// ── 在线更新（先对比 diff，再选择应用）──
+async function refreshCompany(companyId) {
+    showConfirm(
+        '在线更新',
+        '将通过 API 获取最新数据并与当前数据对比。\n\n消耗 1 次 API 配额。',
+        async () => { await _doRefresh(companyId); }
+    );
+}
+
+async function _doRefresh(companyId) {
+    window._enthubToast('info', '正在获取数据...', 'API 调用可能需要几秒');
+
+    try {
+        const resp = await fetch(`/api/company/${companyId}/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        const result = await resp.json();
+
+        if (result.code !== 0) {
+            window._enthubToast('error', '获取失败', result.message || '未知错误');
+            return;
+        }
+
+        const data = result.data;
+        const diff = data.diff || [];
+        const mapped = data.mapped || {};
+
+        if (diff.length === 0) {
+            window._enthubToast('info', '无需更新', `所有字段一致（${data.same_count} 个字段相同）`);
+            return;
+        }
+
+        // 构建对比弹窗
+        let diffHtml = '<div style="max-height: 400px; overflow-y: auto;">';
+        diffHtml += `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+            ${result.message}，请勾选要更新的字段：
+        </div>`;
+
+        diff.forEach(item => {
+            const isChanged = item.status === 'changed';
+            const bgColor = item.status === 'new' ? '#f0fdf4' : '#fff7ed';
+            const borderColor = item.status === 'new' ? '#bbf7d0' : '#fed7aa';
+            const oldDisplay = item.old ? item.old.substring(0, 60) : '（空）';
+            const newDisplay = item.new ? item.new.substring(0, 60) : '（空）';
+
+            diffHtml += `
+                <div style="display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; margin-bottom: 6px;">
+                    <input type="checkbox" data-field="${item.field}" checked
+                           style="margin-top: 3px; flex-shrink: 0;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 13px; font-weight: 600; margin-bottom: 2px;">
+                            ${item.label}
+                            ${isChanged ? '<span style="font-size:11px;color:#c2410c;">变更</span>' : '<span style="font-size:11px;color:#16a34a;">新增</span>'}
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 6px; align-items: baseline;">
+                            <span style="text-decoration: line-through; color: #999; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${oldDisplay}</span>
+                            <i data-lucide="arrow-right" style="width:12px;height:12px;flex-shrink:0;"></i>
+                            <span style="color: var(--text-primary); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${newDisplay}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        diffHtml += '</div>';
+
+        // 将数据存到全局，供按钮回调使用
+        window._refreshData = { companyId: companyId, mapped: mapped };
+
+        // 显示对比弹窗
+        showModal('数据对比', diffHtml, [
+            { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' },
+            { text: '应用选中更新', class: 'btn btn-primary', action: '_applyFromDiffModal()' }
+        ]);
+
+        if (window.lucide) lucide.createIcons();
+    } catch (e) {
+        window._enthubToast('error', '操作失败', e.message);
+    }
+}
+
+async function _doApply(companyId, mapped, selectedFields) {
+    window._enthubToast('info', '正在更新...', '');
+
+    try {
+        const resp = await fetch(`/api/company/${companyId}/apply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mapped: mapped, selected_fields: selectedFields })
+        });
+        const result = await resp.json();
+
+        if (result.code !== 0) {
+            window._enthubToast('error', '更新失败', result.message || '未知错误');
+            return;
+        }
+
+        window._enthubToast('success', result.message, '正在刷新...');
+        setTimeout(() => location.reload(), 1200);
+    } catch (e) {
+        window._enthubToast('error', '操作失败', e.message);
+    }
+}
+
 // 页面加载时加载标签
 // 兼容 SPA 路由：DOMContentLoaded 仅在首次整页加载时触发，
 // SPA 切换页面时不会再次触发，因此直接调用确保标签始终加载。
@@ -491,10 +599,30 @@ if (document.readyState === 'loading') {
     loadCompanyTags();
 }
 
+// 全局：从对比弹窗应用选中字段
+async function _applyFromDiffModal() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"][data-field]');
+    const selectedFields = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) selectedFields.push(cb.dataset.field);
+    });
+
+    if (selectedFields.length === 0) {
+        window._enthubToast('warning', '未选择字段', '请至少勾选一个字段');
+        return;
+    }
+
+    closeModal();
+    const rd = window._refreshData;
+    await _doApply(rd.companyId, rd.mapped, selectedFields);
+}
+
 // 显式挂到 window（避免 SPA 路由切换后 onclick 找不到函数）
 window.openTagSelector = openTagSelector;
 window.addTag = addTag;
 window.removeTag = removeTag;
+window.refreshCompany = refreshCompany;
+window._applyFromDiffModal = _applyFromDiffModal;
 })();
 </script>
 {% endblock %}

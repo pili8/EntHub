@@ -1,4 +1,19 @@
 {
   "auto_open_web": false,
-  "auto_start": false
+  "auto_start": false,
+  "api_providers": {
+    "jinghai": {
+      "name": "鲸海数据",
+      "base_url": "https://api.kqdaas.com",
+      "enabled": true,
+      "credentials": {
+        "app_id": "jh_567891_8d5ef4e6",
+        "api_key": "jhkey_ed3e53fd9c2ed8b96772f1b7ce26d3534a509959d517dbe0"
+      }
+    }
+  },
+  "api_quota": {
+    "total": 1000,
+    "used": 9
+  }
 }
