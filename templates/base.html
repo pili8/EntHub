@@ -92,8 +92,8 @@
         {% block content %}{% endblock %}
     </main>
 
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ url_for('static', filename='htmx.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lucide.min.js') }}"></script>
     <script>
     // ── SPA Router ── keep nav + background, only swap content + flash ──
     (function() {

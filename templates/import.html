@@ -5,7 +5,7 @@
 <div class="import-page" style="max-width: 900px; margin: 0 auto;">
     <div class="page-header" style="text-align: center; margin-bottom: 40px;">
         <div class="page-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">
-            <i data-lucide="upload-cloud" style="width: 40px; height: 40px; vertical-align: middle; color: var(--primary);"></i>
+            <i data-lucide="upload-cloud" style="width: 40px; height: 40px; vertical-align: middle; color: var(--accent);"></i>
             导入工商数据
         </div>
         <div class="page-subtitle" style="font-size: 16px; color: var(--text-muted);">
@@ -17,8 +17,8 @@
         <div class="import-card" id="drop-card" style="border: 2px dashed var(--border); border-radius: 16px; padding: 60px 40px; text-align: center; transition: all 0.3s ease; background: var(--bg-card);">
             <label class="import-label" for="file-input" style="cursor: pointer; display: block;">
                 <div class="import-icon" style="margin-bottom: 24px;">
-                    <div style="width: 80px; height: 80px; margin: 0 auto; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(0,0,0,0.1);">
-                        <i data-lucide="file-spreadsheet" style="width: 40px; height: 40px; color: white;"></i>
+                    <div style="width: 80px; height: 80px; margin: 0 auto; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(217,119,87,0.3);">
+                        <i data-lucide="file-spreadsheet" style="width: 38px; height: 38px; color: #fff;"></i>
                     </div>
                 </div>
                 <div class="import-primary" style="font-size: 20px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">
@@ -30,9 +30,9 @@
                 <input type="file" id="file-input" name="file" accept=".xlsx,.xls" multiple required style="display: none;">
             </label>
 
-            <div class="import-file-row" id="file-row" style="display: none; background: var(--bg-card); border: 2px solid var(--primary); border-radius: 12px; padding: 16px 20px; margin: 24px auto 0; max-width: 500px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            <div class="import-file-row" id="file-row" style="display: none; background: var(--bg-card); border: 2px solid var(--accent); border-radius: 12px; padding: 16px 20px; margin: 24px auto 0; max-width: 500px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <i data-lucide="file-spreadsheet" class="import-file-row-icon" style="width: 32px; height: 32px; color: var(--primary); flex-shrink: 0;"></i>
+                    <i data-lucide="file-spreadsheet" class="import-file-row-icon" style="width: 32px; height: 32px; color: var(--accent); flex-shrink: 0;"></i>
                     <div class="import-file-row-text" style="flex: 1; min-width: 0;">
                         <div class="import-file-row-name" id="file-name" style="font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
                         <div class="import-file-row-meta" id="file-meta" style="font-size: 13px; color: var(--text-muted); margin-top: 2px;"></div>
@@ -41,13 +41,13 @@
                 </div>
             </div>
 
-            <button type="submit" class="import-submit" id="submit-btn" disabled style="margin-top: 32px; padding: 14px 48px; font-size: 16px; font-weight: 600; background: #e5e7eb; color: #000000; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                <i data-lucide="arrow-right" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; color: #000000;"></i>
+            <button type="button" class="import-submit" id="submit-btn" style="margin-top: 32px; padding: 14px 48px; font-size: 16px; font-weight: 600; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(217,119,87,0.3);">
+                <i data-lucide="arrow-right" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; color: #fff;"></i>
                 上传并预览
             </button>
 
             <div class="import-loading" id="loading" style="display: none; margin-top: 24px; color: var(--text-muted); font-size: 14px;">
-                <span class="import-spinner" style="display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px;"></span>
+                <span class="import-spinner" style="display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px;"></span>
                 正在解析文件...
             </div>
         </div>
@@ -90,21 +90,15 @@
     to { transform: rotate(360deg); }
 }
 #import-card.dragover {
-    border-color: var(--primary) !important;
+    border-color: var(--accent) !important;
     background: var(--bg-primary) !important;
 }
 .import-card:hover {
-    border-color: var(--primary) !important;
+    border-color: var(--accent) !important;
 }
-.import-submit:hover:not(:disabled) {
+.import-submit:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-}
-.import-submit:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    background: #e5e7eb !important;
-    color: #000000 !important;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.18);
 }
 </style>
 
@@ -137,23 +131,36 @@
         fname.innerHTML = n === 1 ? esc(names[0]) : ('<strong>' + n + '</strong> 个文件');
         fmeta.textContent = n === 1 ? fmtSize(total) : names.map(esc).join('、');
         row.style.display = 'block';
-        submit.disabled = false;
-        submit.style.background = 'var(--primary)';
-        submit.style.color = '#000000';
+        submit.style.background = 'var(--accent)';
+        submit.style.color = '#fff';
         lucide.createIcons();
     }
 
     function resetFiles() {
         input.value = '';
         row.style.display = 'none';
-        submit.disabled = true;
+        submit.style.background = 'var(--accent)';
+        submit.style.color = '#fff';
     }
 
     input.addEventListener('change', showFiles);
     clear.addEventListener('click', function(e) { e.preventDefault(); resetFiles(); });
 
+    // 按钮点击：没选文件 → 弹出文件选择；选了文件 → 提交表单
+    submit.addEventListener('click', function() {
+        if (!input.files || !input.files.length) {
+            input.click();
+            return;
+        }
+        load.style.display = 'block';
+        submit.disabled = true;
+        submit.style.opacity = '0.7';
+        submit.innerHTML = '处理中...';
+        document.getElementById('upload-form').submit();
+    });
+
     // Drag & drop on the whole card
-    card.addEventListener('dragover',  function(e) { e.preventDefault(); card.classList.add('dragover'); card.style.borderColor = 'var(--primary)'; });
+    card.addEventListener('dragover',  function(e) { e.preventDefault(); card.classList.add('dragover'); card.style.borderColor = 'var(--accent)'; });
     card.addEventListener('dragleave', function(e) { card.classList.remove('dragover'); card.style.borderColor = ''; });
     card.addEventListener('drop', function(e) {
         e.preventDefault();
@@ -162,11 +169,8 @@
         if (e.dataTransfer.files.length) { input.files = e.dataTransfer.files; showFiles(); }
     });
 
-    document.getElementById('upload-form').addEventListener('submit', function() {
-        load.style.display = 'block';
-        submit.disabled = true;
-        submit.innerHTML = '处理中...';
-    });
+    // Re-init lucide icons on page load
+    if (window.lucide) lucide.createIcons();
 })();
 </script>
 {% endblock %}
