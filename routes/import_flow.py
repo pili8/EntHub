@@ -12,6 +12,7 @@ v2 流式优化（2026-07）：
 import os
 import re
 import json
+import io
 import uuid
 import hashlib
 import sqlite3
@@ -19,10 +20,12 @@ import tempfile
 import threading
 import queue as queue_module
 from datetime import datetime
+from urllib.parse import quote
 
 import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from flask import Blueprint, g, request, render_template, redirect, url_for, \
-    flash, jsonify, Response
+     flash, jsonify, Response
 
 from db import DB_PATH
 import backup
@@ -80,6 +83,184 @@ PHONE_SEP_RE = re.compile(r'[;；,，、/]')
 @bp.route("/import", methods=["GET"])
 def import_page():
     return render_template("import.html")
+
+
+# ── 导入模板下载 ────────────────────────────────────────────────────────────
+
+# 模板列定义：(字段名, 表头, 是否必填, 说明, 示例值)
+# 表头全部使用 COLUMN_ALIASES 可识别的名称，确保导入时 100% 匹配
+TEMPLATE_COLUMNS = [
+    ("name",                  "企业名称",          True,  "必填，企业全称",                              "示例科技有限公司"),
+    ("legal_person",          "法定代表人",        False, "企业法定代表人姓名",                          "张三"),
+    ("phone",                 "联系电话",          False, "主电话，座机或手机",                          "0571-88889999"),
+    ("other_phone",           "其他电话",          False, "多个号码用分号 ; 分隔",                       "13800138000;13900139000"),
+    ("credit_code",           "统一社会信用代码",  False, "18 位统一社会信用代码",                       "91330100MA12345678"),
+    ("taxpayer_id",           "纳税人识别号",      False, "纳税人识别号",                               ""),
+    ("registration_no",       "注册号",            False, "工商注册号",                                 ""),
+    ("org_code",              "组织机构代码",      False, "组织机构代码",                               ""),
+    ("registered_capital",    "注册资本",          False, "如：1000万人民币",                           "1000万人民币"),
+    ("paid_capital",          "实缴资本",          False, "如：500万人民币",                            "500万人民币"),
+    ("established_date",      "成立日期",          False, "格式 YYYY-MM-DD",                           "2020-01-01"),
+    ("approved_date",         "核准日期",          False, "格式 YYYY-MM-DD",                           "2024-06-15"),
+    ("business_term",         "营业期限",          False, "如：2020-01-01 至 2050-01-01 或 长期",      "长期"),
+    ("business_status",       "经营状态",          False, "存续/注销/吊销/停业等",                      "存续"),
+    ("company_type",          "公司类型",          False, "如：有限责任公司",                           "有限责任公司"),
+    ("industry",              "所属行业",          False, "国民经济行业分类",                           "软件和信息技术服务业"),
+    ("enterprise_scale",      "企业规模",          False, "大型/中型/小型/微型",                         "小型"),
+    ("insured_count",         "参保人数",          False, "社保参保人数（整数）",                      "50"),
+    ("province",              "省份",              False, "如：浙江省",                                 "浙江省"),
+    ("city",                  "所属城市",          False, "如：杭州市",                                 "杭州市"),
+    ("district",              "区县",              False, "如：西湖区",                                 "西湖区"),
+    ("address",               "注册地址",          False, "工商注册地址",                               "浙江省杭州市西湖区文三路100号"),
+    ("annual_report_address", "最新年报地址",      False, "最新年度报告中的地址",                       ""),
+    ("mailing_address",       "通信地址",          False, "通信地址",                                  ""),
+    ("former_name",           "曾用名",            False, "多个用分号分隔",                             ""),
+    ("english_name",          "英文名",            False, "企业英文名称",                               ""),
+    ("website",               "网址",              False, "企业官网",                                  "www.example.com"),
+    ("email",                 "邮箱",              False, "企业邮箱",                                  "contact@example.com"),
+    ("other_email",           "其他邮箱",          False, "多个用分号分隔",                             ""),
+    ("business_scope",        "经营范围",          False, "经营范围全文",                              "技术开发、技术服务、技术咨询"),
+    ("shareholders",          "股东",              False, "多个股东用分号 ; 分隔",                      "张三;李四"),
+    ("tags",                  "标签",              False, "多个标签用分号 ; 分隔",                      "重点客户;待跟进"),
+]
+
+# 列宽配置（按字段名）
+TEMPLATE_COL_WIDTHS = {
+    "name": 30, "legal_person": 10, "phone": 18, "other_phone": 25,
+    "credit_code": 22, "taxpayer_id": 20, "registration_no": 18,
+    "org_code": 14, "registered_capital": 14, "paid_capital": 14,
+    "established_date": 12, "approved_date": 12, "business_term": 20,
+    "business_status": 10, "company_type": 14, "industry": 18,
+    "enterprise_scale": 8, "insured_count": 8,
+    "province": 6, "city": 8, "district": 10,
+    "address": 35, "annual_report_address": 35, "mailing_address": 30,
+    "former_name": 18, "english_name": 20, "website": 20,
+    "email": 22, "other_email": 22, "business_scope": 40,
+    "shareholders": 20, "tags": 15,
+}
+
+
+@bp.route("/import/template")
+def import_template():
+    """下载空白导入模板 Excel。
+
+    - Sheet 1「企业数据」：带正确表头 + 一行灰色示例（可删）
+    - Sheet 2「字段说明」：字段名、是否必填、格式说明
+    所有表头均使用导入可识别的标准名称，填好后直接上传即可。
+    """
+    wb = openpyxl.Workbook()
+
+    # ── Sheet 1: 企业数据 ──
+    ws = wb.active
+    ws.title = "企业数据"
+
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="D97757", end_color="D97757",
+                              fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_border = Border(
+        left=Side(style="thin", color="CCCCCC"),
+        right=Side(style="thin", color="CCCCCC"),
+        top=Side(style="thin", color="CCCCCC"),
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+    sample_font = Font(italic=True, size=10, color="999999")
+    sample_fill = PatternFill(start_color="FFF8F5", end_color="FFF8F5",
+                              fill_type="solid")
+
+    # 写表头
+    headers = [col[1] for col in TEMPLATE_COLUMNS]
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    # 写示例行（第 2 行，灰色斜体，用户可删除）
+    samples = [col[4] for col in TEMPLATE_COLUMNS]
+    for col_idx, val in enumerate(samples, 1):
+        cell = ws.cell(row=2, column=col_idx, value=val)
+        cell.font = sample_font
+        cell.fill = sample_fill
+        cell.border = thin_border
+
+    # 列宽
+    for col_idx, (key, _hdr, _req, _desc, _sample) in enumerate(TEMPLATE_COLUMNS, 1):
+        letter = openpyxl.utils.get_column_letter(col_idx)
+        ws.column_dimensions[letter].width = TEMPLATE_COL_WIDTHS.get(key, 15)
+
+    # 冻结首行
+    ws.freeze_panes = "A2"
+
+    # ── Sheet 2: 字段说明 ──
+    ws2 = wb.create_sheet("字段说明")
+    guide_headers = ["字段", "表头名称", "是否必填", "格式说明"]
+    guide_font = Font(bold=True, size=11)
+    guide_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0",
+                             fill_type="solid")
+    guide_align = Alignment(horizontal="center", vertical="center")
+
+    for col_idx, h in enumerate(guide_headers, 1):
+        cell = ws2.cell(row=1, column=col_idx, value=h)
+        cell.font = guide_font
+        cell.fill = guide_fill
+        cell.alignment = guide_align
+        cell.border = thin_border
+
+    for row_idx, (field, header, required, desc, _sample) in enumerate(TEMPLATE_COLUMNS, 2):
+        row_data = [field, header, "必填" if required else "选填", desc]
+        for col_idx, val in enumerate(row_data, 1):
+            cell = ws2.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+
+    ws2.column_dimensions["A"].width = 25
+    ws2.column_dimensions["B"].width = 18
+    ws2.column_dimensions["C"].width = 8
+    ws2.column_dimensions["D"].width = 45
+    ws2.freeze_panes = "A2"
+
+    # ── Sheet 3: 使用说明 ──
+    ws3 = wb.create_sheet("使用说明")
+    instructions = [
+        ("导入模板使用说明", True),
+        ("", False),
+        ("1. 在「企业数据」表中填写企业信息，第一行为表头请勿修改。", False),
+        ("2. 第二行为示例数据（灰色斜体），可删除后从第二行开始填真实数据。", False),
+        ("3. 「企业名称」为必填项，其余字段选填，留空不会覆盖已有数据。", False),
+        ("4. 多值字段（其他电话、股东、标签、其他邮箱、曾用名）用分号 ; 分隔。", False),
+        ("5. 表头名称已与导入系统匹配，请勿重命名，否则该列数据将无法导入。", False),
+        ("6. 日期格式建议：YYYY-MM-DD（如 2024-01-15）。", False),
+        ("7. 填好后保存为 .xlsx 格式，在导入页面上传即可。", False),
+        ("", False),
+        ("去重规则：", True),
+        ("- 优先按统一社会信用代码去重，无信用代码时按企业名称匹配。", False),
+        ("- 重复企业只追加新电话/股东，不覆盖已有主号和工商数据。", False),
+        ("- 空字段不会清空已有数据，只更新非空且不同的字段。", False),
+    ]
+    for row_idx, (text, is_heading) in enumerate(instructions, 1):
+        cell = ws3.cell(row=row_idx, column=1, value=text)
+        if is_heading:
+            cell.font = Font(bold=True, size=13)
+        else:
+            cell.font = Font(size=11)
+        cell.alignment = Alignment(vertical="center")
+    ws3.column_dimensions["A"].width = 80
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = "EntHub导入模板.xlsx"
+    encoded = quote(filename)
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded}",
+        }
+    )
 
 
 # ── 表头探测（流式） ────────────────────────────────────────────────────────
