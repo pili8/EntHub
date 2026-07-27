@@ -215,17 +215,8 @@ def extract_by_regex(text):
                     val = val[:300]
                 result[field] = val
 
-    # 自动补充纳税人识别号（三证合一后等于信用代码）
-    if "credit_code" in result and "taxpayer_id" not in result:
-        result["taxpayer_id"] = result["credit_code"]
-
-    # 从地址中补充省/市/区（如果未从标签中提取到）
-    _fill_province_city_district_from_address(result)
-
-    # 清洗校验
-    result = clean_extracted_fields(result)
-
-    return result
+    # 后处理（补全 + 清洗校验）
+    return post_process_fields(result)
 
 
 # ── 数据清洗校验 ─────────────────────────────────────────────────────────────
@@ -337,6 +328,21 @@ def clean_extracted_fields(fields):
 
     return cleaned
 
+
+def post_process_fields(fields):
+    """对提取到的字段做后处理：补全 + 清洗校验。
+
+    正则提取和 DOM 提取共用此函数，保证两条路径输出质量一致。
+    """
+    result = dict(fields)
+    # 补充纳税人识别号（三证合一后等于信用代码）
+    if "credit_code" in result and "taxpayer_id" not in result:
+        result["taxpayer_id"] = result["credit_code"]
+    # 从地址中补充省/市/区
+    _fill_province_city_district_from_address(result)
+    # 清洗校验
+    result = clean_extracted_fields(result)
+    return result
 
 def count_extracted_fields(result):
     """统计提取到的有效字段数（排除 phone 和自动补充的 taxpayer_id）。"""

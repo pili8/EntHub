@@ -631,6 +631,20 @@ tr:hover td { background: #f8fafc; }
     margin-top: 3px;
 }
 
+/* 必填徽章（录入/编辑共用 _company_form.html，样式放全局保持一致） */
+.req-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--danger);
+    background: var(--danger-light);
+    padding: 1px 7px;
+    border-radius: 8px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.name-check-result { font-size: 12px; margin-top: 5px; }
+
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1055,6 +1069,48 @@ tr:hover td { background: #f8fafc; }
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 3px;
+}
+
+/* Phone location (归属地) */
+.phone-location {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 2px 6px;
+    background: var(--bg-secondary);
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+/* Phone tag add button */
+.phone-tag-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s;
+}
+
+.phone-tag-add-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Clickable phone tag (single-tag mode) */
+.phone-tag-clickable {
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+}
+.phone-tag-clickable:hover {
+    filter: brightness(0.92);
+    transform: scale(1.05);
 }
 
 /* Divider between phone and email within contact section */

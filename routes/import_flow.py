@@ -31,7 +31,7 @@ from db import DB_PATH
 import backup
 import tasks
 from queries import invalidate_cache
-from data_helpers import split_phones, _split_recommended, split_shareholders
+from data_helpers import split_phones, _split_recommended, split_shareholders, _auto_set_primary_tag
 from utils import (
     map_columns, clean_val, is_industrial_park_file,
     extract_date_from_filename,
@@ -689,6 +689,7 @@ def _merge_phones_cached(db, company_id, phone_str, other_phone_str,
             sset.add(norm)
             if is_primary:
                 has_primary.add(company_id)
+                _auto_set_primary_tag(db, norm)
             added += 1
 
     for raw, norm in _split_recommended(recommended_str):
@@ -927,6 +928,8 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                             "VALUES (?, ?, ?, ?)",
                             [new_id, raw, norm, 1 if i == 0 else 0]
                         )
+                        if i == 0:
+                            _auto_set_primary_tag(db, norm)
                         if norm:
                             pset.add(norm)
                     phone_sets[new_id] = pset

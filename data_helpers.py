@@ -58,6 +58,29 @@ def _split_recommended(recommended_str):
     return out
 
 
+def _auto_set_primary_tag(db, normalized_phone):
+    """如果号码还没有任何标签，自动给它设上"主电话"标签。
+
+    仅在号码没有标签时设置，不覆盖已有标签。
+    """
+    if not normalized_phone:
+        return
+    existing = db.execute(
+        "SELECT 1 FROM phone_tag_map WHERE normalized_phone = ?",
+        [normalized_phone]
+    ).fetchone()
+    if existing:
+        return  # 已有标签，不覆盖
+    tag = db.execute(
+        "SELECT id FROM phone_tags WHERE name = '主电话'"
+    ).fetchone()
+    if tag:
+        db.execute(
+            "INSERT OR REPLACE INTO phone_tag_map (normalized_phone, tag_id) VALUES (?, ?)",
+            [normalized_phone, tag["id"]]
+        )
+
+
 def sync_phones(db, company_id, phone_str, other_phone_str,
                 recommended_str=""):
     """全量重建：先删除该公司所有电话，再插入。
@@ -70,12 +93,15 @@ def sync_phones(db, company_id, phone_str, other_phone_str,
     )
     phones = split_phones(phone_str, other_phone_str)
     for i, (raw, norm) in enumerate(phones):
+        is_primary = 1 if i == 0 else 0
         db.execute(
             "INSERT INTO company_phones "
             "(company_id, phone, normalized_phone, is_primary) "
             "VALUES (?, ?, ?, ?)",
-            [company_id, raw, norm, 1 if i == 0 else 0]
+            [company_id, raw, norm, is_primary]
         )
+        if is_primary:
+            _auto_set_primary_tag(db, norm)
 
     # 推荐电话：单独标记，展示时排主号之后
     for raw, norm in _split_recommended(recommended_str):
@@ -120,6 +146,7 @@ def merge_phones(db, company_id, phone_str, other_phone_str,
             existing_norms.add(norm)
             if is_primary:
                 has_primary = True
+                _auto_set_primary_tag(db, norm)
 
     # 追加推荐电话
     for raw, norm in _split_recommended(recommended_str):

@@ -187,8 +187,7 @@
         </span>
         <span class="lh-recent-q">{{ r.q }}</span>
         <span class="lh-recent-meta">
-          <span>{{ r.result_count }} 条</span>
-          <span class="lh-recent-time">{{ r.created_at[11:16] }}</span>
+          <span class="lh-recent-time">{{ r.time_label }}</span>
         </span>
       </a>
       {% endfor %}

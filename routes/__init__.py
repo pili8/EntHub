@@ -11,7 +11,7 @@ def register_blueprints(app):
     # 顺序不重要；蓝图通过 url_for 解析对方路由
     from . import pages, companies, tags
     from . import import_flow, cleanup_flow, backup_flow, mcp_flow, api_legacy
-    from . import settings_flow, quick_import
+    from . import settings_flow, quick_import, phone_tags
 
     app.register_blueprint(pages.bp)
     app.register_blueprint(companies.bp)
@@ -23,3 +23,4 @@ def register_blueprints(app):
     app.register_blueprint(api_legacy.bp)
     app.register_blueprint(settings_flow.bp)
     app.register_blueprint(quick_import.bp)
+    app.register_blueprint(phone_tags.bp)

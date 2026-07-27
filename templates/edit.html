@@ -18,10 +18,24 @@
   </header>
 
   <form action="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" method="post">
+
+    <!-- ══ 粘性提交栏（滚动时始终可见）═══ -->
+    <div class="sticky-submit">
+      <div class="ss-actions">
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i>
+          保存
+        </button>
+        <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="btn btn-secondary">取消</a>
+      </div>
+    </div>
+
     {% include '_company_form.html' %}
-    <div style="display: flex; gap: 12px; margin-top: 16px;">
+
+    <!-- ═ 底部提交栏 ══ -->
+    <div class="bottom-submit">
       <button type="submit" class="btn btn-primary">
-        <i data-lucide="check" style="width:16px;height:16px"></i>
+        <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i>
         保存
       </button>
       <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="btn btn-secondary">取消</a>
@@ -29,4 +43,34 @@
   </form>
 
 </div>
+
+<style>
+/* ═ 粘性提交栏 ═══ */
+.sticky-submit {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 10px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.sticky-submit .ss-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/*  底部提交栏 ══ */
+.bottom-submit {
+  display: flex;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  margin-top: 8px;
+}
+</style>
 {% endblock %}

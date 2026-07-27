@@ -14,7 +14,7 @@ bp = Blueprint('tags_bp', __name__)
 
 @bp.route("/tags")
 def tags_page():
-    """标签管理页面"""
+    """标签管理页面：企业标签 + 电话标记"""
     tags = g.db.execute("""
         SELECT t.*, COUNT(ct.company_id) as company_count
         FROM tags t
@@ -22,7 +22,16 @@ def tags_page():
         GROUP BY t.id
         ORDER BY company_count DESC, t.name
     """).fetchall()
-    return render_template("tags.html", tags=tags)
+
+    phone_tags = g.db.execute("""
+        SELECT t.*, COUNT(m.normalized_phone) as phone_count
+        FROM phone_tags t
+        LEFT JOIN phone_tag_map m ON m.tag_id = t.id
+        GROUP BY t.id
+        ORDER BY t.sort_order, t.name
+    """).fetchall()
+
+    return render_template("tags.html", tags=tags, phone_tags=phone_tags)
 
 
 # ── 标签 CRUD API ───────────────────────────────────────────────────────────

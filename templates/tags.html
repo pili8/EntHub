@@ -1,72 +1,168 @@
 {% extends "base.html" %}
-{% block title %}标签管理 · EntHub{% endblock %}
+{% block title %}标记管理 · EntHub{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <div class="page-title">🏷️ 标签管理</div>
-    <div class="page-subtitle">管理企业标签，方便分类和筛选</div>
+    <div class="page-title">🏷️ 标记管理</div>
+    <div class="page-subtitle">管理企业标签和电话标记</div>
 </div>
 
-<div class="card" style="padding: 20px; margin-bottom: 24px;">
-    <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">创建新标签</h3>
-    <form id="createTagForm">
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">标签名称</label>
-            <input type="text" id="tagName" class="form-input" placeholder="输入标签名称" required style="width: 100%; max-width: 400px;">
-        </div>
-        <div style="margin-bottom: 24px;">
-            <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">选择颜色</label>
-            <div id="colorPicker" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <div class="color-option" data-color="#ef4444" style="width: 36px; height: 36px; border-radius: 6px; background: #ef4444; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="红色"></div>
-                <div class="color-option" data-color="#f97316" style="width: 36px; height: 36px; border-radius: 6px; background: #f97316; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="橙色"></div>
-                <div class="color-option" data-color="#eab308" style="width: 36px; height: 36px; border-radius: 6px; background: #eab308; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="黄色"></div>
-                <div class="color-option" data-color="#22c55e" style="width: 36px; height: 36px; border-radius: 6px; background: #22c55e; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="绿色"></div>
-                <div class="color-option" data-color="#06b6d4" style="width: 36px; height: 36px; border-radius: 6px; background: #06b6d4; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="青色"></div>
-                <div class="color-option selected" data-color="#3b82f6" style="width: 36px; height: 36px; border-radius: 6px; background: #3b82f6; cursor: pointer; border: 3px solid var(--text-primary); transition: all 0.2s;" title="蓝色"></div>
-                <div class="color-option" data-color="#8b5cf6" style="width: 36px; height: 36px; border-radius: 6px; background: #8b5cf6; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="紫色"></div>
-                <div class="color-option" data-color="#ec4899" style="width: 36px; height: 36px; border-radius: 6px; background: #ec4899; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="粉色"></div>
-                <div class="color-option" data-color="#6b7280" style="width: 36px; height: 36px; border-radius: 6px; background: #6b7280; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="灰色"></div>
+<!-- Tab 切换 -->
+<div style="display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border);">
+    <button onclick="switchTagTab('company')" id="tab-company" class="tag-tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid #D97757; color: #D97757; font-weight: 500; cursor: pointer; font-size: 14px;">
+        企业标签（{{ tags|length }}）
+    </button>
+    <button onclick="switchTagTab('phone')" id="tab-phone" class="tag-tab-btn" style="padding: 12px 20px; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; font-size: 14px;">
+        电话标记（{{ phone_tags|length }}）
+    </button>
+</div>
+
+<!-- ════════════ 企业标签 ════════════ -->
+<div id="panel-company">
+    <div class="card" style="padding: 20px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">创建企业标签</h3>
+        <form id="createTagForm">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">标签名称</label>
+                <input type="text" id="tagName" class="form-input" placeholder="输入标签名称" required style="width: 100%; max-width: 400px;">
             </div>
-        </div>
-        <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">
-            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
-            创建标签
-        </button>
-    </form>
-</div>
-
-{% if tags %}
-<div class="card" style="padding: 20px;">
-    <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">标签列表（{{ tags|length }} 个）</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-        {% for tag in tags %}
-        <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                <span style="display: inline-block; width: 20px; height: 20px; border-radius: 5px; background: {{ tag.color }}; flex-shrink: 0;"></span>
-                <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 500; margin-bottom: 2px;">{{ tag.name }}</div>
-                    <div style="font-size: 12px; color: var(--text-muted);">{{ tag.company_count }} 家企业</div>
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">选择颜色</label>
+                <div id="colorPicker" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div class="color-option" data-color="#ef4444" style="width: 36px; height: 36px; border-radius: 6px; background: #ef4444; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="红色"></div>
+                    <div class="color-option" data-color="#f97316" style="width: 36px; height: 36px; border-radius: 6px; background: #f97316; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="橙色"></div>
+                    <div class="color-option" data-color="#eab308" style="width: 36px; height: 36px; border-radius: 6px; background: #eab308; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="黄色"></div>
+                    <div class="color-option" data-color="#22c55e" style="width: 36px; height: 36px; border-radius: 6px; background: #22c55e; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="绿色"></div>
+                    <div class="color-option" data-color="#06b6d4" style="width: 36px; height: 36px; border-radius: 6px; background: #06b6d4; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="青色"></div>
+                    <div class="color-option selected" data-color="#3b82f6" style="width: 36px; height: 36px; border-radius: 6px; background: #3b82f6; cursor: pointer; border: 3px solid var(--text-primary); transition: all 0.2s;" title="蓝色"></div>
+                    <div class="color-option" data-color="#8b5cf6" style="width: 36px; height: 36px; border-radius: 6px; background: #8b5cf6; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="紫色"></div>
+                    <div class="color-option" data-color="#ec4899" style="width: 36px; height: 36px; border-radius: 6px; background: #ec4899; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="粉色"></div>
+                    <div class="color-option" data-color="#6b7280" style="width: 36px; height: 36px; border-radius: 6px; background: #6b7280; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="灰色"></div>
                 </div>
             </div>
-            <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                <button onclick="editTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px;">编辑</button>
-                <button onclick="deleteTag({{ tag.id }}, '{{ tag.name }}')" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-size: 12px;">删除</button>
-            </div>
-        </div>
-        {% endfor %}
+            <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">
+                <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                创建标签
+            </button>
+        </form>
     </div>
+
+    {% if tags %}
+    <div class="card" style="padding: 20px;">
+        <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">企业标签列表</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            {% for tag in tags %}
+            <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                    <span style="display: inline-block; width: 20px; height: 20px; border-radius: 5px; background: {{ tag.color }}; flex-shrink: 0;"></span>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; margin-bottom: 2px;">{{ tag.name }}</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">{{ tag.company_count }} 家企业</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                    <button onclick="editTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px;">编辑</button>
+                    <button onclick="deleteTag({{ tag.id }}, '{{ tag.name }}')" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-size: 12px;">删除</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="padding: 60px 20px; text-align: center;">
+        <i data-lucide="tag" style="width: 64px; height: 64px; color: var(--text-muted); opacity: 0.3; margin-bottom: 20px;"></i>
+        <p style="color: var(--text-secondary); margin: 0; font-size: 16px; font-weight: 500;">还没有创建任何企业标签</p>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">在上方创建第一个标签开始使用</p>
+    </div>
+    {% endif %}
 </div>
-{% else %}
-<div class="card" style="padding: 60px 20px; text-align: center;">
-    <i data-lucide="tag" style="width: 64px; height: 64px; color: var(--text-muted); opacity: 0.3; margin-bottom: 20px;"></i>
-    <p style="color: var(--text-secondary); margin: 0; font-size: 16px; font-weight: 500;">还没有创建任何标签</p>
-    <p style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">在上方创建第一个标签开始使用</p>
+
+<!-- ════════════ 电话标记 ════════════ -->
+<div id="panel-phone" style="display: none;">
+    <div class="card" style="padding: 20px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">创建电话标记</h3>
+        <form id="createPhoneTagForm">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">标记名称</label>
+                <input type="text" id="phoneTagName" class="form-input" placeholder="如：有效、无效、推销、中介" required style="width: 100%; max-width: 400px;">
+            </div>
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">选择颜色</label>
+                <div id="phoneColorPicker" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div class="phone-color-option" data-color="#ef4444" style="width: 36px; height: 36px; border-radius: 6px; background: #ef4444; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="红色"></div>
+                    <div class="phone-color-option" data-color="#f97316" style="width: 36px; height: 36px; border-radius: 6px; background: #f97316; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="橙色"></div>
+                    <div class="phone-color-option" data-color="#eab308" style="width: 36px; height: 36px; border-radius: 6px; background: #eab308; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="黄色"></div>
+                    <div class="phone-color-option" data-color="#22c55e" style="width: 36px; height: 36px; border-radius: 6px; background: #22c55e; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="绿色"></div>
+                    <div class="phone-color-option" data-color="#06b6d4" style="width: 36px; height: 36px; border-radius: 6px; background: #06b6d4; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="青色"></div>
+                    <div class="phone-color-option selected" data-color="#3b82f6" style="width: 36px; height: 36px; border-radius: 6px; background: #3b82f6; cursor: pointer; border: 3px solid var(--text-primary); transition: all 0.2s;" title="蓝色"></div>
+                    <div class="phone-color-option" data-color="#8b5cf6" style="width: 36px; height: 36px; border-radius: 6px; background: #8b5cf6; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="紫色"></div>
+                    <div class="phone-color-option" data-color="#ec4899" style="width: 36px; height: 36px; border-radius: 6px; background: #ec4899; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="粉色"></div>
+                    <div class="phone-color-option" data-color="#6b7280" style="width: 36px; height: 36px; border-radius: 6px; background: #6b7280; cursor: pointer; border: 3px solid transparent; transition: all 0.2s;" title="灰色"></div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">
+                <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                创建标记
+            </button>
+        </form>
+    </div>
+
+    {% if phone_tags %}
+    <div class="card" style="padding: 20px;">
+        <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">电话标记列表</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+            {% for pt in phone_tags %}
+            <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
+                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                    <span style="display: inline-block; width: 20px; height: 20px; border-radius: 5px; background: {{ pt.color }}; flex-shrink: 0;"></span>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; margin-bottom: 2px;">{{ pt.name }}</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">{{ pt.phone_count }} 个号码</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                    <button onclick="editPhoneTag({{ pt.id }}, '{{ pt.name }}', '{{ pt.color }}')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px;">编辑</button>
+                    <button onclick="deletePhoneTag({{ pt.id }}, '{{ pt.name }}')" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-size: 12px;">删除</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="padding: 60px 20px; text-align: center;">
+        <i data-lucide="phone" style="width: 64px; height: 64px; color: var(--text-muted); opacity: 0.3; margin-bottom: 20px;"></i>
+        <p style="color: var(--text-secondary); margin: 0; font-size: 16px; font-weight: 500;">还没有创建任何电话标记</p>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: 8px;">在上方创建第一个标记开始使用</p>
+    </div>
+    {% endif %}
 </div>
-{% endif %}
 
 <script>
 (function() {
-// 颜色选择
+
+// ── Tab 切换 ─────────────────────────────────────────────────────────────────
+
+function switchTagTab(tab) {
+    const tabs = ['company', 'phone'];
+    tabs.forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        const panel = document.getElementById('panel-' + t);
+        if (!btn || !panel) return;
+        if (t === tab) {
+            btn.style.borderBottomColor = '#D97757';
+            btn.style.color = '#D97757';
+            panel.style.display = 'block';
+        } else {
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.color = 'var(--text-secondary)';
+            panel.style.display = 'none';
+        }
+    });
+}
+window.switchTagTab = switchTagTab;
+
+// ── 企业标签 ─────────────────────────────────────────────────────────────────
+
 let selectedColor = '#3b82f6';
 
 document.querySelectorAll('.color-option').forEach(option => {
@@ -81,28 +177,21 @@ document.querySelectorAll('.color-option').forEach(option => {
     });
 });
 
-// 创建标签
 document.getElementById('createTagForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('tagName').value;
-    
     const response = await fetch('/api/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, color: selectedColor })
     });
-    
     const result = await response.json();
     if (result.code === 0) {
-        showConfirm('创建成功', '标签创建成功，是否刷新页面？', () => {
-            location.reload();
-        });
+        showConfirm('创建成功', '标签创建成功，是否刷新页面？', () => location.reload());
     } else {
         showConfirm('创建失败', result.message || '未知错误', () => {});
     }
 });
 
-// 编辑标签
 function editTag(id, name, color) {
     const content = `
         <form id="editTagForm">
@@ -113,59 +202,38 @@ function editTag(id, name, color) {
             <div style="margin-bottom: 20px;">
                 <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">选择颜色</label>
                 <div id="editColorPicker" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <div class="edit-color-option" data-color="#ef4444" style="width: 36px; height: 36px; border-radius: 6px; background: #ef4444; cursor: pointer; border: 3px solid ${color === '#ef4444' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#f97316" style="width: 36px; height: 36px; border-radius: 6px; background: #f97316; cursor: pointer; border: 3px solid ${color === '#f97316' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#eab308" style="width: 36px; height: 36px; border-radius: 6px; background: #eab308; cursor: pointer; border: 3px solid ${color === '#eab308' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#22c55e" style="width: 36px; height: 36px; border-radius: 6px; background: #22c55e; cursor: pointer; border: 3px solid ${color === '#22c55e' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#06b6d4" style="width: 36px; height: 36px; border-radius: 6px; background: #06b6d4; cursor: pointer; border: 3px solid ${color === '#06b6d4' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#3b82f6" style="width: 36px; height: 36px; border-radius: 6px; background: #3b82f6; cursor: pointer; border: 3px solid ${color === '#3b82f6' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#8b5cf6" style="width: 36px; height: 36px; border-radius: 6px; background: #8b5cf6; cursor: pointer; border: 3px solid ${color === '#8b5cf6' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#ec4899" style="width: 36px; height: 36px; border-radius: 6px; background: #ec4899; cursor: pointer; border: 3px solid ${color === '#ec4899' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
-                    <div class="edit-color-option" data-color="#6b7280" style="width: 36px; height: 36px; border-radius: 6px; background: #6b7280; cursor: pointer; border: 3px solid ${color === '#6b7280' ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>
+                    ${['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#6b7280'].map(c =>
+                        `<div class="edit-color-option" data-color="${c}" style="width: 36px; height: 36px; border-radius: 6px; background: ${c}; cursor: pointer; border: 3px solid ${color === c ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>`
+                    ).join('')}
                 </div>
             </div>
         </form>
     `;
-    
     let editColor = color;
-    
-    const buttons = [
+    showModal('编辑企业标签', content, [
         { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' },
         { text: '保存', class: 'btn btn-primary', action: '' }
-    ];
-    
-    showModal('编辑标签', content, buttons);
-    
-    // 绑定颜色选择
+    ]);
     setTimeout(() => {
         document.querySelectorAll('.edit-color-option').forEach(option => {
             option.addEventListener('click', function() {
-                document.querySelectorAll('.edit-color-option').forEach(o => {
-                    o.style.border = '3px solid transparent';
-                });
+                document.querySelectorAll('.edit-color-option').forEach(o => o.style.border = '3px solid transparent');
                 this.style.border = '3px solid var(--text-primary)';
                 editColor = this.dataset.color;
             });
         });
     }, 100);
-    
-    // 绑定保存按钮
     const saveBtn = document.querySelector('#modal-footer .btn-primary');
     saveBtn.onclick = async () => {
         const name = document.getElementById('editTagName').value;
-        
         const response = await fetch(`/api/tags/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, color: editColor })
         });
-        
         const result = await response.json();
         if (result.code === 0) {
             closeModal();
-            showConfirm('更新成功', '标签更新成功，是否刷新页面？', () => {
-                location.reload();
-            });
+            showConfirm('更新成功', '标签更新成功，是否刷新页面？', () => location.reload());
         } else {
             closeModal();
             showConfirm('更新失败', result.message || '未知错误', () => {});
@@ -173,21 +241,13 @@ function editTag(id, name, color) {
     };
 }
 
-// 删除标签
 function deleteTag(id, name) {
-    showConfirm(
-        '删除标签',
-        `确定要删除标签"${name}"吗？<br><br><span style="color: var(--text-muted); font-size: 13px;">此操作会同时删除所有企业上的该标签。</span>`,
+    showConfirm('删除标签', `确定要删除企业标签"${name}"吗？<br><br><span style="color: var(--text-muted); font-size: 13px;">此操作会同时删除所有企业上的该标签。</span>`,
         async () => {
-            const response = await fetch(`/api/tags/${id}`, {
-                method: 'DELETE'
-            });
-            
+            const response = await fetch(`/api/tags/${id}`, { method: 'DELETE' });
             const result = await response.json();
             if (result.code === 0) {
-                showConfirm('删除成功', '标签删除成功，是否刷新页面？', () => {
-                    location.reload();
-                });
+                showConfirm('删除成功', '标签删除成功，是否刷新页面？', () => location.reload());
             } else {
                 showConfirm('删除失败', result.message || '未知错误', () => {});
             }
@@ -195,9 +255,106 @@ function deleteTag(id, name) {
     );
 }
 
-// 显式挂到 window（避免 SPA 路由切换后 onclick 找不到函数）
 window.editTag = editTag;
 window.deleteTag = deleteTag;
+
+// ── 电话标记 ─────────────────────────────────────────────────────────────────
+
+let phoneSelectedColor = '#3b82f6';
+
+document.querySelectorAll('.phone-color-option').forEach(option => {
+    option.addEventListener('click', function() {
+        document.querySelectorAll('.phone-color-option').forEach(o => {
+            o.style.border = '3px solid transparent';
+            o.classList.remove('selected');
+        });
+        this.style.border = '3px solid var(--text-primary)';
+        this.classList.add('selected');
+        phoneSelectedColor = this.dataset.color;
+    });
+});
+
+document.getElementById('createPhoneTagForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('phoneTagName').value;
+    const response = await fetch('/api/phone_tags', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color: phoneSelectedColor })
+    });
+    const result = await response.json();
+    if (result.code === 0) {
+        showConfirm('创建成功', '电话标记创建成功，是否刷新页面？', () => location.reload());
+    } else {
+        showConfirm('创建失败', result.message || '未知错误', () => {});
+    }
+});
+
+function editPhoneTag(id, name, color) {
+    const content = `
+        <form id="editPhoneTagForm">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">标记名称</label>
+                <input type="text" id="editPhoneTagName" class="form-input" value="${name}" required style="width: 100%;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">选择颜色</label>
+                <div id="editPhoneColorPicker" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    ${['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#6b7280'].map(c =>
+                        `<div class="edit-phone-color-option" data-color="${c}" style="width: 36px; height: 36px; border-radius: 6px; background: ${c}; cursor: pointer; border: 3px solid ${color === c ? 'var(--text-primary)' : 'transparent'}; transition: all 0.2s;"></div>`
+                    ).join('')}
+                </div>
+            </div>
+        </form>
+    `;
+    let editColor = color;
+    showModal('编辑电话标记', content, [
+        { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' },
+        { text: '保存', class: 'btn btn-primary', action: '' }
+    ]);
+    setTimeout(() => {
+        document.querySelectorAll('.edit-phone-color-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.edit-phone-color-option').forEach(o => o.style.border = '3px solid transparent');
+                this.style.border = '3px solid var(--text-primary)';
+                editColor = this.dataset.color;
+            });
+        });
+    }, 100);
+    const saveBtn = document.querySelector('#modal-footer .btn-primary');
+    saveBtn.onclick = async () => {
+        const name = document.getElementById('editPhoneTagName').value;
+        const response = await fetch(`/api/phone_tags/${id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, color: editColor })
+        });
+        const result = await response.json();
+        if (result.code === 0) {
+            closeModal();
+            showConfirm('更新成功', '电话标记更新成功，是否刷新页面？', () => location.reload());
+        } else {
+            closeModal();
+            showConfirm('更新失败', result.message || '未知错误', () => {});
+        }
+    };
+}
+
+function deletePhoneTag(id, name) {
+    showConfirm('删除标记', `确定要删除电话标记"${name}"吗？<br><br><span style="color: var(--text-muted); font-size: 13px;">此操作会同时清除所有号码上的该标记。</span>`,
+        async () => {
+            const response = await fetch(`/api/phone_tags/${id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (result.code === 0) {
+                showConfirm('删除成功', '电话标记删除成功，是否刷新页面？', () => location.reload());
+            } else {
+                showConfirm('删除失败', result.message || '未知错误', () => {});
+            }
+        }
+    );
+}
+
+window.editPhoneTag = editPhoneTag;
+window.deletePhoneTag = deletePhoneTag;
+
 })();
 </script>
 {% endblock %}

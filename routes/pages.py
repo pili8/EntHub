@@ -27,6 +27,7 @@ PER_PAGE = DEFAULT_PER_PAGE
 
 @bp.route("/")
 def index():
+    from datetime import datetime, date as _date, timedelta
     stats = g.db.execute("""
         SELECT
             COUNT(*)                                       AS total,
@@ -35,12 +36,25 @@ def index():
             (SELECT COUNT(*) FROM company_phones) AS rows_with_phone
         FROM companies
     """).fetchone()
-    recents = g.db.execute("""
+    rows = g.db.execute("""
         SELECT id, q, query_type, result_count, created_at
         FROM recent_searches
         ORDER BY id DESC
         LIMIT 8
     """).fetchall()
+    today = _date.today()
+    recents = []
+    for r in rows:
+        dt = datetime.strptime(r['created_at'], '%Y-%m-%d %H:%M:%S')
+        d = dt.date()
+        time_str = dt.strftime('%H:%M')
+        if d == today:
+            label = f'今天 {time_str}'
+        elif d == today - timedelta(days=1):
+            label = f'昨天 {time_str}'
+        else:
+            label = f'{d.month}月{d.day}日 {time_str}'
+        recents.append({**r, 'time_label': label})
     return render_template("index.html", stats=stats, recents=recents)
 
 
@@ -432,8 +446,9 @@ def search():
         total, rows = text_search(g.db, q, PER_PAGE, offset)
         pages, _ = paginate(total, page, PER_PAGE)
 
-    # 记录最近查询（仅首页查询，分页不记）
+    # 记录最近查询（仅首页查询，分页不记；同关键词去重，只显示最新一条）
     if page == 1 and q:
+        g.db.execute("DELETE FROM recent_searches WHERE q = ?", [q])
         g.db.execute(
             "INSERT INTO recent_searches (q, query_type, result_count) VALUES (?, ?, ?)",
             [q, query_type, total]

@@ -10,6 +10,8 @@ from flask import Blueprint, request, jsonify, g
 from utils import (
     normalize_phone, normalize_credit_code, normalize_name,
     normalize_person_name, normalize_email,
+    phone_location, phone_location_str,
+    get_phone_tags, get_phone_tags_batch,
 )
 from data_helpers import sync_phones, sync_shareholders
 from extract_service import extract_company_info
@@ -163,6 +165,18 @@ def company_detail(company_id):
         ORDER BY cp.is_primary DESC, cp.is_recommended DESC
     """, [company_id]).fetchall()
 
+    # 附加归属地和电话标记
+    from utils import phone_location, get_phone_tags_batch
+    phone_tag_map = get_phone_tags_batch(
+        g.db, [r['normalized_phone'] for r in company_phones]
+    ) if company_phones else {}
+    phone_list = []
+    for cp in company_phones:
+        cp_dict = dict(cp)
+        cp_dict['location'] = phone_location(cp['phone'])
+        cp_dict['tag'] = phone_tag_map.get(cp['normalized_phone'])
+        phone_list.append(cp_dict)
+
     relations = {}
     relation_counts = {}
 
@@ -217,7 +231,7 @@ def company_detail(company_id):
 
     return _ok({
         "company": company,
-        "phones": [dict(p) for p in company_phones],
+        "phones": phone_list,
         "relations": relations,
         "relation_counts": relation_counts,
         "tags": [dict(t) for t in tags]
@@ -748,7 +762,9 @@ def phone_count():
     return _ok({
         "phone": phone,
         "normalized": norm,
-        "count": count
+        "count": count,
+        "location": phone_location(phone),
+        "tag": get_phone_tags(g.db, norm),
     })
 
 
@@ -777,8 +793,14 @@ def phone_count_batch():
         results.append({
             "phone": raw,
             "normalized": norm,
-            "count": count
+            "count": count,
+            "location": phone_location(raw),
         })
+
+    # 批量查标签
+    tag_map = get_phone_tags_batch(g.db, [r["normalized"] for r in results])
+    for r in results:
+        r["tag"] = tag_map.get(r["normalized"])
 
     return _ok({"results": results})
 

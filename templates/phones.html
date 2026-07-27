@@ -88,6 +88,12 @@
 
                     <div style="color: var(--text-muted); font-weight: 500;">重复数</div>
                     <div id="single-count" style="font-weight: 600;"></div>
+
+                    <div style="color: var(--text-muted); font-weight: 500;">归属地</div>
+                    <div id="single-location" style="font-size: 13px;"></div>
+
+                    <div style="color: var(--text-muted); font-weight: 500;">标记</div>
+                    <div id="single-tags" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;"></div>
                 </div>
 
                 <div id="single-companies" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); display: none;">
@@ -121,7 +127,9 @@
                     <thead>
                         <tr style="background: #f1f5f9; border-bottom: 2px solid var(--border);">
                             <th style="padding: 10px 16px; text-align: left; font-weight: 600;">号码</th>
+                            <th style="padding: 10px 16px; text-align: left; font-weight: 600;">归属地</th>
                             <th style="padding: 10px 16px; text-align: left; font-weight: 600;">重复数</th>
+                            <th style="padding: 10px 16px; text-align: left; font-weight: 600;">标记</th>
                             <th style="padding: 10px 16px; text-align: left; font-weight: 600;">操作</th>
                         </tr>
                     </thead>
@@ -138,15 +146,15 @@
     <div style="display: flex; gap: 24px; font-size: 13px; color: var(--text-secondary);">
         <div style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22c55e;"></span>
-            <span>1 次 · 唯一/可信</span>
+            <span>1 家 · 唯一/可信</span>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></span>
-            <span>2-5 次 · 少量重复/可疑</span>
+            <span>2-5 家 · 少量重复/可疑</span>
         </div>
         <div style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
-            <span>6+ 次 · 高度重复/中介</span>
+            <span>6+ 家 · 高度重复/中介</span>
         </div>
     </div>
 </div>
@@ -263,7 +271,7 @@ print(r.json()["data"]["count"])
 # 批量查询
 r = requests.post("http://127.0.0.1:5210/api/phone_count_batch", json={"phones": ["13800138000", "0571-88889999"]})
 for item in r.json()["data"]["results"]:
-    print(f"{item['phone']} → {item['count']}次")</code></pre>
+    print(f"{item['phone']} → 共 {item['count']} 家")</code></pre>
         </div>
     </div>
     </div>
@@ -375,7 +383,29 @@ async function querySinglePhone(evt) {
         document.getElementById('single-normalized').textContent = result.normalized;
 
         const countEl = document.getElementById('single-count');
-        countEl.innerHTML = '<span style="color: ' + countColor(result.count) + '; font-weight: 600;">' + result.count + ' 次</span>';
+        countEl.innerHTML = '<span style="color: ' + countColor(result.count) + '; font-weight: 600;">共 ' + result.count + ' 家</span>';
+
+        // 归属地
+        const locEl = document.getElementById('single-location');
+        if (result.location && result.location.province) {
+            const loc = result.location;
+            let locStr = loc.province;
+            if (loc.city && loc.city !== loc.province) locStr += ' ' + loc.city;
+            if (loc.carrier) locStr += ' ' + loc.carrier;
+            locEl.innerHTML = '<span style="display: inline-block; padding: 2px 8px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">' + locStr + '</span>';
+        } else {
+            locEl.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
+        }
+
+        // 电话标记（单标签模式：点击切换）
+        const tagsEl = document.getElementById('single-tags');
+        const norm = result.normalized;
+        if (result.tag) {
+            tagsEl.innerHTML = '<span class="phone-tag phone-tag-clickable" style="display: inline-flex; align-items: center; padding: 3px 10px; background: ' + result.tag.color + '20; color: ' + result.tag.color + '; border-radius: 10px; font-size: 11px; font-weight: 500; cursor: pointer;" onclick="openPhoneTagSelectorSingle(\'' + norm + '\')" title="点击修改标记">' + result.tag.name + '</span>';
+        } else {
+            tagsEl.innerHTML = '<button onclick="openPhoneTagSelectorSingle(\'' + norm + '\')" style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px dashed var(--border); background: transparent; color: var(--text-muted); border-radius: 4px; cursor: pointer; font-size: 11px;"><i data-lucide="tag" style="width: 10px; height: 10px;"></i> 设置标记</button>';
+        }
+        if (window.lucide) lucide.createIcons();
 
         // 关联企业
         if (result.count > 0) {
@@ -455,17 +485,33 @@ async function queryBatchPhones(evt) {
             const relUrl = r.count > 0
                 ? '/relation-group?dup_type=phone&val=' + encodeURIComponent(r.normalized)
                 : null;
+            // 归属地
+            let locHtml = '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
+            if (r.location && r.location.province) {
+                const loc = r.location;
+                let locStr = loc.province;
+                if (loc.city && loc.city !== loc.province) locStr += ' ' + loc.city;
+                if (loc.carrier) locStr += ' ' + loc.carrier;
+                locHtml = '<span style="font-size: 12px; color: var(--text-secondary);">' + locStr + '</span>';
+            }
+            // 标记（单标签模式）
+            let tagsHtml = '<span style="color: var(--text-muted); font-size: 11px;">—</span>';
+            if (r.tag) {
+                tagsHtml = '<span class="phone-tag phone-tag-clickable" style="display: inline-block; padding: 1px 8px; background: ' + r.tag.color + '20; color: ' + r.tag.color + '; border-radius: 8px; font-size: 11px; font-weight: 500; cursor: pointer;" onclick="openPhoneTagSelectorSingle(\'' + r.normalized + '\')" title="点击修改标记">' + r.tag.name + '</span>';
+            }
             return '<tr style="border-bottom: 1px solid var(--border);">' +
                 '<td style="padding: 10px 16px; font-family: monospace;">' +
                     (relUrl
                         ? '<a href="' + relUrl + '" style="color: var(--text-primary); text-decoration: none;">' + r.phone + '</a>'
                         : '<span style="color: var(--text-muted);">' + r.phone + '</span>') +
                 '</td>' +
+                '<td style="padding: 10px 16px;">' + locHtml + '</td>' +
                 '<td style="padding: 10px 16px;">' +
                     (relUrl
-                        ? '<a href="' + relUrl + '" style="text-decoration: none;"><span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 12px; background: ' + countColor(r.count) + '20; color: ' + countColor(r.count) + '; font-weight: 600; font-size: 12px;">' + countEmoji(r.count) + ' ' + r.count + ' 次</span></a>'
-                        : '<span style="color: var(--text-muted); font-size: 12px;">0 次</span>') +
+                        ? '<a href="' + relUrl + '" style="text-decoration: none;"><span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 12px; background: ' + countColor(r.count) + '20; color: ' + countColor(r.count) + '; font-weight: 600; font-size: 12px;">' + countEmoji(r.count) + ' 共 ' + r.count + ' 家</span></a>'
+                        : '<span style="color: var(--text-muted); font-size: 12px;">共 0 家</span>') +
                 '</td>' +
+                '<td style="padding: 10px 16px;">' + tagsHtml + '</td>' +
                 '<td style="padding: 10px 16px;">' +
                     (relUrl
                         ? '<a href="' + relUrl + '" style="color: #D97757; text-decoration: none; font-size: 12px;">查看关联 →</a>'
@@ -586,6 +632,128 @@ function copyAnnotated(evt) {
     });
 }
 
+// ── 电话标记管理（单标签模式 · phones 页面版）──
+
+async function openPhoneTagSelectorSingle(normalizedPhone) {
+    const allTagsResp = await (await fetch('/api/phone_tags')).json();
+    const allTags = (allTagsResp.data && allTagsResp.data.results) || [];
+
+    const phoneTagResp = await (await fetch('/api/phone/' + normalizedPhone + '/tags')).json();
+    const currentTag = phoneTagResp.data && phoneTagResp.data.tag;
+    const currentTagId = currentTag ? currentTag.id : null;
+
+    let content = '<div style="margin-bottom: 14px;">';
+    content += '<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">选择标记（点击即切换）：</div>';
+    content += '<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">';
+
+    allTags.forEach(tag => {
+        const isCurrent = tag.id === currentTagId;
+        const border = isCurrent ? '2px solid ' + tag.color : '1.5px solid ' + tag.color + '40';
+        const bg = isCurrent ? tag.color + '30' : tag.color + '15';
+        const checkIcon = isCurrent ? '<i data-lucide="check" style="width: 10px; height: 10px;"></i>' : '';
+        content += '<button onclick="setPhoneTagSingle(\'' + normalizedPhone + '\', ' + tag.id + ')" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: ' + bg + '; color: ' + tag.color + '; border: ' + border + '; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s;"><span style="width: 8px; height: 8px; border-radius: 2px; background: ' + tag.color + ';"></span>' + tag.name + checkIcon + '</button>';
+    });
+    content += '</div>';
+
+    if (currentTag) {
+        content += '<button onclick="clearPhoneTagSingle(\'' + normalizedPhone + '\')" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; border-radius: 14px; font-size: 12px; cursor: pointer;"><i data-lucide="x" style="width: 10px; height: 10px;"></i>清除标记</button>';
+    }
+
+    content += '</div><div style="border-top: 1px solid var(--border); padding-top: 14px;"><div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">或创建新标记：</div><form id="createPhoneTagFormSingle" style="display: flex; gap: 6px;"><input type="text" id="newPhoneTagNameSingle" class="form-input" placeholder="标记名称" required style="flex: 1; font-size: 12px; padding: 6px 9px;"><select id="newPhoneTagColorSingle" class="form-select" style="width: 100px; font-size: 12px; padding: 6px 8px;"><option value="#ef4444">红色</option><option value="#f97316">橙色</option><option value="#eab308">黄色</option><option value="#22c55e">绿色</option><option value="#06b6d4">青色</option><option value="#3b82f6" selected>蓝色</option><option value="#8b5cf6">紫色</option><option value="#ec4899">粉色</option><option value="#6b7280">灰色</option></select><button type="submit" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">创建并设置</button></form></div>';
+
+    showModal('电话标记', content, [
+        { text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }
+    ]);
+
+    setTimeout(() => {
+        const form = document.getElementById('createPhoneTagFormSingle');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('newPhoneTagNameSingle').value;
+                const color = document.getElementById('newPhoneTagColorSingle').value;
+                const createResp = await fetch('/api/phone_tags', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, color })
+                });
+                const createResult = await createResp.json();
+                if (createResult.code === 0) {
+                    const tagsResp = await (await fetch('/api/phone_tags')).json();
+                    const tags = (tagsResp.data && tagsResp.data.results) || [];
+                    const newTag = tags.find(t => t.name === name);
+                    if (newTag) {
+                        await setPhoneTagSingle(normalizedPhone, newTag.id);
+                        closeModal();
+                    }
+                } else {
+                    window._enthubToast('error', '创建失败', createResult.message || '');
+                }
+            });
+        }
+    }, 100);
+    if (window.lucide) lucide.createIcons();
+}
+
+async function setPhoneTagSingle(normalizedPhone, tagId) {
+    const resp = await fetch('/api/phone/' + normalizedPhone + '/tags', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_id: tagId })
+    });
+    const result = await resp.json();
+    if (result.code === 0) {
+        closeModal();
+        // 重新查询单号以刷新标记
+        const phoneInput = document.getElementById('single-phone');
+        if (phoneInput && phoneInput.value.trim()) {
+            await querySinglePhone(null);
+        }
+        // 也刷新批量结果中的标记
+        refreshBatchTag(normalizedPhone);
+    } else {
+        window._enthubToast('error', '设置失败', result.message || '');
+    }
+}
+
+async function clearPhoneTagSingle(normalizedPhone) {
+    const resp = await fetch('/api/phone/' + normalizedPhone + '/tags', { method: 'DELETE' });
+    const result = await resp.json();
+    if (result.code === 0) {
+        closeModal();
+        const phoneInput = document.getElementById('single-phone');
+        if (phoneInput && phoneInput.value.trim()) {
+            await querySinglePhone(null);
+        }
+        refreshBatchTag(normalizedPhone);
+    } else {
+        window._enthubToast('error', '清除失败', result.message || '');
+    }
+}
+
+async function refreshBatchTag(normalizedPhone) {
+    // 刷新批量结果中该号码的标记（如果批量结果存在）
+    const tagResp = await fetch('/api/phone/' + normalizedPhone + '/tags');
+    const tagResult = await tagResp.json();
+    const tag = tagResult.data && tagResult.data.tag;
+
+    // 找到批量表格中该号码的行（通过 onclick 属性匹配）
+    const rows = document.querySelectorAll('#batch-results-body tr');
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 4) return;
+        // 检查第 4 列（标记列）的 onclick 是否包含该号码
+        const tagCell = cells[3];
+        const onclickStr = tagCell.innerHTML;
+        if (onclickStr.includes(normalizedPhone)) {
+            if (tag) {
+                tagCell.innerHTML = '<span class="phone-tag phone-tag-clickable" style="display: inline-block; padding: 1px 8px; background: ' + tag.color + '20; color: ' + tag.color + '; border-radius: 8px; font-size: 11px; font-weight: 500; cursor: pointer;" onclick="openPhoneTagSelectorSingle(\'' + normalizedPhone + '\')" title="点击修改标记">' + tag.name + '</span>';
+            } else {
+                tagCell.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">—</span>';
+            }
+        }
+    });
+    if (window.lucide) lucide.createIcons();
+}
+
 // ── 显式挂到 window（避免 SPA 路由切换后失效）──
 window.switchTab = switchTab;
 window.querySinglePhone = querySinglePhone;
@@ -593,6 +761,9 @@ window.queryBatchPhones = queryBatchPhones;
 window.annotateText = annotateText;
 window.copyAnnotated = copyAnnotated;
 window.clearTextInput = clearTextInput;
+window.openPhoneTagSelectorSingle = openPhoneTagSelectorSingle;
+window.setPhoneTagSingle = setPhoneTagSingle;
+window.clearPhoneTagSingle = clearPhoneTagSingle;
 
 // ── 初始化 ──
 setupAutoAnnotate();

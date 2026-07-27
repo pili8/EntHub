@@ -162,6 +162,23 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_ct_company ON company_tags(company_id);
         CREATE INDEX IF NOT EXISTS idx_ct_tag ON company_tags(tag_id);
+
+        -- 电话标记定义表（跟现有 tags 表独立，专用于电话号码）
+        CREATE TABLE IF NOT EXISTS phone_tags (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL UNIQUE,
+            color       TEXT DEFAULT '#3b82f6',
+            sort_order  INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+
+        -- 电话-标记关联表（每个号码只有一个标记，normalized_phone 为单主键）
+        CREATE TABLE IF NOT EXISTS phone_tag_map (
+            normalized_phone TEXT PRIMARY KEY,
+            tag_id           INTEGER NOT NULL,
+            created_at       TEXT DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (tag_id) REFERENCES phone_tags(id) ON DELETE CASCADE
+        );
     """)
 
     # Add columns for databases created before the new schema
@@ -175,6 +192,41 @@ def init_db():
     _migrate(conn, "import_preview", "will_update", "INTEGER DEFAULT 0")
     _migrate(conn, "companies", "normalized_legal_person", "TEXT")
     _migrate(conn, "companies", "normalized_email", "TEXT")
+
+    # 迁移：如果 phone_tag_map 还是旧的多标签 schema（复合主键），重建为单标签
+    _pk_cols = [r for r in conn.execute("PRAGMA table_info(phone_tag_map)").fetchall() if r[5]]
+    if len(_pk_cols) > 1:
+        conn.execute("ALTER TABLE phone_tag_map RENAME TO phone_tag_map_old")
+        conn.execute("""
+            CREATE TABLE phone_tag_map (
+                normalized_phone TEXT PRIMARY KEY,
+                tag_id           INTEGER NOT NULL,
+                created_at       TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (tag_id) REFERENCES phone_tags(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("""
+            INSERT OR REPLACE INTO phone_tag_map (normalized_phone, tag_id, created_at)
+            SELECT normalized_phone, tag_id, MAX(created_at)
+            FROM phone_tag_map_old
+            GROUP BY normalized_phone
+        """)
+        conn.execute("DROP TABLE phone_tag_map_old")
+
+    # 插入默认电话标记（仅首次创建时）
+    default_phone_tags = [
+        ("主电话", "#3b82f6", 1),
+        ("有效", "#22c55e", 2),
+        ("无效", "#ef4444", 3),
+        ("推销电话", "#f97316", 4),
+        ("中介", "#eab308", 5),
+        ("代理记账", "#8b5cf6", 6),
+    ]
+    for name, color, order in default_phone_tags:
+        conn.execute(
+            "INSERT OR IGNORE INTO phone_tags (name, color, sort_order) VALUES (?, ?, ?)",
+            (name, color, order)
+        )
 
     conn.execute("""
         CREATE VIEW IF NOT EXISTS company_export AS

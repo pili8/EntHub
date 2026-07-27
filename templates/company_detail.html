@@ -66,7 +66,7 @@
           {% if company.legal_person %}
             <a href="{{ url_for('pages_bp.search', q=company.legal_person) }}">{{ company.legal_person }}</a>
             {% if field_counts.legal_person and field_counts.legal_person > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">{{ field_counts.legal_person }} 家</span>
+              <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">共 {{ field_counts.legal_person }} 家</span>
             {% endif %}
           {% else %}<span class="muted">—</span>{% endif %}
         </div>
@@ -101,7 +101,7 @@
           {% if company.industry %}
             <a href="{{ url_for('pages_bp.search', q=company.industry) }}">{{ company.industry }}</a>
             {% if field_counts.industry and field_counts.industry > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">{{ field_counts.industry }} 家</span>
+              <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">共 {{ field_counts.industry }} 家</span>
             {% endif %}
           {% else %}<span class="muted">—</span>{% endif %}
         </div>
@@ -132,7 +132,7 @@
           <div class="detail-value">
             <a href="{{ url_for('pages_bp.search', q=company.shareholders) }}">{{ company.shareholders }}</a>
             {% if field_counts.shareholders and field_counts.shareholders > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.shareholders >= 5 else 'dup-mid' }}">{{ field_counts.shareholders }} 家</span>
+              <span class="dup-count {{ 'dup-high' if field_counts.shareholders >= 5 else 'dup-mid' }}">共 {{ field_counts.shareholders }} 家</span>
             {% endif %}
           </div>
         </div>
@@ -147,19 +147,27 @@
     {% if company_phones %}
       <div class="phone-list">
         {% for cp in company_phones %}
-        <div class="phone-row">
+        <div class="phone-row" data-norm="{{ cp.normalized_phone }}">
           <a href="{{ url_for('pages_bp.search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ cp.phone }}', this)" title="复制">
             <i data-lucide="copy" aria-hidden="true"></i>
           </button>
+          {% if cp.location %}
+          <span class="phone-location" title="归属地">{{ cp.location.province }}{% if cp.location.city and cp.location.city != cp.location.province %} {{ cp.location.city }}{% endif %} {{ cp.location.carrier }}</span>
+          {% endif %}
           <div class="phone-tags">
-            {% if cp.is_primary %}
-              <span class="phone-tag phone-tag-primary">主电话</span>
-            {% elif cp.is_recommended %}
+            {% if cp.is_recommended %}
               <span class="phone-tag phone-tag-secondary">推荐</span>
             {% endif %}
+            {% if cp.tag %}
+              <span class="phone-tag phone-tag-clickable" style="background: {{ cp.tag.color }}20; color: {{ cp.tag.color }};" onclick="openPhoneTagSelector('{{ cp.normalized_phone }}')" title="点击修改标记">{{ cp.tag.name }}</span>
+            {% else %}
+              <button type="button" class="phone-tag-add-btn" onclick="openPhoneTagSelector('{{ cp.normalized_phone }}')" title="设置标记">
+                <i data-lucide="tag" style="width: 12px; height: 12px;"></i>
+              </button>
+            {% endif %}
             {% if cp.dup_count > 1 %}
-              <span class="dup-count {{ 'dup-high' if cp.dup_count >= 5 else 'dup-mid' }}">{{ cp.dup_count }} 家共用</span>
+              <span class="dup-count {{ 'dup-high' if cp.dup_count >= 5 else 'dup-mid' }}">共 {{ cp.dup_count }} 家</span>
             {% else %}
               <span class="phone-unique">唯一</span>
             {% endif %}
@@ -183,7 +191,7 @@
               <i data-lucide="copy" aria-hidden="true"></i>
             </button>
             {% if field_counts.email and field_counts.email > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.email >= 5 else 'dup-mid' }}">{{ field_counts.email }} 家</span>
+              <span class="dup-count {{ 'dup-high' if field_counts.email >= 5 else 'dup-mid' }}">共 {{ field_counts.email }} 家</span>
             {% endif %}
           {% else %}<span class="muted">—</span>{% endif %}
         </div>
@@ -623,6 +631,150 @@ window.addTag = addTag;
 window.removeTag = removeTag;
 window.refreshCompany = refreshCompany;
 window._applyFromDiffModal = _applyFromDiffModal;
+
+// ── 电话标记管理（单标签模式）────────────────────────────────────────────────
+
+async function openPhoneTagSelector(normalizedPhone) {
+    const allTagsResp = await (await fetch('/api/phone_tags')).json();
+    const allTags = (allTagsResp.data && allTagsResp.data.results) || [];
+
+    const phoneTagResp = await (await fetch(`/api/phone/${normalizedPhone}/tags`)).json();
+    const currentTag = phoneTagResp.data && phoneTagResp.data.tag;
+    const currentTagId = currentTag ? currentTag.id : null;
+
+    let content = '<div style="margin-bottom: 14px;">';
+    content += '<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">选择标记（点击即切换）：</div>';
+    content += '<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">';
+
+    allTags.forEach(tag => {
+        const isCurrent = tag.id === currentTagId;
+        const border = isCurrent ? `2px solid ${tag.color}` : `1.5px solid ${tag.color}40`;
+        const bg = isCurrent ? `${tag.color}30` : `${tag.color}15`;
+        const checkIcon = isCurrent ? '<i data-lucide="check" style="width: 10px; height: 10px;"></i>' : '';
+        content += `<button onclick="setPhoneTag('${normalizedPhone}', ${tag.id})" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: ${bg}; color: ${tag.color}; border: ${border}; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s;"><span style="width: 8px; height: 8px; border-radius: 2px; background: ${tag.color};"></span>${tag.name}${checkIcon}</button>`;
+    });
+    content += '</div>';
+
+    // 清除标记
+    if (currentTag) {
+        content += `<button onclick="clearPhoneTag('${normalizedPhone}')" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; border-radius: 14px; font-size: 12px; cursor: pointer;"><i data-lucide="x" style="width: 10px; height: 10px;"></i>清除标记</button>`;
+    }
+
+    // 创建新标记
+    content += `
+        </div>
+        <div style="border-top: 1px solid var(--border); padding-top: 14px;">
+            <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">或创建新标记：</div>
+            <form id="createPhoneTagForm" style="display: flex; gap: 6px;">
+                <input type="text" id="newPhoneTagName" class="form-input" placeholder="标记名称" required style="flex: 1; font-size: 12px; padding: 6px 9px;">
+                <select id="newPhoneTagColor" class="form-select" style="width: 100px; font-size: 12px; padding: 6px 8px;">
+                    <option value="#ef4444">红色</option>
+                    <option value="#f97316">橙色</option>
+                    <option value="#eab308">黄色</option>
+                    <option value="#22c55e">绿色</option>
+                    <option value="#06b6d4">青色</option>
+                    <option value="#3b82f6" selected>蓝色</option>
+                    <option value="#8b5cf6">紫色</option>
+                    <option value="#ec4899">粉色</option>
+                    <option value="#6b7280">灰色</option>
+                </select>
+                <button type="submit" class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;">创建并设置</button>
+            </form>
+        </div>
+    `;
+
+    showModal('电话标记', content, [
+        { text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }
+    ]);
+
+    setTimeout(() => {
+        const form = document.getElementById('createPhoneTagForm');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('newPhoneTagName').value;
+                const color = document.getElementById('newPhoneTagColor').value;
+                const createResp = await fetch('/api/phone_tags', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, color })
+                });
+                const createResult = await createResp.json();
+                if (createResult.code === 0) {
+                    const tagsResp = await (await fetch('/api/phone_tags')).json();
+                    const tags = (tagsResp.data && tagsResp.data.results) || [];
+                    const newTag = tags.find(t => t.name === name);
+                    if (newTag) {
+                        await setPhoneTag(normalizedPhone, newTag.id);
+                        closeModal();
+                    }
+                } else {
+                    window._enthubToast('error', '创建失败', createResult.message || '');
+                }
+            });
+        }
+    }, 100);
+    if (window.lucide) lucide.createIcons();
+}
+
+async function setPhoneTag(normalizedPhone, tagId) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/tags`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_id: tagId })
+    });
+    const result = await resp.json();
+    if (result.code === 0) {
+        closeModal();
+        await refreshPhoneTag(normalizedPhone);
+    } else {
+        window._enthubToast('error', '设置失败', result.message || '');
+    }
+}
+
+async function clearPhoneTag(normalizedPhone) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/tags`, { method: 'DELETE' });
+    const result = await resp.json();
+    if (result.code === 0) {
+        closeModal();
+        await refreshPhoneTag(normalizedPhone);
+    } else {
+        window._enthubToast('error', '清除失败', result.message || '');
+    }
+}
+
+async function refreshPhoneTag(normalizedPhone) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/tags`);
+    const result = await resp.json();
+    const tag = result.data && result.data.tag;
+
+    const row = document.querySelector(`.phone-row[data-norm="${normalizedPhone}"]`);
+    if (!row) return;
+    const tagsContainer = row.querySelector('.phone-tags');
+    if (!tagsContainer) return;
+
+    // 保留 is_recommended / dup_count 标签
+    const preserved = tagsContainer.querySelectorAll('.phone-tag-secondary, .dup-count, .phone-unique');
+    // 拆分：推荐在前，共N家/唯一在后
+    const recommended = tagsContainer.querySelectorAll('.phone-tag-secondary');
+    const badge = tagsContainer.querySelectorAll('.dup-count, .phone-unique');
+    let html = '';
+    recommended.forEach(el => { html += el.outerHTML; });
+
+    // 添加单标签或 + 按钮（在共N家之前）
+    if (tag) {
+        html += `<span class="phone-tag phone-tag-clickable" style="background: ${tag.color}20; color: ${tag.color};" onclick="openPhoneTagSelector('${normalizedPhone}')" title="点击修改标记">${tag.name}</span>`;
+    } else {
+        html += `<button type="button" class="phone-tag-add-btn" onclick="openPhoneTagSelector('${normalizedPhone}')" title="设置标记"><i data-lucide="tag" style="width: 12px; height: 12px;"></i></button>`;
+    }
+    // 共N家/唯一 在最后
+    badge.forEach(el => { html += el.outerHTML; });
+    tagsContainer.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
+}
+
+window.openPhoneTagSelector = openPhoneTagSelector;
+window.setPhoneTag = setPhoneTag;
+window.clearPhoneTag = clearPhoneTag;
+window.refreshPhoneTag = refreshPhoneTag;
 })();
 </script>
 {% endblock %}

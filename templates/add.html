@@ -3,62 +3,107 @@
 
 {% block content %}
 
-<div class="page page-detail">
+<div class="page">
 
-  <header class="detail-hero">
-    <div class="detail-hero-actions">
-      <a href="{{ request.referrer or url_for('pages_bp.index') }}" class="page-btn">
-        <i data-lucide="arrow-left" aria-hidden="true"></i>返回
-      </a>
-    </div>
-    <h1 class="detail-name">录入企业</h1>
-  </header>
+  <div class="page-header">
+    <div class="page-title">录入企业</div>
+    <div class="page-subtitle">粘贴工商信息自动提取，或手动录入</div>
+  </div>
 
   <form action="{{ url_for('companies_bp.add_company') }}" method="post">
 
-    <!-- ═══ 快速提取输入 ═══ -->
-    <div class="qe-box">
-      <textarea id="qe-text" class="qe-textarea" rows="2"
-                placeholder="粘贴工商信息文本，自动提取填充下方表单..."></textarea>
-      <div class="qe-toolbar">
-        <button type="button" id="btn-paste" class="qe-btn" title="从剪贴板粘贴">
-          <i data-lucide="clipboard-paste" style="width:13px;height:13px"></i> 粘贴
+    <!-- ═══ 智能提取部分 ═══ -->
+    <div class="smart-card">
+
+      <!-- 顶部横幅：标题说明 + 快速填充 -->
+      <div class="smart-banner">
+        <div class="smart-banner-info">
+          <div class="smart-banner-icon">
+            <i data-lucide="zap" style="width:16px;height:16px;color:#fff"></i>
+          </div>
+          <div class="smart-banner-text">
+            <div class="smart-banner-title">智能提取</div>
+            <div class="smart-banner-sub">粘贴或读取剪贴板，自动识别并填充表单</div>
+          </div>
+        </div>
+        <button type="button" id="btn-quick-fill" class="smart-quick-btn">
+          <i data-lucide="zap" style="width:13px;height:13px"></i>
+          快速填充
         </button>
-        <button type="button" id="btn-clear" class="qe-btn" title="清空" style="display:none;">
-          <i data-lucide="x" style="width:13px;height:13px"></i>
-        </button>
-        <span id="qe-char-count" class="qe-char-count" style="display:none;"></span>
       </div>
-      <div id="qe-status" class="qe-status" style="display:none;"></div>
+
+      <!-- 输入框（内含悬浮粘贴/清除按钮） -->
+      <div class="smart-input-wrap">
+        <textarea id="qe-text" class="smart-textarea" rows="3"
+                  placeholder="粘贴工商信息文本（营业执照、企业公示页内容等）..."></textarea>
+        <div class="smart-input-tools">
+          <button type="button" id="btn-paste" class="smart-input-tool-btn" title="从剪贴板粘贴">
+            <i data-lucide="clipboard-paste" style="width:12px;height:12px"></i>
+            粘贴
+          </button>
+          <button type="button" id="btn-clear" class="smart-input-tool-btn" title="清空文本" style="display:none;">
+            <i data-lucide="x" style="width:12px;height:12px"></i>
+            清除
+          </button>
+        </div>
+      </div>
+
+      <!-- 底部操作栏：提取填充（左） | 提示方式（右） -->
+      <div class="smart-toolbar">
+        <div class="smart-toolbar-left">
+          <button type="button" id="btn-extract" class="smart-extract-btn" disabled>
+            <i data-lucide="scan" style="width:14px;height:14px"></i>
+            提取填充
+          </button>
+          <span id="qe-char-count" class="smart-char-count">0 字</span>
+        </div>
+        <div class="smart-toolbar-right">
+          <span class="smart-toolbar-label">提取方式</span>
+          <select id="qe-method" class="smart-select" title="提取方式">
+            <option value="auto" selected>自动</option>
+            <option value="regex">正则</option>
+            <option value="llm">大模型</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="qe-status" class="smart-status" style="display:none;"></div>
     </div>
 
-    <!-- ═══ 统一操作栏 ═══ -->
-    <div class="action-bar">
-      <button type="submit" class="btn btn-primary">
-        <i data-lucide="plus" style="width:16px;height:16px"></i>录入
-      </button>
-      <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
-      <div class="action-sep"></div>
-      <select id="qe-method" class="action-select" title="提取方式">
-        <option value="auto" selected>自动</option>
-        <option value="regex">正则</option>
-        <option value="llm">大模型</option>
-      </select>
-      <button type="button" id="btn-extract" class="btn btn-accent" disabled>
-        <i data-lucide="scan" style="width:16px;height:16px"></i>提取填充
-      </button>
-      <div class="action-sep"></div>
-      <button type="button" onclick="fetchAllByName()" class="btn btn-secondary" title="通过 API 获取工商信息">
-        <i data-lucide="download-cloud" style="width:14px;height:14px"></i>在线获取
-      </button>
+    <!-- ═══ 手动录入部分 ═══ -->
+    <div class="manual-head">
+      <div class="manual-head-title">
+        <i data-lucide="pencil-line" style="width:15px;height:15px"></i>
+        手动录入
+      </div>
+      <div class="manual-head-tools">
+        <button type="button" onclick="fetchAllByName()" class="tool-btn" title="通过 API 获取工商信息">
+          <i data-lucide="download-cloud" style="width:13px;height:13px"></i> 在线获取
+        </button>
+        <button type="button" onclick="clearAllInputs()" class="tool-btn" title="清空所有已填写字段">
+          <i data-lucide="eraser" style="width:13px;height:13px"></i> 清空输入
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ 粘性提交栏（滚动时始终可见）═══ -->
+    <div class="sticky-submit">
+      <div class="ss-actions">
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i>
+          确认录入
+        </button>
+        <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
+      </div>
     </div>
 
     {% include '_company_form.html' %}
 
-    <!-- ═══ 底部操作栏 ═══ -->
-    <div class="action-bar">
+    <!-- ═══ 底部提交栏 ══ -->
+    <div class="bottom-submit">
       <button type="submit" class="btn btn-primary">
-        <i data-lucide="plus" style="width:16px;height:16px"></i>录入
+        <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i>
+        确认录入
       </button>
       <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
     </div>
@@ -67,107 +112,262 @@
 </div>
 
 <style>
-/* ── 快速提取输入框 ── */
-.qe-box {
-  margin-bottom: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+/* ══════════════════════════════════════════════
+   智能提取卡片
+═══════════════════════════════════════════════ */
+.smart-card {
+  background: white;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: border-color 0.15s;
+  margin-bottom: 24px;
 }
-.qe-box:focus-within { border-color: var(--accent); }
 
-.qe-textarea {
-  width: 100%;
-  border: none;
-  outline: none;
-  padding: 8px 12px;
-  font-family: var(--font);
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
-  min-height: 44px;
-  max-height: 200px;
-  background: transparent;
-  color: var(--text);
-}
-.qe-textarea::placeholder { color: var(--text-muted); }
-
-.qe-toolbar {
+/* 顶部横幅 */
+.smart-banner {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--border);
-  background: var(--bg);
-  min-height: 30px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #FFF5F0 0%, #FFE8DC 100%);
+  border-bottom: 1px solid #F0D0C0;
 }
-.qe-btn {
+.smart-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.smart-banner-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.smart-banner-text { flex: 1; min-width: 0; }
+.smart-banner-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-hover);
+  line-height: 1.3;
+}
+.smart-banner-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.smart-quick-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.smart-quick-btn:hover { background: var(--accent-hover); }
+.smart-quick-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.smart-textarea {
+  width: 100%;
+  padding: 12px 20px 36px;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 80px;
+  max-height: 240px;
+  background: var(--surface);
+  color: var(--text);
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  transition: background 0.15s;
+}
+.smart-textarea:focus { background: #FAFAFA; }
+.smart-textarea::placeholder { color: var(--text-muted); }
+
+/* 输入框容器（相对定位） */
+.smart-input-wrap {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+/* 输入框内悬浮工具按钮 */
+.smart-input-tools {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  display: flex;
+  gap: 4px;
+}
+.smart-input-tool-btn {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 2px 10px;
+  padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: 5px;
+  background: rgba(255,255,255,0.92);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  backdrop-filter: blur(4px);
+}
+.smart-input-tool-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: white;
+}
+
+/* 底部工具栏 */
+.smart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #FAFAFA;
+}
+.smart-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.smart-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.smart-toolbar-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.smart-extract-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.smart-extract-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.smart-extract-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: #ccc;
+}
+.smart-char-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.smart-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+}
+.smart-select:focus { border-color: var(--accent); }
+
+/* 状态提示 */
+.smart-status {
+  padding: 10px 20px;
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+  background: #FFFBF5;
+}
+
+/* ═══════════════════════════════════════════════
+   粘性提交栏
+═══════════════════════════════════════════════ */
+.sticky-submit {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 10px 16px;
+  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.sticky-submit .ss-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ═════════════════════════════════════════════
+   底部提交栏
+═══════════════════════════════════════════════ */
+.bottom-submit {
+  display: flex;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  margin-top: 8px;
+}
+
+/* ═══════════════════════════════════════════════
+   手动录入头部
+═══════════════════════════════════════════════ */
+.manual-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 14px;
+}
+.manual-head-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.manual-head-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
-.qe-btn:hover { border-color: var(--accent); color: var(--accent); }
-.qe-char-count { font-size: 11px; color: var(--text-muted); padding: 0 6px; margin-left: auto; }
-.qe-status { font-size: 12px; padding: 4px 10px; }
-
-/* ── 统一操作栏 ── */
-.action-bar {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-.action-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-}
-.action-select {
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 13px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-/* ── 强调按钮（提取填充） ── */
-.btn-accent {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 16px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid var(--accent);
-  background: var(--accent-light);
-  color: var(--accent);
-  transition: all 0.15s;
-}
-.btn-accent:hover:not(:disabled) {
-  background: var(--accent);
-  color: white;
-}
-.btn-accent:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-}
+.tool-btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>
 {% endblock %}
 
@@ -190,8 +390,7 @@ function updateQeState() {
   const hasText = qeText.value.trim().length > 0;
   const len = qeText.value.length;
   btnClear.style.display = hasText ? '' : 'none';
-  qeCharCount.style.display = hasText ? '' : 'none';
-  qeCharCount.textContent = hasText ? `${len} 字` : '';
+  qeCharCount.textContent = `${len} 字`;
   btnExtract.disabled = !hasText;
   if (!hasText) qeStatus.style.display = 'none';
 }
@@ -213,14 +412,22 @@ btnClear.addEventListener('click', () => {
   qeText.focus();
 });
 
-// 提取填充
-btnExtract.addEventListener('click', async () => {
+function showQeStatus(type, msg) {
+  const colors = { 'info':'var(--accent)','success':'var(--success)','warning':'var(--warning)','error':'var(--danger)' };
+  qeStatus.style.display = 'block';
+  qeStatus.style.color = colors[type] || 'var(--text-secondary)';
+  qeStatus.innerHTML = msg;
+}
+
+// 提取核心逻辑（横幅「立即填充」与大按钮共用）
+async function doExtract(triggerBtn) {
   const text = qeText.value.trim();
   if (!text) return;
 
-  btnExtract.disabled = true;
-  const orig = btnExtract.innerHTML;
-  btnExtract.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px"></i> 提取中...';
+  const btn = triggerBtn || btnExtract;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px"></i> 提取中...';
   lucide.createIcons();
 
   try {
@@ -281,19 +488,45 @@ btnExtract.addEventListener('click', async () => {
   } catch (e) {
     showQeStatus('error', '请求失败: ' + e.message);
   } finally {
-    btnExtract.disabled = false;
-    btnExtract.innerHTML = orig;
+    btn.disabled = false;
+    btn.innerHTML = orig;
     lucide.createIcons();
     updateQeState();
   }
-});
-
-function showQeStatus(type, msg) {
-  const colors = { 'info':'var(--accent)','success':'var(--success)','warning':'var(--warning)','error':'var(--danger)' };
-  qeStatus.style.display = 'block';
-  qeStatus.style.color = colors[type] || 'var(--text-secondary)';
-  qeStatus.innerHTML = msg;
 }
+btnExtract.addEventListener('click', () => doExtract(btnExtract));
+
+// 横幅「立即填充」：读剪贴板 → 填入 → 提取
+const btnQuickFill = document.getElementById('btn-quick-fill');
+btnQuickFill.addEventListener('click', async () => {
+  const orig = btnQuickFill.innerHTML;
+  btnQuickFill.disabled = true;
+  btnQuickFill.innerHTML = '<i data-lucide="loader" style="width:13px;height:13px"></i> 读取中...';
+  lucide.createIcons();
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      showQeStatus('error', '浏览器不支持读取剪贴板，请手动粘贴后点击「提取填充」');
+      qeText.focus();
+      return;
+    }
+    const text = await navigator.clipboard.readText();
+    if (!text || !text.trim()) {
+      showQeStatus('warning', '剪贴板为空，请先复制工商信息文本');
+      qeText.focus();
+      return;
+    }
+    qeText.value = text;
+    updateQeState();
+    await doExtract(btnQuickFill);
+  } catch (e) {
+    showQeStatus('error', '无法读取剪贴板，请手动粘贴后点击「提取填充」');
+    qeText.focus();
+  } finally {
+    btnQuickFill.disabled = false;
+    btnQuickFill.innerHTML = orig;
+    lucide.createIcons();
+  }
+});
 
 // ── 实时查重 ──
 const nameInput = document.getElementById('company-name-input');
@@ -336,5 +569,19 @@ async function _doFetchAll(name) {
   } catch(e) { window._enthubToast('error','操作失败',e.message); }
 }
 window.fetchAllByName = fetchAllByName;
+
+// ── 清空输入（需确认） ──
+function clearAllInputs() {
+  showConfirm('清空输入', '将清空下方所有已填写的企业信息，此操作不可撤销，确定继续吗？', () => {
+    document.querySelectorAll('form input[name], form textarea[name]').forEach(el => {
+      el.value = '';
+      el.style.background = '';
+    });
+    const rd = document.getElementById('name-check-result');
+    if (rd) rd.innerHTML = '';
+    window._enthubToast('success', '已清空', '所有输入字段已重置');
+  });
+}
+window.clearAllInputs = clearAllInputs;
 </script>
 {% endblock %}

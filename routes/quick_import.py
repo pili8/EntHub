@@ -12,7 +12,7 @@ from utils import (
     normalize_person_name, normalize_email,
 )
 from data_helpers import sync_phones, sync_shareholders
-from extract_service import extract_company_info, count_extracted_fields
+from extract_service import extract_company_info, count_extracted_fields, post_process_fields
 from ._base import make_bp
 
 bp = make_bp("quick_import")
@@ -109,6 +109,57 @@ def extract_only():
             "fields_labeled": fields_labeled,
             "existing": existing,
             "error": result["error"],
+        },
+    })
+
+
+# ── API：清洗 DOM 字段（不提取、不写库）─────────────────────────────────────
+
+@bp.route("/api/quick-import/clean-dom", methods=["POST"])
+def clean_dom_fields():
+    """清洗插件 DOM 提取的原始字段，复用正则路径的后处理逻辑。
+
+    与 extract_only 的区别：不重新提取文本，只对传入的 fields 做清洗。
+    """
+    data = request.get_json(silent=True) or {}
+    fields = data.get("fields") or {}
+
+    if not isinstance(fields, dict) or not fields:
+        return jsonify({"code": 1001, "message": "缺少 fields", "data": None})
+
+    cleaned = post_process_fields(fields)
+
+    # 为前端准备带标签的字段列表
+    fields_labeled = []
+    for key, value in cleaned.items():
+        if key == "taxpayer_id":
+            continue
+        fields_labeled.append({
+            "key": key,
+            "label": FIELD_LABELS.get(key, key),
+            "value": value,
+        })
+
+    # 重复检查
+    name = cleaned.get("name")
+    existing = None
+    if name:
+        norm_name = normalize_name(name)
+        row = g.db.execute(
+            "SELECT id, name FROM companies WHERE normalized_name = ? LIMIT 1",
+            [norm_name]
+        ).fetchone()
+        if row:
+            existing = {"id": row["id"], "name": row["name"]}
+
+    return jsonify({
+        "code": 0,
+        "message": "ok",
+        "data": {
+            "field_count": count_extracted_fields(cleaned),
+            "fields": cleaned,
+            "fields_labeled": fields_labeled,
+            "existing": existing,
         },
     })
 

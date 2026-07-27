@@ -42,7 +42,16 @@ let existingCompany = null;
 
 // ── 初始化 ──────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
+  // 弹窗秒开，所有异步放到后台
+  init();
+});
+
+async function init() {
+  // 恢复上次的提取方式
+  const savedMethod = await chrome.storage.local.get('extract_method');
+  if (savedMethod.extract_method) methodSelect.value = savedMethod.extract_method;
+
   // 获取当前标签页信息
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -57,7 +66,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 测试连接
   testConnection();
-});
+
+  // 在支持提取的站点上，自动抓取（后台跑，不阻塞 UI）
+  const SUPPORTED = ['tianyancha.com', 'qcc.com', 'aiqicha.baidu.com',
+    'gsxt.gov.cn', 'xin.baidu.com', 'riskbird.com'];
+  const host = currentTab ? new URL(currentTab.url).hostname : '';
+  if (currentTab && /^https?:/.test(currentTab.url) && SUPPORTED.some(s => host.includes(s))) {
+    btnGrab.click();
+  }
+}
 
 // ── 连接测试 ────────────────────────────────────────────────────────────────
 
@@ -108,18 +125,8 @@ btnGrab.addEventListener('click', async () => {
 
     grabbedData = response.data;
 
-    // 2. 如果是 DOM 提取，直接展示字段
-    if (grabbedData.method === 'dom' && Object.keys(grabbedData.fields).length >= 2) {
-      extractedFields = grabbedData.fields;
-      renderFields(extractedFields);
-      extractMeta.textContent = `${grabbedData.source} · ${Object.keys(extractedFields).length} 个字段`;
-      sectionResult.style.display = 'block';
-      sectionActions.style.display = 'block';
-      btnRetry.style.display = 'none';
-    } else {
-      // 3. 纯文本模式，调用 EntHub API 提取
-      await extractViaAPI(grabbedData.text || '');
-    }
+    // 按用户选择的方式分流
+    await reExtract();
   } catch (e) {
     extractError.textContent = e.message;
     extractError.style.display = 'block';
@@ -133,8 +140,8 @@ btnGrab.addEventListener('click', async () => {
 
 // ── 调用 EntHub API 提取 ────────────────────────────────────────────────────
 
-async function extractViaAPI(text) {
-  const method = methodSelect.value;
+async function extractViaAPI(text, method) {
+  method = method || methodSelect.value;
 
   try {
     const resp = await sendMessage({
@@ -180,6 +187,57 @@ async function extractViaAPI(text) {
     sectionResult.style.display = 'block';
     sectionActions.style.display = 'block';
     btnRetry.style.display = 'block';
+  }
+}
+
+// ── DOM 字段清洗（送后端）────────────────────────────────────────────────────
+
+async function cleanDomFields(rawFields) {
+  try {
+    const resp = await sendMessage({
+      action: 'cleanDom',
+      fields: rawFields,
+    });
+
+    if (!resp || resp.code !== 0) {
+      throw new Error(resp?.message || '后端清洗失败');
+    }
+
+    const data = resp.data;
+    extractedFields = data.fields || {};
+    existingCompany = data.existing;
+
+    renderFields(extractedFields);
+    extractMeta.textContent = `${grabbedData.source} · DOM · ${data.field_count || Object.keys(extractedFields).length} 个字段`;
+
+    if (existingCompany) {
+      dupWarning.innerHTML = `⚠️ 已存在: <strong>${existingCompany.name}</strong> (ID: ${existingCompany.id})`;
+      dupWarning.style.display = 'block';
+      btnSubmit.style.display = 'none';
+      overwriteRow.style.display = 'block';
+    } else {
+      dupWarning.style.display = 'none';
+      btnSubmit.style.display = 'block';
+      overwriteRow.style.display = 'none';
+    }
+
+    sectionResult.style.display = 'block';
+    sectionActions.style.display = 'block';
+    btnRetry.style.display = 'block';
+    extractError.style.display = 'none';
+  } catch (e) {
+    // 后端不可达 → 退回原始 DOM 字段（离线兜底）
+    extractedFields = rawFields;
+    renderFields(extractedFields);
+    extractMeta.textContent = `${grabbedData.source} · DOM · ${Object.keys(extractedFields).length} 个字段（未清洗）`;
+    extractError.textContent = '后端不可达，展示原始 DOM 数据';
+    extractError.style.display = 'block';
+    dupWarning.style.display = 'none';
+    btnSubmit.style.display = 'block';
+    overwriteRow.style.display = 'none';
+    sectionResult.style.display = 'block';
+    sectionActions.style.display = 'block';
+    btnRetry.style.display = 'none';
   }
 }
 
@@ -266,10 +324,12 @@ async function doSubmit(overwrite) {
 
     const text = grabbedData?.text || '';
 
+    // DOM 模式下 fields 已清洗好，后端不重新提取；method 映射为 auto
+    const submitMethod = methodSelect.value === 'dom' ? 'auto' : methodSelect.value;
     const resp = await sendMessage({
       action: 'submit',
       text: text,
-      method: methodSelect.value,
+      method: submitMethod,
       fields: extractedFields,
       overwrite: overwrite,
     });
@@ -312,19 +372,29 @@ async function doSubmit(overwrite) {
 
 // ── 重新提取 ────────────────────────────────────────────────────────────────
 
-btnRetry.addEventListener('click', async () => {
+async function reExtract() {
   if (!grabbedData) return;
-
-  const text = grabbedData.text || '';
-  if (!text) {
-    // 重新抓取
-    btnGrab.click();
-    return;
-  }
-
+  const userMethod = methodSelect.value;
   extractError.style.display = 'none';
   dupWarning.style.display = 'none';
-  await extractViaAPI(text);
+  if (userMethod === 'dom') {
+    await cleanDomFields(grabbedData.fields || {});
+  } else {
+    const text = grabbedData.text || '';
+    if (!text) {
+      btnGrab.click();
+      return;
+    }
+    await extractViaAPI(text, userMethod);
+  }
+}
+
+btnRetry.addEventListener('click', reExtract);
+
+// 切换提取方式时保存并自动重新提取
+methodSelect.addEventListener('change', async () => {
+  await chrome.storage.local.set({ extract_method: methodSelect.value });
+  reExtract();
 });
 
 // ── 设置面板 ────────────────────────────────────────────────────────────────

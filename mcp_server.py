@@ -519,13 +519,13 @@ def check_phone_count(phone: str) -> str:
     count = _phone_dup_count(db, norm)
     
     if count == 0:
-        return f" {phone} → 未在数据库中找到，重复 0 次"
+        return f" {phone} → 未在数据库中找到，共 0 家"
     elif count == 1:
-        return f"📞 {phone}（归一化：{norm}）→ 重复 1 次 ✅ 可信号码"
+        return f"📞 {phone}（归一化：{norm}）→ 共 1 家 ✅ 可信号码"
     elif count <= 5:
-        return f"📞 {phone}（归一化：{norm}）→ 重复 {count} 次 ⚠️ 少量重复"
+        return f"📞 {phone}（归一化：{norm}）→ 共 {count} 家 ⚠️ 少量重复"
     else:
-        return f" {phone}（归一化：{norm}）→ 重复 {count} 次 🔴 高度重复，可能是中介号码"
+        return f" {phone}（归一化：{norm}）→ 共 {count} 家 🔴 高度重复，可能是中介号码"
 
 
 @mcp.tool()
@@ -553,13 +553,13 @@ def check_phones_batch(phones: list) -> str:
             continue
         count = _phone_dup_count(db, norm)
         if count == 0:
-            lines.append(f"   {raw} → 0 次")
+            lines.append(f"   {raw} → 共 0 家")
         elif count == 1:
-            lines.append(f"  📞 {raw} → 1 次 ✅")
+            lines.append(f"  📞 {raw} → 共 1 家 ✅")
         elif count <= 5:
-            lines.append(f"  📞 {raw} → {count} 次 ⚠️")
+            lines.append(f"  📞 {raw} → 共 {count} 家 ⚠️")
         else:
-            lines.append(f"  📞 {raw} → {count} 次 🔴")
+            lines.append(f"  📞 {raw} → 共 {count} 家 🔴")
     
     return f"查询 {len(lines)} 个号码：\n" + "\n".join(lines)
 

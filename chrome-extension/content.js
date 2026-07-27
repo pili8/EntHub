@@ -11,7 +11,9 @@
 
 // DOM 提取时需要排除的按钮/操作文字
 const NOISE_TEXT = ['复制', '点击复制', '收起', '展开', '更多', '查看详情',
-  '复制成功', '已复制', '编辑', '添加', '查看全部', '收起全部'];
+  '复制成功', '已复制', '编辑', '添加', '查看全部', '收起全部',
+  '点击', '点击查看', '查看更多', '展开全部', '更多详情', '详情',
+  '举报', '纠错', '反馈', '认领', '免费', '下载', '分享'];
 
 function cleanText(text) {
   if (!text) return '';
@@ -25,6 +27,19 @@ function cleanText(text) {
   // 去掉首尾标点
   s = s.replace(/^[：:，,\s]+|[：:，,\s]+$/g, '');
   return s;
+}
+
+// 从单元格元素中取干净文本：先克隆，剥掉按钮/链接/图标等交互元素
+function cleanCellText(el) {
+  if (!el) return '';
+  const clone = el.cloneNode(true);
+  // 移除交互/装饰元素
+  clone.querySelectorAll(
+    'button, a, [class*="copy"], [class*="btn"], [class*="icon"], ' +
+    '[class*="more"], [class*="edit"], [class*="action"], ' +
+    '[class*="operate"], [class*="toolbar"], svg, img, i'
+  ).forEach(e => e.remove());
+  return cleanText(clone.textContent);
 }
 
 // ── 天眼查 DOM 提取 ─────────────────────────────────────────────────────────
@@ -41,8 +56,8 @@ function extractTianyancha() {
     const value = row.querySelector('.value, td:last-child, dd');
     if (!label || !value) return;
 
-    const key = cleanText(label.textContent);
-    const val = cleanText(value.textContent);
+    const key = cleanCellText(label);
+    const val = cleanCellText(value);
     if (!key || !val) return;
 
     if (/统一社会信用代码|信用代码/.test(key)) data.credit_code = val;
@@ -95,8 +110,8 @@ function extractQichacha() {
     const value = row.querySelector('.value, td:last-child, .val, dd');
     if (!label || !value) return;
 
-    const key = cleanText(label.textContent);
-    const val = cleanText(value.textContent);
+    const key = cleanCellText(label);
+    const val = cleanCellText(value);
     if (!key || !val) return;
 
     if (/统一社会信用代码/.test(key)) data.credit_code = val;
@@ -125,8 +140,8 @@ function extractAiqicha() {
   rows.forEach(row => {
     const cells = row.querySelectorAll('td, .label, .value, dt, dd');
     if (cells.length >= 2) {
-      const key = cleanText(cells[0].textContent);
-      const val = cleanText(cells[1].textContent);
+      const key = cleanCellText(cells[0]);
+      const val = cleanCellText(cells[1]);
       if (!key || !val) return;
 
       if (/统一社会信用代码/.test(key)) data.credit_code = val;
@@ -163,8 +178,8 @@ function extractRiskbird() {
     const value = row.querySelector('td:last-child, .value, dd, .val, [class*="value"]');
     if (!label || !value) return;
 
-    const key = cleanText(label.textContent);
-    const val = cleanText(value.textContent);
+    const key = cleanCellText(label);
+    const val = cleanCellText(value);
     if (!key || !val) return;
 
     if (/统一社会信用代码|信用代码/.test(key)) data.credit_code = val;
@@ -251,7 +266,7 @@ function extractCompanyInfo() {
   return {
     method: 'dom',
     source: source,
-    text: null,
+    text: extractPageText(),
     fields: data,
   };
 }

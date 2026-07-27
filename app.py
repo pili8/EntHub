@@ -77,4 +77,4 @@ if __name__ == "__main__":
     init_db()
     # 后台预热模板（首次访问变快）
     threading.Thread(target=_warmup_templates, daemon=True).start()
-    app.run(host="127.0.0.1", port=5210, debug=True)
+    app.run(host="0.0.0.0", port=5210, debug=True)

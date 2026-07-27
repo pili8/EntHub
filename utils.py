@@ -335,3 +335,115 @@ def get_file_date(filepath):
         return datetime.fromtimestamp(mtime).strftime('%Y-%m-%d')
     except:
         return None
+
+
+# ── 手机号归属地查询 ──────────────────────────────────────────────────────────
+
+# 延迟初始化 Phone 实例（避免 import 时加载 4MB dat）
+_phone_lookup = None
+
+
+def _get_phone_lookup():
+    global _phone_lookup
+    if _phone_lookup is None:
+        try:
+            from phone import Phone
+            _phone_lookup = Phone()
+        except ImportError:
+            _phone_lookup = False  # 标记为不可用
+    return _phone_lookup
+
+
+def phone_location(phone_str):
+    """查询手机号归属地。
+
+    返回 dict: {province, city, carrier, area_code} 或 None（查不到/非手机号）。
+
+    仅支持 11 位手机号（13x~19x）。座机/400/800 返回 None。
+    """
+    if not phone_str:
+        return None
+
+    digits = re.sub(r'\D', '', str(phone_str))
+
+    # 去掉 +86 / 86 前缀
+    if digits.startswith('86') and len(digits) > 11:
+        digits = digits[2:]
+
+    # 仅 11 位手机号能查
+    if len(digits) != 11 or not digits.startswith('1'):
+        return None
+
+    lookup = _get_phone_lookup()
+    if not lookup:
+        return None
+
+    try:
+        result = lookup.find(digits[:7])
+        if result:
+            return {
+                "province": result.get("province", ""),
+                "city": result.get("city", ""),
+                "carrier": result.get("phone_type", ""),
+                "area_code": result.get("area_code", ""),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def phone_location_str(phone_str):
+    """返回归属地简短字符串，如 '四川 南充 移动'。查不到返回空串。"""
+    loc = phone_location(phone_str)
+    if not loc:
+        return ""
+    parts = []
+    if loc["province"]:
+        parts.append(loc["province"])
+    if loc["city"] and loc["city"] != loc["province"]:
+        parts.append(loc["city"])
+    if loc["carrier"]:
+        parts.append(loc["carrier"])
+    return " ".join(parts)
+
+
+# ── 电话标记查询辅助 ──────────────────────────────────────────────────────────
+
+def get_phone_tags(db, normalized_phone):
+    """查询某个号码的电话标记（单标签模式）。
+
+    返回 {id, name, color} 或 None。
+    """
+    if not normalized_phone:
+        return None
+    row = db.execute("""
+        SELECT t.id, t.name, t.color
+        FROM phone_tags t
+        JOIN phone_tag_map m ON m.tag_id = t.id
+        WHERE m.normalized_phone = ?
+    """, [normalized_phone]).fetchone()
+    return dict(row) if row else None
+
+
+def get_phone_tags_batch(db, normalized_phones):
+    """批量查询多个号码的电话标记（单标签模式）。
+
+    返回 {normalized_phone: {id, name, color}, ...}
+    没有标签的号码不在 dict 中。
+    """
+    if not normalized_phones:
+        return {}
+    # 去重 + 过滤空
+    unique_norms = list(set(n for n in normalized_phones if n))
+    if not unique_norms:
+        return {}
+
+    placeholders = ",".join(["?"] * len(unique_norms))
+    rows = db.execute(f"""
+        SELECT m.normalized_phone, t.id, t.name, t.color
+        FROM phone_tag_map m
+        JOIN phone_tags t ON m.tag_id = t.id
+        WHERE m.normalized_phone IN ({placeholders})
+    """, unique_norms).fetchall()
+
+    return {r["normalized_phone"]: {"id": r["id"], "name": r["name"], "color": r["color"]} for r in rows}

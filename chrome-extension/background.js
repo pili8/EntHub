@@ -66,6 +66,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'cleanDom') {
+    // 清洗 DOM 提取的原始字段（不重新提取）
+    callEntHubAPI('/api/quick-import/clean-dom', {
+      fields: request.fields || {},
+    }).then(sendResponse).catch(e => {
+      sendResponse({ code: -1, message: e.message });
+    });
+    return true;
+  }
+
   if (request.action === 'submit') {
     // 提交到 EntHub
     callEntHubAPI('/api/quick-import/submit', {

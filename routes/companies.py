@@ -6,6 +6,7 @@ from flask import Blueprint, g, request, render_template, redirect, url_for, fla
 from utils import (
     normalize_name, normalize_credit_code,
     normalize_person_name, normalize_email,
+    phone_location, get_phone_tags, get_phone_tags_batch,
 )
 from data_helpers import sync_phones, sync_shareholders
 from config import is_provider_ready
@@ -49,6 +50,17 @@ def company_detail(company_id):
            ORDER BY cp.is_primary DESC, cp.is_recommended DESC""",
         [company_id]
     ).fetchall()
+
+    # 为电话附加归属地和标签（跟号码走，不跟企业走）
+    phone_tag_map = get_phone_tags_batch(
+        g.db, [r["normalized_phone"] for r in company_phones]
+    ) if company_phones else {}
+    company_phones_enriched = []
+    for cp in company_phones:
+        cp_dict = dict(cp)
+        cp_dict["location"] = phone_location(cp["phone"])
+        cp_dict["tag"] = phone_tag_map.get(cp["normalized_phone"])
+        company_phones_enriched.append(cp_dict)
 
     # 同电话关联企业
     phone_norms = [r["normalized_phone"] for r in company_phones] if company_phones else []
@@ -147,7 +159,7 @@ def company_detail(company_id):
                            related_shareholders=related_shareholders,
                            related_industry=related_industry,
                            related_email=related_email,
-                           company_phones=company_phones,
+                           company_phones=company_phones_enriched,
                            shareholders=shareholders,
                            field_counts=field_counts)
 
