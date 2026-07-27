@@ -15,157 +15,326 @@
   </header>
 
   <form action="{{ url_for('companies_bp.add_company') }}" method="post">
-    <!-- 顶部按钮栏 -->
-    <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+
+    <!-- ═══ 快速提取输入 ═══ -->
+    <div class="qe-box">
+      <textarea id="qe-text" class="qe-textarea" rows="2"
+                placeholder="粘贴工商信息文本，自动提取填充下方表单..."></textarea>
+      <div class="qe-toolbar">
+        <button type="button" id="btn-paste" class="qe-btn" title="从剪贴板粘贴">
+          <i data-lucide="clipboard-paste" style="width:13px;height:13px"></i> 粘贴
+        </button>
+        <button type="button" id="btn-clear" class="qe-btn" title="清空" style="display:none;">
+          <i data-lucide="x" style="width:13px;height:13px"></i>
+        </button>
+        <span id="qe-char-count" class="qe-char-count" style="display:none;"></span>
+      </div>
+      <div id="qe-status" class="qe-status" style="display:none;"></div>
+    </div>
+
+    <!-- ═══ 统一操作栏 ═══ -->
+    <div class="action-bar">
       <button type="submit" class="btn btn-primary">
         <i data-lucide="plus" style="width:16px;height:16px"></i>录入
       </button>
       <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
-      <button type="button" onclick="fetchAllByName()" class="btn btn-secondary" style="margin-left: auto;" title="输入企业名称后，通过 API 获取工商信息和联系方式">
+      <div class="action-sep"></div>
+      <select id="qe-method" class="action-select" title="提取方式">
+        <option value="auto" selected>自动</option>
+        <option value="regex">正则</option>
+        <option value="llm">大模型</option>
+      </select>
+      <button type="button" id="btn-extract" class="btn btn-accent" disabled>
+        <i data-lucide="scan" style="width:16px;height:16px"></i>提取填充
+      </button>
+      <div class="action-sep"></div>
+      <button type="button" onclick="fetchAllByName()" class="btn btn-secondary" title="通过 API 获取工商信息">
         <i data-lucide="download-cloud" style="width:14px;height:14px"></i>在线获取
       </button>
     </div>
 
     {% include '_company_form.html' %}
 
-    <!-- 底部按钮栏 -->
-    <div style="display: flex; gap: 12px; margin-top: 16px;">
+    <!-- ═══ 底部操作栏 ═══ -->
+    <div class="action-bar">
       <button type="submit" class="btn btn-primary">
         <i data-lucide="plus" style="width:16px;height:16px"></i>录入
       </button>
       <a href="{{ url_for('pages_bp.index') }}" class="btn btn-secondary">取消</a>
-      <button type="button" onclick="fetchAllByName()" class="btn btn-secondary" style="margin-left: auto;" title="通过 API 获取工商信息和联系方式">
-        <i data-lucide="download-cloud" style="width:14px;height:14px"></i>在线获取
-      </button>
     </div>
   </form>
 
 </div>
+
+<style>
+/* ── 快速提取输入框 ── */
+.qe-box {
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.qe-box:focus-within { border-color: var(--accent); }
+
+.qe-textarea {
+  width: 100%;
+  border: none;
+  outline: none;
+  padding: 8px 12px;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 44px;
+  max-height: 200px;
+  background: transparent;
+  color: var(--text);
+}
+.qe-textarea::placeholder { color: var(--text-muted); }
+
+.qe-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  min-height: 30px;
+}
+.qe-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.qe-btn:hover { border-color: var(--accent); color: var(--accent); }
+.qe-char-count { font-size: 11px; color: var(--text-muted); padding: 0 6px; margin-left: auto; }
+.qe-status { font-size: 12px; padding: 4px 10px; }
+
+/* ── 统一操作栏 ── */
+.action-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.action-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+.action-select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* ── 强调按钮（提取填充） ── */
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+  transition: all 0.15s;
+}
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent);
+  color: white;
+}
+.btn-accent:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// ── 实时查重：公司名输入框失焦时检查 ──
+// ── 快速提取 ─────────────────────────────────────────────────────────────
+
+const qeText = document.getElementById('qe-text');
+const btnPaste = document.getElementById('btn-paste');
+const btnClear = document.getElementById('btn-clear');
+const btnExtract = document.getElementById('btn-extract');
+const qeCharCount = document.getElementById('qe-char-count');
+const qeStatus = document.getElementById('qe-status');
+const qeMethod = document.getElementById('qe-method');
+
+// 输入时：控制按钮状态
+qeText.addEventListener('input', updateQeState);
+
+function updateQeState() {
+  const hasText = qeText.value.trim().length > 0;
+  const len = qeText.value.length;
+  btnClear.style.display = hasText ? '' : 'none';
+  qeCharCount.style.display = hasText ? '' : 'none';
+  qeCharCount.textContent = hasText ? `${len} 字` : '';
+  btnExtract.disabled = !hasText;
+  if (!hasText) qeStatus.style.display = 'none';
+}
+
+// 粘贴
+btnPaste.addEventListener('click', async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) { qeText.value = text; qeText.focus(); updateQeState(); }
+  } catch (e) {
+    showQeStatus('error', '无法读取剪贴板，请手动 Ctrl+V');
+  }
+});
+
+// 清空
+btnClear.addEventListener('click', () => {
+  qeText.value = '';
+  updateQeState();
+  qeText.focus();
+});
+
+// 提取填充
+btnExtract.addEventListener('click', async () => {
+  const text = qeText.value.trim();
+  if (!text) return;
+
+  btnExtract.disabled = true;
+  const orig = btnExtract.innerHTML;
+  btnExtract.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px"></i> 提取中...';
+  lucide.createIcons();
+
+  try {
+    const resp = await fetch('/api/quick-import/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, method: qeMethod.value })
+    });
+    const result = await resp.json();
+
+    if (result.code !== 0) { showQeStatus('error', result.message); return; }
+
+    const data = result.data;
+    const fields = data.fields || {};
+    if (!fields.name) { showQeStatus('warning', '未提取到企业名称，请检查文本'); return; }
+
+    let filled = 0;
+    const fieldMap = {
+      'name':'name','former_name':'former_name','business_status':'business_status',
+      'legal_person':'legal_person','registered_capital':'registered_capital',
+      'paid_capital':'paid_capital','established_date':'established_date',
+      'approved_date':'approved_date','business_term':'business_term',
+      'company_type':'company_type','industry':'industry','insured_count':'insured_count',
+      'enterprise_scale':'enterprise_scale','english_name':'english_name',
+      'phone':'phone','email':'email','website':'website',
+      'province':'province','city':'city','district':'district',
+      'address':'address','annual_report_address':'annual_report_address',
+      'mailing_address':'mailing_address','credit_code':'credit_code',
+      'taxpayer_id':'taxpayer_id','registration_no':'registration_no',
+      'org_code':'org_code','business_scope':'business_scope','shareholders':'shareholders',
+    };
+
+    for (const [key, formName] of Object.entries(fieldMap)) {
+      if (fields[key] !== undefined && fields[key] !== '') {
+        const input = document.querySelector(`input[name="${formName}"]`) ||
+                      document.querySelector(`textarea[name="${formName}"]`);
+        if (input) {
+          input.value = fields[key];
+          input.style.background = 'var(--accent-light)';
+          setTimeout(() => { input.style.background = ''; }, 2000);
+          filled++;
+        }
+      }
+    }
+
+    const existing = data.existing;
+    const ml = {'regex':'正则','llm':'大模型','regex+llm':'正则+大模型'}[data.method_used] || data.method_used;
+
+    if (existing) {
+      showQeStatus('warning',
+        `⚠️ 该企业已存在: <a href="/company/${existing.id}" style="color:var(--warning);text-decoration:underline;">${existing.name}</a> — 已填充 ${filled} 个字段（${ml}）`);
+    } else {
+      showQeStatus('success', `✅ ${ml}提取 ${filled} 个字段已填充，请检查后点击「录入」`);
+    }
+
+    document.querySelector('.detail-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  } catch (e) {
+    showQeStatus('error', '请求失败: ' + e.message);
+  } finally {
+    btnExtract.disabled = false;
+    btnExtract.innerHTML = orig;
+    lucide.createIcons();
+    updateQeState();
+  }
+});
+
+function showQeStatus(type, msg) {
+  const colors = { 'info':'var(--accent)','success':'var(--success)','warning':'var(--warning)','error':'var(--danger)' };
+  qeStatus.style.display = 'block';
+  qeStatus.style.color = colors[type] || 'var(--text-secondary)';
+  qeStatus.innerHTML = msg;
+}
+
+// ── 实时查重 ──
 const nameInput = document.getElementById('company-name-input');
 if (nameInput) {
-    nameInput.addEventListener('blur', async function() {
-        const name = this.value.trim();
-        const resultDiv = document.getElementById('name-check-result');
-        if (!resultDiv) return;
-
-        if (!name) {
-            resultDiv.innerHTML = '';
-            return;
-        }
-
-        try {
-            const resp = await fetch(`/api/company/check-duplicate?name=${encodeURIComponent(name)}`);
-            const result = await resp.json();
-
-            if (result.data && result.data.exists) {
-                resultDiv.innerHTML = `<span style="color: #dc2626;">⚠️ 该公司已存在 — <a href="/company/${result.data.id}" style="color: #dc2626; text-decoration: underline;">查看</a></span>`;
-            } else {
-                resultDiv.innerHTML = `<span style="color: #16a34a;">✓ 未重复</span>`;
-            }
-        } catch (e) {
-            resultDiv.innerHTML = '';
-        }
-    });
+  nameInput.addEventListener('blur', async function() {
+    const name = this.value.trim();
+    const rd = document.getElementById('name-check-result');
+    if (!rd) return;
+    if (!name) { rd.innerHTML = ''; return; }
+    try {
+      const r = await fetch(`/api/company/check-duplicate?name=${encodeURIComponent(name)}`);
+      const d = await r.json();
+      if (d.data && d.data.exists) rd.innerHTML = `<span style="color:#dc2626;">⚠️ 该公司已存在 — <a href="/company/${d.data.id}" style="color:#dc2626;text-decoration:underline;">查看</a></span>`;
+      else rd.innerHTML = `<span style="color:#16a34a;">✓ 未重复</span>`;
+    } catch (e) { rd.innerHTML = ''; }
+  });
 }
 
 // ── 在线获取 ──
 async function fetchAllByName() {
-    const nameInput = document.querySelector('input[name="name"]');
-    if (!nameInput) return;
-
-    const name = nameInput.value.trim();
-    if (!name) {
-        window._enthubToast('warning', '请先输入企业名称', '输入名称后再点击获取');
-        nameInput.focus();
-        return;
-    }
-
-    showConfirm(
-        '在线获取',
-        `将通过 API 获取「${name}」的工商信息和联系方式。\n\n每次调用消耗 API 配额，请确认。`,
-        async () => { await _doFetchAll(name); }
-    );
+  const ni = document.querySelector('input[name="name"]');
+  if (!ni) return;
+  const name = ni.value.trim();
+  if (!name) { window._enthubToast('warning','请先输入企业名称','输入名称后再点击获取'); ni.focus(); return; }
+  showConfirm('在线获取', `将通过 API 获取「${name}」的工商信息和联系方式。\n\n每次调用消耗 API 配额，请确认。`, async () => { await _doFetchAll(name); });
 }
-
 async function _doFetchAll(name) {
-    window._enthubToast('info', '正在获取数据...', 'API 调用可能需要几秒');
-
-    try {
-        const resp = await fetch('/api/company/fetch-all', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name })
-        });
-        const result = await resp.json();
-
-        if (result.code === 2002) {
-            const existingId = result.data.existing_id;
-            const existingName = result.data.existing_name;
-            showConfirm(
-                '该公司已存在',
-                `「${existingName}」已在数据库中，是否仍要继续录入？`,
-                () => {},
-                [
-                    { text: '查看已有', class: 'btn btn-secondary', action: () => { window.location.href = `/company/${existingId}` } },
-                    { text: '继续录入', class: 'btn btn-primary', action: 'closeModal()' }
-                ]
-            );
-            return;
-        }
-
-        if (result.code !== 0) {
-            window._enthubToast('error', '获取失败', result.message || '未知错误');
-            return;
-        }
-
-        const mapped = result.data.mapped;
-        if (!mapped) {
-            window._enthubToast('warning', '未找到数据', 'API 返回为空，请检查企业名称');
-            return;
-        }
-
-        let filledCount = 0;
-        const fieldMap = {
-            'name': 'name', 'former_name': 'former_name',
-            'business_status': 'business_status', 'legal_person': 'legal_person',
-            'registered_capital': 'registered_capital', 'paid_capital': 'paid_capital',
-            'established_date': 'established_date', 'approved_date': 'approved_date',
-            'business_term': 'business_term', 'company_type': 'company_type',
-            'industry': 'industry', 'insured_count': 'insured_count',
-            'phone': 'phone', 'email': 'email', 'website': 'website',
-            'province': 'province', 'city': 'city', 'district': 'district',
-            'address': 'address', 'credit_code': 'credit_code',
-            'taxpayer_id': 'taxpayer_id', 'registration_no': 'registration_no',
-            'org_code': 'org_code', 'business_scope': 'business_scope',
-            'shareholders': 'shareholders',
-        };
-
-        for (const [enthubField, formField] of Object.entries(fieldMap)) {
-            if (mapped[enthubField] !== undefined) {
-                const input = document.querySelector(`input[name="${formField}"]`) ||
-                              document.querySelector(`textarea[name="${formField}"]`);
-                if (input && (!input.value.trim() || input.value.trim() === '-')) {
-                    input.value = mapped[enthubField];
-                    filledCount++;
-                }
-            }
-        }
-
-        if (filledCount > 0) {
-            window._enthubToast('success', `已填充 ${filledCount} 个字段`, '请检查并确认信息后点击录入');
-        } else {
-            window._enthubToast('info', '所有字段已有数据', '如需更新，请清空对应字段后重新获取');
-        }
-    } catch (e) {
-        window._enthubToast('error', '操作失败', e.message);
-    }
+  window._enthubToast('info','正在获取数据...','API 调用可能需要几秒');
+  try {
+    const r = await fetch('/api/company/fetch-all',{ method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name}) });
+    const d = await r.json();
+    if (d.code===2002) { showConfirm('该公司已存在',`「${d.data.existing_name}」已在数据库中，是否仍要继续录入？`,()=>{},[{text:'查看已有',class:'btn btn-secondary',action:()=>{window.location.href=`/company/${d.data.existing_id}`}},{text:'继续录入',class:'btn btn-primary',action:'closeModal()'}]); return; }
+    if (d.code!==0) { window._enthubToast('error','获取失败',d.message); return; }
+    const m = d.data.mapped;
+    if (!m) { window._enthubToast('warning','未找到数据','API 返回为空'); return; }
+    let c=0;
+    const fm={'name':'name','former_name':'former_name','business_status':'business_status','legal_person':'legal_person','registered_capital':'registered_capital','paid_capital':'paid_capital','established_date':'established_date','approved_date':'approved_date','business_term':'business_term','company_type':'company_type','industry':'industry','insured_count':'insured_count','phone':'phone','email':'email','website':'website','province':'province','city':'city','district':'district','address':'address','credit_code':'credit_code','taxpayer_id':'taxpayer_id','registration_no':'registration_no','org_code':'org_code','business_scope':'business_scope','shareholders':'shareholders'};
+    for(const[ef,ff]of Object.entries(fm)){if(m[ef]!==undefined){const i=document.querySelector(`input[name="${ff}"]`)||document.querySelector(`textarea[name="${ff}"]`);if(i&&(!i.value.trim()||i.value.trim()==='-')){i.value=m[ef];c++;}}}
+    window._enthubToast(c>0?'success':'info',c>0?`已填充 ${c} 个字段`:'所有字段已有数据','请检查并确认信息后点击录入');
+  } catch(e) { window._enthubToast('error','操作失败',e.message); }
 }
-
 window.fetchAllByName = fetchAllByName;
 </script>
 {% endblock %}

@@ -7,7 +7,12 @@ import math
 import re
 from flask import Blueprint, request, jsonify, g
 
-from utils import normalize_phone, normalize_credit_code, normalize_name
+from utils import (
+    normalize_phone, normalize_credit_code, normalize_name,
+    normalize_person_name, normalize_email,
+)
+from data_helpers import sync_phones, sync_shareholders
+from extract_service import extract_company_info
 
 api_bp = Blueprint('api_bp', __name__)
 
@@ -365,6 +370,367 @@ def _phone_dup_count(db, normalized_phone):
         "SELECT COUNT(DISTINCT company_id) FROM company_phones WHERE normalized_phone = ?",
         [normalized_phone]
     ).fetchone()[0]
+
+
+# ── 企业新建/更新 ──────────────────────────────────────────────
+
+# 全量字段列表（与 routes/companies.py 保持一致）
+_COMPANY_FIELDS = [
+    "name", "address", "annual_report_address",
+    "credit_code", "taxpayer_id", "registration_no", "org_code",
+    "legal_person", "registered_capital", "paid_capital",
+    "established_date", "approved_date", "business_term",
+    "province", "city", "district", "insured_count",
+    "company_type", "industry", "former_name", "website",
+    "email", "other_email", "business_scope", "business_status",
+    "enterprise_scale", "mailing_address", "english_name",
+]
+
+# 更新时自动维护的 normalized 字段
+_NORMALIZED_MAP = {
+    "name": ("normalized_name", normalize_name),
+    "legal_person": ("normalized_legal_person", normalize_person_name),
+    "email": ("normalized_email", normalize_email),
+}
+
+
+def _build_company_dict(data):
+    """从请求数据中提取公司字段（过滤掉非公司字段）。"""
+    fields = {}
+    for f in _COMPANY_FIELDS:
+        val = data.get(f)
+        if val is not None:
+            val = str(val).strip()
+            if val and val not in ("-", "--", "无", "N/A", "null"):
+                fields[f] = val
+    # 信用代码归一化
+    if "credit_code" in fields:
+        fields["credit_code"] = normalize_credit_code(fields["credit_code"])
+    return fields
+
+
+@api_bp.route('/api/companies', methods=['POST'])
+def create_company():
+    """新建企业。
+
+    请求 JSON: {
+        "name": "企业名称",        // 必填
+        "credit_code": "...",
+        "legal_person": "...",
+        ...其他工商字段...
+        "phone": "138xxx; 028-xxx",  // 可选，存入 company_phones
+        "other_phone": "...",
+        "shareholders": "张三; 李四",  // 可选，存入 company_shareholders
+        "source": "api",             // 来源标识，默认 api
+    }
+    """
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return _err(1001, "企业名称不能为空")
+
+    fields = _build_company_dict(data)
+    if "name" not in fields:
+        return _err(1001, "企业名称不能为空")
+
+    # 设置 normalized 字段
+    fields["normalized_name"] = normalize_name(name)
+    if "legal_person" in fields:
+        fields["normalized_legal_person"] = normalize_person_name(fields["legal_person"])
+    if "email" in fields:
+        fields["normalized_email"] = normalize_email(fields["email"])
+    if "credit_code" in fields:
+        fields["credit_code"] = normalize_credit_code(fields["credit_code"])
+
+    # 来源
+    fields["source"] = (data.get("source") or "api").strip() or "api"
+    fields["status"] = "active"
+
+    # 提取电话和股东
+    phone_val = str(data.get("phone", "")).strip()
+    other_phone_val = str(data.get("other_phone", "")).strip()
+    shareholders_val = str(data.get("shareholders", "")).strip()
+
+    # 重复检查
+    norm_name = fields["normalized_name"]
+    existing = g.db.execute(
+        "SELECT id, name FROM companies WHERE normalized_name = ? LIMIT 1",
+        [norm_name]
+    ).fetchone()
+    if existing:
+        return _err(1002, f"企业已存在: {existing['name']} (ID: {existing['id']})", 409)
+
+    # 插入
+    cols = ", ".join(fields.keys())
+    placeholders = ", ".join(["?"] * len(fields))
+    cursor = g.db.execute(
+        f"INSERT INTO companies ({cols}) VALUES ({placeholders})",
+        list(fields.values())
+    )
+    company_id = cursor.lastrowid
+
+    # 电话
+    if phone_val or other_phone_val:
+        sync_phones(g.db, company_id, phone_val, other_phone_val)
+
+    # 股东
+    if shareholders_val:
+        sync_shareholders(g.db, company_id, shareholders_val)
+
+    g.db.commit()
+
+    return _ok({"id": company_id, "name": name}, f"已创建: {name}")
+
+
+@api_bp.route('/api/companies/<int:company_id>', methods=['PUT'])
+def update_company(company_id):
+    """更新企业信息。
+
+    请求 JSON: {
+        "mode": "overwrite" | "merge",  // 默认 merge
+        "name": "...",
+        "phone": "...",
+        ...其他字段...
+    }
+    """
+    row = g.db.execute("SELECT id FROM companies WHERE id = ?", [company_id]).fetchone()
+    if not row:
+        return _err(1002, "企业不存在", 404)
+
+    data = request.get_json(silent=True) or {}
+    mode = data.get("mode", "merge")
+
+    fields = _build_company_dict(data)
+    if not fields:
+        return _err(1001, "没有提供任何字段")
+
+    # 提取电话和股东
+    phone_val = str(data.get("phone", "")).strip()
+    other_phone_val = str(data.get("other_phone", "")).strip()
+    shareholders_val = str(data.get("shareholders", "")).strip()
+
+    # 电话/股东不入 companies 主表
+    fields.pop("phone", None)
+    fields.pop("other_phone", None)
+    fields.pop("shareholders", None)
+
+    updated_fields = []
+
+    if mode == "overwrite":
+        # 覆盖模式：直接更新所有字段
+        for field, value in fields.items():
+            g.db.execute(
+                f"UPDATE companies SET {field} = ? WHERE id = ?",
+                [value, company_id]
+            )
+            updated_fields.append(field)
+    else:
+        # merge 模式：仅填充空字段
+        for field, value in fields.items():
+            current = g.db.execute(
+                f"SELECT {field} FROM companies WHERE id = ?",
+                [company_id]
+            ).fetchone()
+            current_val = (current[0] or "").strip() if current else ""
+            if not current_val or current_val in ("", "-", "--"):
+                g.db.execute(
+                    f"UPDATE companies SET {field} = ? WHERE id = ?",
+                    [value, company_id]
+                )
+                updated_fields.append(field)
+
+    # 更新 normalized 字段
+    for field, (norm_field, norm_fn) in _NORMALIZED_MAP.items():
+        if field in updated_fields:
+            norm_val = norm_fn(fields.get(field, ""))
+            g.db.execute(
+                f"UPDATE companies SET {norm_field} = ? WHERE id = ?",
+                [norm_val, company_id]
+            )
+
+    # 电话
+    if phone_val or other_phone_val:
+        sync_phones(g.db, company_id, phone_val, other_phone_val)
+        updated_fields.append("phone")
+
+    # 股东
+    if shareholders_val:
+        sync_shareholders(g.db, company_id, shareholders_val)
+        updated_fields.append("shareholders")
+
+    # 更新时间戳
+    g.db.execute(
+        "UPDATE companies SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+        [company_id]
+    )
+    g.db.commit()
+
+    return _ok({"updated_fields": updated_fields}, f"已更新 {len(updated_fields)} 个字段")
+
+
+# ── 快速文本提取 ─────────────────────────────────────────────────
+
+@api_bp.route('/api/extract', methods=['POST'])
+def extract_text():
+    """从文本中提取工商信息（不写入数据库）。
+
+    请求 JSON: {
+        "text": "...",                  // 必填
+        "method": "auto|regex|llm"       // 可选，默认 auto
+    }
+
+    返回: {code, message, data: {method_used, fields, field_count, error}}
+    """
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    method = (data.get("method") or "auto").strip()
+
+    if not text:
+        return _err(1001, "text 不能为空")
+    if len(text) > 50000:
+        return _err(1001, "文本不能超过 50000 字")
+    if method not in ("auto", "regex", "llm"):
+        return _err(1001, "method 必须是 auto/regex/llm 之一")
+
+    result = extract_company_info(text, method=method)
+
+    return _ok({
+        "method_used": result["method_used"],
+        "fields": result["fields"],
+        "field_count": result["field_count"],
+        "error": result["error"],
+    })
+
+
+@api_bp.route('/api/quick_import', methods=['POST'])
+def quick_import():
+    """快速录入：从文本提取工商信息并写入数据库。
+
+    请求 JSON: {
+        "text": "...",                    // 必填
+        "method": "auto|regex|llm",       // 可选，默认 auto
+        "overwrite": false                 // 可选，已存在时是否覆盖
+    }
+
+    流程：提取 → 重复检查 → 新建或更新
+    """
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    method = (data.get("method") or "auto").strip()
+    overwrite = bool(data.get("overwrite", False))
+
+    if not text:
+        return _err(1001, "text 不能为空")
+    if len(text) > 50000:
+        return _err(1001, "文本不能超过 50000 字")
+    if method not in ("auto", "regex", "llm"):
+        return _err(1001, "method 必须是 auto/regex/llm 之一")
+
+    # 1. 提取
+    result = extract_company_info(text, method=method)
+    fields = result["fields"]
+    if not fields or not fields.get("name"):
+        return _err(1002, "未能提取到企业名称，请检查输入文本", 200)
+
+    name = fields["name"]
+    norm_name = normalize_name(name)
+
+    # 电话/股东从 fields 中提取
+    phone_val = fields.pop("phone", "")
+    other_phone_val = fields.pop("other_phone", "")
+    shareholders_val = fields.pop("shareholders", "")
+    fields.pop("taxpayer_id", None)  # 自动补充的，不单独处理
+
+    # 2. 重复检查
+    existing = g.db.execute(
+        "SELECT id, name FROM companies WHERE normalized_name = ? LIMIT 1",
+        [norm_name]
+    ).fetchone()
+
+    if existing:
+        if not overwrite:
+            return _ok({
+                "action": "exists",
+                "existing_id": existing["id"],
+                "existing_name": existing["name"],
+                "extracted_fields": fields,
+                "field_count": result["field_count"],
+                "method_used": result["method_used"],
+            }, f"企业已存在: {existing['name']}，设置 overwrite=true 可覆盖更新")
+
+        # 覆盖更新
+        company_id = existing["id"]
+        for field, value in fields.items():
+            if field in ("source", "status"):
+                continue
+            g.db.execute(
+                f"UPDATE companies SET {field} = ? WHERE id = ?",
+                [value, company_id]
+            )
+
+        # 更新 normalized 字段
+        for field, (norm_field, norm_fn) in _NORMALIZED_MAP.items():
+            if field in fields:
+                g.db.execute(
+                    f"UPDATE companies SET {norm_field} = ? WHERE id = ?",
+                    [norm_fn(fields[field]), company_id]
+                )
+
+        if phone_val or other_phone_val:
+            sync_phones(g.db, company_id, phone_val, other_phone_val)
+        if shareholders_val:
+            sync_shareholders(g.db, company_id, shareholders_val)
+
+        g.db.execute(
+            "UPDATE companies SET updated_at = datetime('now', 'localtime') WHERE id = ?",
+            [company_id]
+        )
+        g.db.commit()
+
+        return _ok({
+            "action": "updated",
+            "id": company_id,
+            "name": name,
+            "field_count": result["field_count"],
+            "method_used": result["method_used"],
+        }, f"已更新: {name}")
+
+    # 3. 新建
+    fields["normalized_name"] = norm_name
+    if "legal_person" in fields:
+        fields["normalized_legal_person"] = normalize_person_name(fields["legal_person"])
+    if "email" in fields:
+        fields["normalized_email"] = normalize_email(fields["email"])
+    if "credit_code" in fields:
+        fields["credit_code"] = normalize_credit_code(fields["credit_code"])
+        if "taxpayer_id" not in fields:
+            fields["taxpayer_id"] = fields["credit_code"]
+
+    fields["source"] = f"quick_{result['method_used']}"
+    fields["status"] = "active"
+
+    cols = ", ".join(fields.keys())
+    placeholders = ", ".join(["?"] * len(fields))
+    cursor = g.db.execute(
+        f"INSERT INTO companies ({cols}) VALUES ({placeholders})",
+        list(fields.values())
+    )
+    company_id = cursor.lastrowid
+
+    if phone_val or other_phone_val:
+        sync_phones(g.db, company_id, phone_val, other_phone_val)
+    if shareholders_val:
+        sync_shareholders(g.db, company_id, shareholders_val)
+
+    g.db.commit()
+
+    return _ok({
+        "action": "created",
+        "id": company_id,
+        "name": name,
+        "field_count": result["field_count"],
+        "method_used": result["method_used"],
+    }, f"已创建: {name}")
 
 
 @api_bp.route('/api/phone_count')
