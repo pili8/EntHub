@@ -1,0 +1,300 @@
+/* EntHub 快录 - Popup Styles */
+
+:root {
+  --bg: #FBFAF7;
+  --surface: #ffffff;
+  --text: #1F1B17;
+  --text-secondary: #5C564E;
+  --text-muted: #A39E96;
+  --border: #ECE7DF;
+  --accent: #D97757;
+  --accent-hover: #C9663F;
+  --accent-light: #FBE7DF;
+  --danger: #C2410C;
+  --danger-light: #FEF1EB;
+  --warning: #B45309;
+  --warning-light: #FEF3C7;
+  --success: #16A34A;
+  --success-light: #ECFDF3;
+  --radius: 6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 380px;
+  min-height: 300px;
+  max-height: 580px;
+  overflow-y: auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.header-left { display: flex; align-items: center; gap: 6px; }
+.logo { font-size: 16px; }
+.title { font-weight: 700; font-size: 14px; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+}
+.icon-btn:hover { background: var(--border); }
+
+/* Status dot */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-ok { background: var(--success); }
+.status-error { background: var(--danger); }
+.status-unknown { background: var(--text-muted); }
+
+/* Main */
+main { padding: 12px 14px; }
+
+/* Section */
+.section { margin-bottom: 14px; }
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+.section-title { font-weight: 600; font-size: 13px; }
+.meta { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+/* Page info */
+.page-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.page-host {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.page-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-full { width: 100%; }
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-warning {
+  background: var(--warning-light);
+  color: var(--warning);
+  border-color: var(--warning);
+}
+.btn-warning:hover:not(:disabled) {
+  background: var(--warning);
+  color: white;
+}
+
+/* Alerts */
+.alert {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.alert small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+.alert-error { background: var(--danger-light); color: var(--danger); }
+.alert-warning { background: var(--warning-light); color: var(--warning); }
+.alert-success { background: var(--success-light); color: var(--success); }
+
+/* Fields list */
+.fields-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.field-item {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.field-item:last-child { border-bottom: none; }
+.field-label {
+  width: 110px;
+  min-width: 110px;
+  padding: 6px 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  font-size: 11px;
+}
+.field-value {
+  flex: 1;
+  padding: 6px 10px;
+  min-width: 0;
+}
+.field-value input {
+  width: 100%;
+  border: 1px solid transparent;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+}
+.field-value input:hover { border-color: var(--border); }
+.field-value input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.field-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 6px;
+}
+.field-remove:hover { color: var(--danger); }
+
+/* Method row */
+.method-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.method-row select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--surface);
+}
+
+/* Action row */
+.action-row { margin-top: 8px; }
+
+/* Form group */
+.form-group { margin-bottom: 12px; }
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.form-group input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: inherit;
+}
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.form-group small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Loading animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.loading::after {
+  content: '⏳';
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}

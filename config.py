@@ -158,3 +158,44 @@ def set_quota_remaining(remaining):
     config["api_quota"]["used"] = max(0, total - remaining)
     save_config(config)
     return get_quota()
+
+
+# ── LLM API 配置 ─────────────────────────────────────────────────────────────
+
+DEFAULT_LLM = {
+    "enabled": False,
+    "base_url": "https://api.openai.com/v1",
+    "api_key": "",
+    "model": "gpt-4o-mini",
+    "timeout": 30,
+}
+
+
+def get_llm_config():
+    """获取 LLM API 配置。"""
+    config = load_config()
+    llm = config.get("llm_api", {})
+    # 补全默认值
+    for k, v in DEFAULT_LLM.items():
+        if k not in llm:
+            llm[k] = v
+    return llm
+
+
+def save_llm_config(**kwargs):
+    """保存 LLM API 配置。"""
+    config = load_config()
+    if "llm_api" not in config:
+        config["llm_api"] = dict(DEFAULT_LLM)
+    llm = config["llm_api"]
+    for k, v in kwargs.items():
+        if k in DEFAULT_LLM:
+            llm[k] = v
+    save_config(config)
+    return llm
+
+
+def is_llm_ready():
+    """检查 LLM API 是否已配置好。"""
+    llm = get_llm_config()
+    return bool(llm.get("enabled") and llm.get("api_key") and llm.get("base_url"))

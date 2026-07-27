@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=380">
+  <title>EntHub 快录</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- 顶部状态栏 -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">🏢</span>
+      <span class="title">EntHub 快录</span>
+    </div>
+    <div class="header-right">
+      <span id="conn-status" class="status-dot status-unknown" title="连接状态"></span>
+      <button id="btn-settings" class="icon-btn" title="设置">⚙️</button>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <main id="main-view">
+    <!-- 连接状态提示 -->
+    <div id="conn-error" class="alert alert-error" style="display:none;">
+      <span>❌ 无法连接 EntHub 服务</span>
+      <small>请确认 EntHub 已启动（http://127.0.0.1:5210）</small>
+    </div>
+
+    <!-- 步骤1：抓取页面 -->
+    <section class="section">
+      <div class="section-header">
+        <span class="step-badge">1</span>
+        <span class="section-title">抓取当前页面</span>
+      </div>
+      <div id="page-info" class="page-info">
+        <span id="page-host" class="page-host">-</span>
+        <span id="page-title" class="page-title" title="">-</span>
+      </div>
+      <button id="btn-grab" class="btn btn-primary btn-full">
+        📋 抓取页面信息
+      </button>
+    </section>
+
+    <!-- 步骤2：提取结果 -->
+    <section id="section-result" class="section" style="display:none;">
+      <div class="section-header">
+        <span class="step-badge">2</span>
+        <span class="section-title">提取结果</span>
+        <span id="extract-meta" class="meta"></span>
+      </div>
+
+      <div id="extract-error" class="alert alert-warning" style="display:none;"></div>
+
+      <!-- 重复警告 -->
+      <div id="dup-warning" class="alert alert-warning" style="display:none;"></div>
+
+      <!-- 字段列表 -->
+      <div id="fields-list" class="fields-list"></div>
+
+      <!-- 提取方式选择 -->
+      <div class="method-row">
+        <label>提取方式：</label>
+        <select id="method-select">
+          <option value="auto">自动</option>
+          <option value="regex">正则</option>
+          <option value="llm">大模型</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- 步骤3：操作 -->
+    <section id="section-actions" class="section" style="display:none;">
+      <div class="action-row">
+        <button id="btn-submit" class="btn btn-primary btn-full">
+          ✅ 确认录入
+        </button>
+      </div>
+      <div id="overwrite-row" class="action-row" style="display:none;">
+        <button id="btn-overwrite" class="btn btn-warning btn-full">
+          ⚠️ 覆盖更新已有记录
+        </button>
+      </div>
+      <div class="action-row">
+        <button id="btn-retry" class="btn btn-secondary btn-full" style="display:none;">
+          🔄 重新提取（换方式）
+        </button>
+      </div>
+    </section>
+
+    <!-- 成功提示 -->
+    <div id="success-msg" class="alert alert-success" style="display:none;"></div>
+  </main>
+
+  <!-- 设置面板 -->
+  <main id="settings-view" style="display:none;">
+    <section class="section">
+      <div class="section-header">
+        <span class="section-title">设置</span>
+      </div>
+      <div class="form-group">
+        <label>EntHub 服务地址</label>
+        <input id="input-url" type="text" placeholder="http://127.0.0.1:5210">
+        <small>本地运行填 http://127.0.0.1:5210</small>
+      </div>
+      <div class="action-row" style="display:flex;gap:8px;">
+        <button id="btn-save-settings" class="btn btn-primary" style="flex:1;">保存</button>
+        <button id="btn-test-conn" class="btn btn-secondary" style="flex:1;">测试连接</button>
+      </div>
+      <div id="settings-msg" class="alert" style="display:none;margin-top:8px;"></div>
+      <div class="action-row" style="margin-top:12px;">
+        <button id="btn-back" class="btn btn-secondary btn-full">← 返回</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
