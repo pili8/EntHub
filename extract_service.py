@@ -14,32 +14,32 @@ import re
 import ssl
 import urllib.request
 import urllib.error
-from utils import clean_val
+from utils import clean_val, normalize_person_name
 
 # ── 正则提取（3a）────────────────────────────────────────────────────────────
 
 # 字段正则：每项 (field, pattern, group_index)
 # pattern 使用 re.DOTALL 使 . 匹配换行
 _REGEX_PATTERNS = [
-    # 企业名称（多种格式）
+    # 企业名称（去掉 bare "名称"，用 [^\n\t] 截断 tab 后内容）
     ("name", re.compile(
-        r'(?:企业名称|公司名称|单位名称|名称)[：:\s]*([^\n]{2,80})', re.UNICODE
+        r'(?:企业名称|公司名称|单位名称)[：:\s]*([^\n\t]{2,80})', re.UNICODE
     )),
     # 统一社会信用代码（18位字母数字）
     ("credit_code", re.compile(
         r'(?:统一社会信用代码|信用代码|统一信用代码|USCI)[：:\s]*([0-9A-Za-z]{18})'
     )),
-    # 法定代表人
+    # 法定代表人（兼容"姓氏+换行+全名"格式，如爱企查"孙\n孙少闻"）
     ("legal_person", re.compile(
-        r'(?:法定代表人|法人代表|法人|负责人)[：:\s]*([^\n,，;；]{2,20})', re.UNICODE
+        r'(?:法定代表人|法人代表|法人|负责人)[：:\s]*(?:[\u4e00-\u9fa5]\n)?([^\n,，;；]{2,20})', re.UNICODE
     )),
     # 注册资本（数字+万/元，支持 "1000万人民币" "500万元" "1,000.00万人民币元" 等）
     ("registered_capital", re.compile(
         r'(?:注册资本|注册资金)[：:\s]*([\d,.]+\s*万[元人民币]*)'
     )),
-    # 实缴资本
+    # 实缴资本（[元人民币]* 而非 ?，支持"万人民币"完整匹配）
     ("paid_capital", re.compile(
-        r'(?:实缴资本|实缴资金)[：:\s]*([\d,.]+\s*万[元人民币]?)'
+        r'(?:实缴资本|实缴资金)[：:\s]*([\d,.]+\s*万[元人民币]*)'
     )),
     # 成立日期（YYYY-MM-DD 或 YYYY年MM月DD日）
     ("established_date", re.compile(
@@ -49,21 +49,21 @@ _REGEX_PATTERNS = [
     ("approved_date", re.compile(
         r'(?:核准日期|核准时间)[：:\s]*(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?)'
     )),
-    # 营业期限
+    # 营业期限（[^\n\t] 截断 tab 后同行内容）
     ("business_term", re.compile(
-        r'(?:营业期限|经营期限)[：:\s]*([^\n]{2,60})', re.UNICODE
+        r'(?:营业期限|经营期限)[：:\s]*([^\n\t]{2,60})', re.UNICODE
     )),
-    # 经营状态
+    # 经营状态（补全"开业""在营"）
     ("business_status", re.compile(
-        r'(?:经营状态|登记状态|存续状态|企业状态)[：:\s]*(存续|在业|吊销|注销|迁出|停业|清算|活跃|正常经营)'
+        r'(?:经营状态|登记状态|存续状态|企业状态)[：:\s]*(存续|在业|在营|开业|吊销|注销|迁出|停业|清算|活跃|正常经营)'
     )),
-    # 公司类型
+    # 公司类型（[^\n\t] 截断 tab 后同行内容）
     ("company_type", re.compile(
-        r'(?:公司类型|企业类型|企业\(机构\)类型)[：:\s]*([^\n]{2,40})', re.UNICODE
+        r'(?:公司类型|企业类型|企业\(机构\)类型)[：:\s]*([^\n\t]{2,40})', re.UNICODE
     )),
-    # 所属行业
+    # 所属行业（优先"所属行业""国标行业"，bare "行业" 不被中文前缀修饰，排除"企查查行业"等）
     ("industry", re.compile(
-        r'(?:所属行业|行业分类|行业)[：:\s]*([^\n]{2,40})', re.UNICODE
+        r'(?:所属行业|国标行业|行业分类|(?<![\u4e00-\u9fa5])行业)[：:\s]*([^\n\t]{2,40})', re.UNICODE
     )),
     # 参保人数
     ("insured_count", re.compile(
@@ -81,42 +81,51 @@ _REGEX_PATTERNS = [
     ("district", re.compile(
         r'(?:区县|所属区县)[：:\s]*([\u4e00-\u9fa5]{2,8}[区县市])', re.UNICODE
     )),
-    # 注册地址
+    # 注册地址（[^\n\t] 截断 tab 后同行内容）
     ("address", re.compile(
-        r'(?:注册地址|企业地址|公司地址|地址)[：:\s]*([^\n]{4,120})', re.UNICODE
+        r'(?:注册地址|企业地址|公司地址|地址)[：:\s]*([^\n\t]{4,120})', re.UNICODE
     )),
-    # 经营范围（可能多行）
+    # 经营范围（[：:\s]+ 要求至少一个分隔符，避免匹配"经营范围变更"；添加"经营业务范围"标签）
     ("business_scope", re.compile(
-        r'(?:经营范围)[：:\s]*([^\n]{4,500})', re.UNICODE | re.DOTALL
+        r'(?:经营范围|经营业务范围)[：:\s]+([^\n]{4,500})', re.UNICODE
     )),
-    # 曾用名
+    # 曾用名（[^\n\t] 截断 tab；后处理中要求包含公司后缀，过滤标签区误匹配）
     ("former_name", re.compile(
-        r'(?:曾用名|历史名称|前身)[：:\s]*([^\n]{2,80})', re.UNICODE
+        r'(?:曾用名|历史名称|前身)[：:\s]*([^\n\t]{2,80})', re.UNICODE
     )),
     # 网址
     ("website", re.compile(
         r'(?:网址|网站|官网)[：:\s]*(https?://[^\s\n]+|www\.[^\s\n]+)'
     )),
-    # 邮箱
+    # 邮箱（"邮箱"不被中文字符前缀修饰，排除"客服邮箱""举报邮箱""企业邮箱"等页脚邮箱）
     ("email", re.compile(
-        r'(?:邮箱|电子邮箱|电子邮件)[：:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
+        r'(?:(?<![\u4e00-\u9fa5])邮箱|电子邮箱|电子邮件)[：:\s]*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
     )),
     # 电话
     ("phone", re.compile(
         r'(?:电话|联系电话|联系方式|手机)[：:\s]*([\d\-\s+]+)'
     )),
-    # 组织机构代码
+    # 组织机构代码（允许连字符，如 MAD12BC7-6）
     ("org_code", re.compile(
-        r'(?:组织机构代码)[：:\s]*([0-9A-Za-z]{8,10})'
+        r'(?:组织机构代码)[：:\s]*([0-9A-Za-z-]{8,12})'
     )),
     # 注册号
     ("registration_no", re.compile(
         r'(?:注册号|执照编号)[：:\s]*([0-9]{15})'
     )),
-    # 股东
-    ("shareholders", re.compile(
-        r'(?:股东|股东信息|股东名称)[：:\s]*([^\n]{2,200})', re.UNICODE
+    # 企业规模（新增）
+    ("enterprise_scale", re.compile(
+        r'(?:企业规模)[：:\s]*([^\n\t]{2,20})', re.UNICODE
     )),
+    # 英文名（新增）
+    ("english_name", re.compile(
+        r'(?:英文名|英文名称|英文名字)[：:\s]*([A-Za-z][A-Za-z\s\.,&\'()]{5,80})', re.UNICODE
+    )),
+    # 通信地址（新增）
+    ("mailing_address", re.compile(
+        r'(?:通信地址|通讯地址)[：:\s]*([^\n\t]{4,120})', re.UNICODE
+    )),
+    # 股东 & 主要人员：由 _extract_personnel 和 _extract_shareholders 区块解析，不在此列表
 ]
 
 
@@ -193,6 +202,149 @@ def _fill_province_city_district_from_address(result):
                 result["district"] = matches[-1]
 
 
+# ── UI 噪音清理 ───────────────────────────────────────────────────────────────
+
+def _strip_ui_noise(val, field=None):
+    """去除值末尾常见的 UI 噪音文字（如"复制""附近企业"等）。"""
+    if not val:
+        return val
+    s = val.strip()
+    # 全局：去除"复制"后缀
+    s = re.sub(r'复制$', '', s).strip()
+    # 地址类字段：截断 UI 后缀
+    if field in ('address', 'mailing_address', 'annual_report_address'):
+        s = re.split(r'(?:附近企业|附近公司|查看地图|历史变动|历史地址|更多\s*\d)', s)[0].strip()
+    return s
+
+
+# ── 主要人员区块解析 ─────────────────────────────────────────────────────────
+
+_KNOWN_POSITIONS = (
+    '法定代表人', '董事长', '副董事长', '执行董事', '独立董事',
+    '董事', '监事会主席', '监事', '总经理', '副总经理',
+    '经理', '副经理', '财务负责人', '董事会秘书',
+)
+
+# 非姓名的中文词块（职位关键词组成部分、UI 文字等）
+_NON_NAME_WORDS = {
+    '主要', '人员', '姓名', '序号', '职务', '简介', '详情', '历史',
+    '关联', '企业', '法定', '代表', '大股', '控股', '实际', '控制',
+    '受益', '所有', '变更', '投资', '分支', '机构', '财务', '数据',
+    '年报', '工商', '登记', '信息', '导出', '查看', '更多', '展开',
+    '收起', '发生', '通知', '下载', '报告', '认证', '编辑', '监控',
+    '收藏', '家企', '业家', '任职', '履历', '个人', '股东', '发起',
+    '认缴', '实缴', '持股', '出资', '股权', '比例', '日期', '名称',
+    '结构', '最新', '公示', '公告', '来源', '董事', '监事', '经理',
+    '法人', '主管', '委员', '主任', '组长', '助理', '秘书',
+}
+
+_PERSONNEL_RE = re.compile(
+    r'(?:^|\n)\s*\d+\s+'             # 序号
+    r'(?:[\u4e00-\u9fa5]\s+)?'       # 可选：姓氏单独一行
+    r'([\u4e00-\u9fa5]{2,4})\s+'     # 姓名（2-4 个汉字）
+    r'.{0,80}?'                       # 中间噪音（非贪婪）
+    r'(' + '|'.join(_KNOWN_POSITIONS) + r')',  # 职务
+    re.DOTALL
+)
+
+
+def _extract_personnel(text):
+    """从文本中提取主要人员（姓名 + 职务）。
+
+    返回 [(name, position), ...]
+    """
+    # 定位"主要人员"或"高级职员"区块（跳过导航区，找后面紧跟"序号"的）
+    section_text = ""
+    for m in re.finditer(r'主要人员|高级职员', text):
+        after = text[m.end():m.end() + 200]
+        if '序号' in after:
+            section_text = text[m.start():]
+            break
+    if not section_text:
+        return []
+
+    # 截断到下一个大区块
+    for next_marker in ['对外投资', '变更记录', '变更信息', '企业年报', '控制企业',
+                        '分支机构', '财务数据', '最终受益人', '实际控制人',
+                        '同业分析', '关联方认定', '社保人数', '多证合一',
+                        '企业受益', '受益股东', '疑似实际']:
+        idx = section_text.find(next_marker, 20)
+        if idx >= 0:
+            section_text = section_text[:idx]
+            break
+
+    personnel = []
+    seen = set()
+    for m in _PERSONNEL_RE.finditer(section_text):
+        name = m.group(1)
+        position = m.group(2)
+        # 过滤非姓名词
+        if name in _NON_NAME_WORDS:
+            continue
+        if name in position or position in name:
+            continue
+        if name not in seen:
+            seen.add(name)
+            personnel.append((name, position))
+
+    return personnel
+
+
+# ── 股东区块解析 ─────────────────────────────────────────────────────────────
+
+_COMPANY_SUFFIX_RE = re.compile(r'(?:公司|集团|有限|厂|店|社|院|事务所|工作室|商行|合伙)')
+_COMPANY_NAME_RE = re.compile(
+    r'([\u4e00-\u9fa5]{2,20}(?:公司|集团|有限|厂|店|社|院|事务所|工作室|商行|合伙)(?:\n公司)?)'
+)
+
+
+def _extract_shareholders(text):
+    """从文本中提取股东名称（best effort，仅提取公司名）。
+
+    返回 [name, ...]
+    """
+    # 找到"股东信息"后面紧跟"序号"的位置（跳过导航区的"股东信息"）
+    section_start = -1
+    for m in re.finditer('股东信息', text):
+        after = text[m.end():m.end() + 200]
+        if '序号' in after:
+            section_start = m.start()
+            break
+    if section_start < 0:
+        return []
+
+    section_text = text[section_start:]
+    # 截断到下一个大区块
+    for next_marker in ['主要人员', '高级职员', '对外投资', '变更记录', '变更信息',
+                        '企业年报', '控制企业', '分支机构', '财务数据',
+                        '企业受益', '受益股东', '疑似实际', '最终受益',
+                        '实际控制人', '同业分析', '关联方认定', '社保人数']:
+        idx = section_text.find(next_marker, 20)
+        if idx >= 0:
+            section_text = section_text[:idx]
+            break
+
+    shareholders = []
+    seen = set()
+    for m in _COMPANY_NAME_RE.finditer(section_text):
+        name = m.group(1).replace('\n', '').strip()
+        # 去除常见 UI 后缀
+        name = re.sub(r'(全屏查看|查看详情|详情|展开|收起)$', '', name).strip()
+        # 长度限制
+        if len(name) < 4 or len(name) > 30:
+            continue
+        # 过滤非公司名（句子、公告等）
+        if any(w in name for w in ['公告', '报告', '由公司', '第条', '条款', '条规定', '上市']):
+            continue
+        if name not in seen and name not in _NON_NAME_WORDS:
+            seen.add(name)
+            shareholders.append(name)
+
+    return shareholders
+
+
+# ── 正则提取主函数 ─────────────────────────────────────────────────────────────
+
 def extract_by_regex(text):
     """用正则从文本中提取工商信息字段。
 
@@ -203,10 +355,47 @@ def extract_by_regex(text):
 
     result = {}
     for field, pattern, *_ in _REGEX_PATTERNS:
+        # 电话特殊处理：findall + 过滤有效号码（≥7位数字）
+        if field == "phone":
+            for m in pattern.finditer(text):
+                val = clean_val(m.group(1))
+                if val and len(re.sub(r'\D', '', val)) >= 7:
+                    result["phone"] = val
+                    break
+            continue
+
+        # 曾用名特殊处理：多次匹配，选第一个包含公司后缀的
+        if field == "former_name":
+            for m in pattern.finditer(text):
+                val = clean_val(m.group(1))
+                val = _strip_ui_noise(val, field)
+                if val and re.search(r'(公司|厂|店|社|院|集团|合伙|事务所|工作室|商行)', val):
+                    # 截断描述性文字（如“，成立于”“，位于”“，是一家”等）
+                    val = re.split(r'[，,]\s*(?:成立于|位于|是一家|超过了|注册资本|成员)', val)[0]
+                    # 去除末尾多余的右括号（非日期范围的一部分）
+                    val = re.sub(r'(?<!\d)[）)]\s*$', '', val).strip()
+                    result[field] = val
+                    break
+            continue
+
+        # 行业特殊处理：跳过包含“行业”的值（如“企查查行业”是标签不是值）
+        if field == "industry":
+            for m in pattern.finditer(text):
+                val = clean_val(m.group(1))
+                val = _strip_ui_noise(val, field)
+                if val and '行业' not in val:
+                    result[field] = val
+                    break
+            continue
+
         m = pattern.search(text)
         if m:
             val = clean_val(m.group(1))
             if val:
+                # UI 噪音清理
+                val = _strip_ui_noise(val, field)
+                if not val:
+                    continue
                 # 日期字段归一化
                 if field in ("established_date", "approved_date"):
                     val = _normalize_date(val)
@@ -214,6 +403,48 @@ def extract_by_regex(text):
                 if field == "business_scope" and len(val) > 300:
                     val = val[:300]
                 result[field] = val
+
+    # 主要人员 + 股东区块解析
+    personnel = _extract_personnel(text)
+    shareholders = _extract_shareholders(text)
+
+    # 合并：personnel 和 shareholders 去重
+    # 格式："姓名(职务);姓名;..."
+    merged_names = []  # [(name, position)]
+    seen_norm = set()
+
+    # 先加股东（公司名，无职务）
+    company_name = result.get("name", "")
+    for name in shareholders:
+        # 排除公司自身（出现在股东区块中的自引用）
+        if company_name and normalize_person_name(name) == normalize_person_name(company_name):
+            continue
+        norm = normalize_person_name(name)
+        if norm and norm not in seen_norm:
+            seen_norm.add(norm)
+            merged_names.append((name, ""))
+
+    # 再加主要人员（有职务，覆盖同名股东的空职务）
+    for name, position in personnel:
+        norm = normalize_person_name(name)
+        if norm in seen_norm:
+            for i, (n, p) in enumerate(merged_names):
+                if normalize_person_name(n) == norm:
+                    if position and not p:
+                        merged_names[i] = (n, position)
+                    break
+        else:
+            seen_norm.add(norm)
+            merged_names.append((name, position))
+
+    if merged_names:
+        parts = []
+        for name, position in merged_names:
+            if position:
+                parts.append(f"{name}({position})")
+            else:
+                parts.append(name)
+        result["shareholders"] = ";".join(parts)
 
     # 后处理（补全 + 清洗校验）
     return post_process_fields(result)
@@ -322,6 +553,12 @@ def clean_extracted_fields(fields):
                 cleaned[field] = val
             continue
 
+        if field == "former_name":
+            # 曾用名：必须包含公司后缀，避免匹配标签区文本
+            if re.search(r'(公司|厂|店|社|院|集团|合伙|事务所|工作室|商行)', val):
+                cleaned[field] = val
+            continue
+
         # 其他字段：通过噪音检测即可
         if not _is_noise(val, field):
             cleaned[field] = val
@@ -387,6 +624,9 @@ _LLM_EXTRACT_PROMPT = """你是一个工商信息提取助手。请从以下文�
 - org_code: 组织机构代码
 - registration_no: 注册号
 - shareholders: 股东（多个用分号分隔）
+- enterprise_scale: 企业规模
+- english_name: 英文名
+- mailing_address: 通信地址
 
 文本内容：
 {text}
@@ -512,6 +752,7 @@ def extract_by_llm(text, timeout=None):
         "province", "city", "district", "address", "business_scope",
         "former_name", "website", "email", "phone", "org_code",
         "registration_no", "shareholders",
+        "enterprise_scale", "english_name", "mailing_address",
     }
     result = {}
     for k, v in extracted.items():

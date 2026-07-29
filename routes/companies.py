@@ -1,5 +1,6 @@
 """企业 CRUD：详情、编辑、删除、新增、API 获取工商信息。"""
 import re
+from datetime import datetime
 from flask import Blueprint, g, request, render_template, redirect, url_for, flash, \
                    abort, jsonify
 
@@ -8,7 +9,11 @@ from utils import (
     normalize_person_name, normalize_email,
     phone_location, get_phone_tags, get_phone_tags_batch,
 )
-from data_helpers import sync_phones, sync_shareholders
+from data_helpers import (
+    sync_phones, sync_shareholders,
+    merge_phones, merge_shareholders,
+    split_phones, split_shareholders,
+)
 from config import is_provider_ready
 import enthub_api
 
@@ -89,7 +94,7 @@ def company_detail(company_id):
     # 同股东（通过 company_shareholders 表反查）
     related_shareholders = []
     shareholders = g.db.execute("""
-        SELECT s.name, s.normalized_name
+        SELECT s.name, s.normalized_name, s.position
         FROM company_shareholders s
         WHERE s.company_id = ?
     """, [company_id]).fetchall()
@@ -234,11 +239,19 @@ def delete_company(company_id):
 @bp.route("/add", methods=["GET", "POST"])
 def add_company():
     if request.method == "POST":
+        is_ajax = request.form.get("_ajax") == "1"
+        action = request.form.get("_action", "")
+        existing_id_raw = request.form.get("_existing_id", "")
+
         name = request.form.get("name", "").strip()
         if not name:
-            flash("请填写企业名称", "error")
+            msg = "请填写企业名称"
+            if is_ajax:
+                return jsonify({"code": 1001, "message": msg})
+            flash(msg, "error")
             return redirect(url_for("companies_bp.add_company"))
 
+        # ── 收集表单字段 ──
         fields = {}
         for f in IMPORT_FIELDS:
             val = request.form.get(f, "").strip()
@@ -246,18 +259,154 @@ def add_company():
                 fields[f] = val
 
         fields["normalized_name"] = normalize_name(name)
-        fields["normalized_legal_person"] = normalize_person_name(fields.get("legal_person", ""))
+        fields["normalized_legal_person"] = normalize_person_name(
+            fields.get("legal_person", ""))
         fields["normalized_email"] = normalize_email(fields.get("email", ""))
         if fields.get("credit_code"):
             fields["credit_code"] = normalize_credit_code(fields["credit_code"])
 
-        fields["status"] = request.form.get("status", "active")
-        fields["source"] = "manual"
-
-        # 电话/股东字段仅存入关联表
+        # 电话/股东字段仅存入关联表，不写入 companies 主表
         phone_val = fields.pop("phone", "")
         other_phone_val = fields.pop("other_phone", "")
         shareholders_val = fields.pop("shareholders", "")
+
+        # ── 操作：覆盖更新已有企业 ──
+        if action == "overwrite" and existing_id_raw:
+            eid = int(existing_id_raw)
+            row = g.db.execute(
+                "SELECT * FROM companies WHERE id = ?", [eid]
+            ).fetchone()
+            if not row:
+                msg = "目标企业不存在"
+                if is_ajax:
+                    return jsonify({"code": 1002, "message": msg})
+                flash(msg, "error")
+                return redirect(url_for("companies_bp.add_company"))
+
+            # 字段级 UPDATE：仅写入非空且与库内不同的字段（空值不覆盖）
+            updates = {}
+            for f_name in IMPORT_FIELDS:
+                if f_name in ("phone", "other_phone", "shareholders",
+                              "source_file", "tags", "other_email"):
+                    continue
+                inc_val = fields.get(f_name, "")
+                if inc_val and inc_val != (row[f_name] or ""):
+                    updates[f_name] = inc_val
+
+            # 派生归一化字段
+            if "name" in updates:
+                updates["normalized_name"] = fields["normalized_name"]
+            if "legal_person" in updates:
+                updates["normalized_legal_person"] = fields["normalized_legal_person"]
+            if "email" in updates:
+                updates["normalized_email"] = fields["normalized_email"]
+
+            # other_email 增量合并（不覆盖已有）
+            oe = fields.get("other_email", "")
+            if oe:
+                existing_oe = row["other_email"] or ""
+                merged_oe = set(p.strip() for p in existing_oe.split(";")
+                                if p.strip())
+                merged_oe.update(p.strip() for p in oe.replace(",", ";").split(";")
+                                 if p.strip() and p.strip() != "-")
+                updates["other_email"] = "; ".join(sorted(merged_oe))
+
+            if updates:
+                updates["updated_at"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
+                g.db.execute(
+                    f"UPDATE companies SET {set_clause} WHERE id = ?",
+                    list(updates.values()) + [eid]
+                )
+
+            # 电话 & 股东：增量合并（只追加新号码/新股东）
+            merge_phones(g.db, eid, phone_val, other_phone_val)
+            merge_shareholders(g.db, eid, shareholders_val)
+            g.db.commit()
+
+            msg = f"已更新：{fields.get('name', row['name'])}"
+            redirect_url = url_for("companies_bp.company_detail", company_id=eid)
+            if is_ajax:
+                return jsonify({"code": 0, "message": msg,
+                                "redirect": redirect_url})
+            flash(msg, "success")
+            return redirect(redirect_url)
+
+        # ── 操作：仅合并新电话号码 + 新股东 ──
+        if action == "merge_phones" and existing_id_raw:
+            eid = int(existing_id_raw)
+            row = g.db.execute(
+                "SELECT name FROM companies WHERE id = ?", [eid]
+            ).fetchone()
+            if not row:
+                msg = "目标企业不存在"
+                if is_ajax:
+                    return jsonify({"code": 1002, "message": msg})
+                flash(msg, "error")
+                return redirect(url_for("companies_bp.add_company"))
+
+            merge_phones(g.db, eid, phone_val, other_phone_val)
+            merge_shareholders(g.db, eid, shareholders_val)
+            g.db.commit()
+
+            msg = f"已合并新数据到：{row['name']}"
+            redirect_url = url_for("companies_bp.company_detail", company_id=eid)
+            if is_ajax:
+                return jsonify({"code": 0, "message": msg,
+                                "redirect": redirect_url})
+            flash(msg, "success")
+            return redirect(redirect_url)
+
+        # ── 默认：重复检查 ──
+        existing = g.db.execute(
+            "SELECT id, name FROM companies WHERE normalized_name = ? LIMIT 1",
+            [fields["normalized_name"]]
+        ).fetchone()
+
+        if existing:
+            # 分析新电话号码
+            existing_phones = g.db.execute(
+                "SELECT normalized_phone FROM company_phones WHERE company_id = ?",
+                [existing["id"]]
+            ).fetchall()
+            existing_norms = {r["normalized_phone"] for r in existing_phones}
+
+            new_phones = []
+            for raw, norm in split_phones(phone_val, other_phone_val):
+                if norm and norm not in existing_norms:
+                    new_phones.append(raw)
+
+            # 分析新股东
+            existing_sh = g.db.execute(
+                "SELECT normalized_name FROM company_shareholders WHERE company_id = ?",
+                [existing["id"]]
+            ).fetchall()
+            existing_sh_norms = {r["normalized_name"] for r in existing_sh}
+            new_shareholders = []
+            for raw, norm, pos in split_shareholders(shareholders_val):
+                if norm and norm not in existing_sh_norms:
+                    new_shareholders.append(raw)
+
+            if is_ajax:
+                return jsonify({
+                    "code": 409,
+                    "message": f"该企业已存在：{existing['name']}",
+                    "data": {
+                        "existing_id": existing["id"],
+                        "existing_name": existing["name"],
+                        "new_phones": new_phones,
+                        "has_new_phones": len(new_phones) > 0,
+                        "new_shareholders": new_shareholders,
+                        "has_new_shareholders": len(new_shareholders) > 0,
+                    }
+                })
+            flash(f"该企业已存在：{existing['name']}", "warning")
+            return redirect(url_for("companies_bp.company_detail",
+                                    company_id=existing["id"]))
+
+        # ── 无重复：正常录入 ──
+        fields["status"] = request.form.get("status", "active")
+        fields["source"] = "manual"
 
         cols = ", ".join(fields.keys())
         placeholders = ", ".join(["?"] * len(fields))
@@ -268,7 +417,12 @@ def add_company():
         sync_phones(g.db, cursor.lastrowid, phone_val, other_phone_val)
         sync_shareholders(g.db, cursor.lastrowid, shareholders_val)
         g.db.commit()
-        flash(f"已录入：{name}", "success")
+
+        msg = f"已录入：{name}"
+        if is_ajax:
+            return jsonify({"code": 0, "message": msg,
+                            "redirect": url_for("companies_bp.add_company")})
+        flash(msg, "success")
         return redirect(url_for("companies_bp.add_company"))
 
     return render_template("add.html", company={})

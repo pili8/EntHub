@@ -1,6 +1,6 @@
 {
-  "auto_open_web": false,
-  "auto_start": false,
+  "auto_open_web": true,
+  "auto_start": true,
   "api_providers": {
     "jinghai": {
       "name": "鲸海数据",

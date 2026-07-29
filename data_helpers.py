@@ -2,6 +2,7 @@
 
 抽离自 app.py，供 Web 路由、REST API、导入流程复用。
 """
+import re
 from utils import normalize_phone, normalize_person_name
 
 
@@ -163,7 +164,10 @@ def merge_phones(db, company_id, phone_str, other_phone_str,
 # ── 股东 ────────────────────────────────────────────────────────────────────
 
 def split_shareholders(shareholders_str):
-    """拆分股东字符串为 [(raw, normalized), ...]。"""
+    """拆分股东字符串为 [(raw, normalized, position), ...]。
+
+    支持 "姓名(职务)" 格式，如 "高海超(董事长);孙少闻(法定代表人,经理)"。
+    """
     if not shareholders_str:
         return []
     parts = (str(shareholders_str)
@@ -176,9 +180,15 @@ def split_shareholders(shareholders_str):
     for p in parts:
         raw = p.strip()
         if raw and raw != "-":
+            position = ""
+            # 解析 "姓名(职务)" 格式（兼容全角和半角括号）
+            m = re.match(r'^(.+?)[（(](.+?)[）)]$', raw)
+            if m:
+                raw = m.group(1).strip()
+                position = m.group(2).strip()
             norm = normalize_person_name(raw)
             if norm:
-                result.append((raw, norm))
+                result.append((raw, norm, position))
     return result
 
 
@@ -191,13 +201,13 @@ def sync_shareholders(db, company_id, shareholders_str):
         "DELETE FROM company_shareholders WHERE company_id = ?",
         [company_id]
     )
-    for raw, norm in split_shareholders(shareholders_str):
+    for raw, norm, position in split_shareholders(shareholders_str):
         if norm:
             db.execute(
                 "INSERT INTO company_shareholders "
-                "(company_id, name, normalized_name) "
-                "VALUES (?, ?, ?)",
-                [company_id, raw, norm]
+                "(company_id, name, normalized_name, position) "
+                "VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, position]
             )
 
 
@@ -212,12 +222,12 @@ def merge_shareholders(db, company_id, shareholders_str):
     ).fetchall()
     existing_norms = {row["normalized_name"] for row in existing}
 
-    for raw, norm in split_shareholders(shareholders_str):
+    for raw, norm, position in split_shareholders(shareholders_str):
         if norm and norm not in existing_norms:
             db.execute(
                 "INSERT INTO company_shareholders "
-                "(company_id, name, normalized_name) "
-                "VALUES (?, ?, ?)",
-                [company_id, raw, norm]
+                "(company_id, name, normalized_name, position) "
+                "VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, position]
             )
             existing_norms.add(norm)

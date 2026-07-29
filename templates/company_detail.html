@@ -11,9 +11,6 @@
         <i data-lucide="arrow-left" aria-hidden="true"></i>返回
       </a>
       <div style="display: flex; gap: 8px;">
-        <button type="button" class="page-btn" onclick="refreshCompany({{ company.id }})" style="font-size: 13px; padding: 6px 12px; border: 1px solid var(--border); background: white; color: var(--text-primary); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="通过 API 获取最新工商信息和联系方式">
-          <i data-lucide="refresh-cw" aria-hidden="true" style="width: 14px; height: 14px;"></i>在线更新
-        </button>
         <a href="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" class="page-btn page-btn-primary">
           <i data-lucide="pencil" aria-hidden="true"></i>编辑
         </a>
@@ -24,12 +21,17 @@
         </form>
       </div>
     </div>
-    <h1 class="detail-name">
-        {{ company.name }}
-        <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.name }}', this)" title="复制公司名">
-            <i data-lucide="copy" aria-hidden="true"></i>
-        </button>
-    </h1>
+    <div class="detail-name-row">
+      <h1 class="detail-name">
+          {{ company.name }}
+          <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.name }}', this)" title="复制公司名">
+              <i data-lucide="copy" aria-hidden="true"></i>
+          </button>
+      </h1>
+      <button type="button" class="detail-refresh-btn" onclick="refreshCompany({{ company.id }})" title="通过 API 获取最新工商信息和联系方式">
+        <i data-lucide="refresh-cw" aria-hidden="true" style="width: 14px; height: 14px;"></i>在线更新
+      </button>
+    </div>
     {% if company.former_name and company.former_name != '-' %}
       <p class="detail-former">曾用名 · {{ company.former_name }}</p>
     {% endif %}
@@ -217,7 +219,7 @@
     <h2 class="detail-section-title">💼 股东信息（{{ shareholders|length }}）</h2>
     <div class="shareholder-tags">
       {% for s in shareholders %}
-      <a href="{{ url_for('pages_bp.search', q=s.name) }}" class="shareholder-tag">{{ s.name }}</a>
+      <a href="{{ url_for('pages_bp.search', q=s.name) }}" class="shareholder-tag">{{ s.name }}{% if s.position %}<span class="shareholder-pos">{{ s.position }}</span>{% endif %}</a>
       {% endfor %}
     </div>
   </section>
@@ -289,10 +291,55 @@
   </section>
   {% endif %}
 
-  <!-- ─────────── 关联企业 ─────────── -->
+  <!-- ─────────── 元信息 ─────────── -->
+  <footer class="detail-foot">
+    <div class="meta-row meta-main">
+      <span class="meta-id">#{{ '%08d' % company.id }}</span>
+      {% set src = company.source or '' %}
+      {% if src == 'import' %}
+        {% if company.source_file %}
+        <span class="meta-badge meta-badge-import meta-badge-clickable" onclick="toggleSourceFiles(this)" title="点击查看来源文件">
+          📥 导入
+          <i data-lucide="chevron-down" class="meta-chevron" style="width:11px;height:11px;vertical-align:-1px"></i>
+        </span>
+        {% else %}
+        <span class="meta-badge meta-badge-import">📥 导入</span>
+        {% endif %}
+      {% elif src == 'manual' %}
+        <span class="meta-badge meta-badge-manual">✏️ 录入</span>
+      {% else %}
+        <span class="meta-badge meta-badge-other">❓ {{ src or '未知' }}</span>
+      {% endif %}
+      <span class="meta-time">
+        <i data-lucide="calendar" style="width:12px;height:12px;vertical-align:-1px"></i>
+        创建于 {{ company.created_at }}
+      </span>
+      {% if company.updated_at and company.updated_at != company.created_at %}
+      <span class="meta-time meta-updated" title="最近更新">
+        <i data-lucide="refresh-cw" style="width:11px;height:11px;vertical-align:-1px"></i>
+        更新于 {{ company.updated_at }}
+      </span>
+      {% endif %}
+    </div>
+
+    {% if company.source == 'import' and company.source_file %}
+    <div class="source-files-collapse" style="display: none;">
+      <span class="source-files-label">来源文件：</span>
+      <span class="source-files-text">{% for f in company.source_file.split(';') %}{{ f.strip() }}{% if not loop.last %}；{% endif %}{% endfor %}</span>
+    </div>
+    {% endif %}
+  </footer>
+
+  <!-- ─────────── 关联企业（延伸信息） ─────────── -->
   {% if related_phones or related_legal_person or related_shareholders or related_industry or related_email %}
-  <section class="detail-section">
-    <h2 class="detail-section-title">关联企业</h2>
+  <section class="detail-section detail-rel-section">
+    <div class="rel-section-header">
+      <h2 class="detail-section-title">关联企业</h2>
+      <span class="rel-section-hint">
+        <i data-lucide="git-branch" style="width:11px;height:11px;vertical-align:-1px"></i>
+        基于工商字段自动发现
+      </span>
+    </div>
 
     {% macro rel_table(title, items, count) %}
       <div class="rel-block">
@@ -321,17 +368,6 @@
     {% if related_industry      %}{{ rel_table('同行业',   related_industry,      field_counts.industry) }}{% endif %}
   </section>
   {% endif %}
-
-  <!-- ─────────── 元信息 ─────────── -->
-  <footer class="detail-foot">
-    记录编号 #{{ '%08d' % company.id }}
-    · 来源 {{ company.source }}
-    {% if company.source_file %} · 源文件 {{ company.source_file }}{% endif %}
-    · 创建于 {{ company.created_at }}
-    {% if company.updated_at and company.updated_at != company.created_at %}
-    · 更新于 {{ company.updated_at }}
-    {% endif %}
-  </footer>
 
 </div>
 {% endblock %}
@@ -493,6 +529,20 @@ async function removeTag(tagId) {
     );
 }
 
+// 页面加载时加载标签
+// 兼容 SPA 路由：DOMContentLoaded 仅在首次整页加载时触发，
+// SPA 切换页面时不会再次触发，因此直接调用确保标签始终加载。
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadCompanyTags);
+} else {
+    loadCompanyTags();
+}
+
+// 显式挂到 window（避免 SPA 路由切换后 onclick 找不到函数）
+window.openTagSelector = openTagSelector;
+window.addTag = addTag;
+window.removeTag = removeTag;
+
 // ── 在线更新（先对比 diff，再选择应用）──
 async function refreshCompany(companyId) {
     showConfirm(
@@ -527,7 +577,6 @@ async function _doRefresh(companyId) {
             return;
         }
 
-        // 构建对比弹窗
         let diffHtml = '<div style="max-height: 400px; overflow-y: auto;">';
         diffHtml += `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
             ${result.message}，请勾选要更新的字段：
@@ -539,11 +588,9 @@ async function _doRefresh(companyId) {
             const borderColor = item.status === 'new' ? '#bbf7d0' : '#fed7aa';
             const oldDisplay = item.old ? item.old.substring(0, 60) : '（空）';
             const newDisplay = item.new ? item.new.substring(0, 60) : '（空）';
-
             diffHtml += `
                 <div style="display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; margin-bottom: 6px;">
-                    <input type="checkbox" data-field="${item.field}" checked
-                           style="margin-top: 3px; flex-shrink: 0;">
+                    <input type="checkbox" data-field="${item.field}" checked style="margin-top: 3px; flex-shrink: 0;">
                     <div style="flex: 1; min-width: 0;">
                         <div style="font-size: 13px; font-weight: 600; margin-bottom: 2px;">
                             ${item.label}
@@ -555,20 +602,15 @@ async function _doRefresh(companyId) {
                             <span style="color: var(--text-primary); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${newDisplay}</span>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
         });
         diffHtml += '</div>';
 
-        // 将数据存到全局，供按钮回调使用
         window._refreshData = { companyId: companyId, mapped: mapped };
-
-        // 显示对比弹窗
         showModal('数据对比', diffHtml, [
             { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' },
             { text: '应用选中更新', class: 'btn btn-primary', action: '_applyFromDiffModal()' }
         ]);
-
         if (window.lucide) lucide.createIcons();
     } catch (e) {
         window._enthubToast('error', '操作失败', e.message);
@@ -577,7 +619,6 @@ async function _doRefresh(companyId) {
 
 async function _doApply(companyId, mapped, selectedFields) {
     window._enthubToast('info', '正在更新...', '');
-
     try {
         const resp = await fetch(`/api/company/${companyId}/apply`, {
             method: 'POST',
@@ -585,50 +626,22 @@ async function _doApply(companyId, mapped, selectedFields) {
             body: JSON.stringify({ mapped: mapped, selected_fields: selectedFields })
         });
         const result = await resp.json();
-
-        if (result.code !== 0) {
-            window._enthubToast('error', '更新失败', result.message || '未知错误');
-            return;
-        }
-
+        if (result.code !== 0) { window._enthubToast('error', '更新失败', result.message || '未知错误'); return; }
         window._enthubToast('success', result.message, '正在刷新...');
         setTimeout(() => location.reload(), 1200);
-    } catch (e) {
-        window._enthubToast('error', '操作失败', e.message);
-    }
+    } catch (e) { window._enthubToast('error', '操作失败', e.message); }
 }
 
-// 页面加载时加载标签
-// 兼容 SPA 路由：DOMContentLoaded 仅在首次整页加载时触发，
-// SPA 切换页面时不会再次触发，因此直接调用确保标签始终加载。
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadCompanyTags);
-} else {
-    loadCompanyTags();
-}
-
-// 全局：从对比弹窗应用选中字段
 async function _applyFromDiffModal() {
     const checkboxes = document.querySelectorAll('input[type="checkbox"][data-field]');
     const selectedFields = [];
-    checkboxes.forEach(cb => {
-        if (cb.checked) selectedFields.push(cb.dataset.field);
-    });
-
-    if (selectedFields.length === 0) {
-        window._enthubToast('warning', '未选择字段', '请至少勾选一个字段');
-        return;
-    }
-
+    checkboxes.forEach(cb => { if (cb.checked) selectedFields.push(cb.dataset.field); });
+    if (selectedFields.length === 0) { window._enthubToast('warning', '未选择字段', '请至少勾选一个字段'); return; }
     closeModal();
     const rd = window._refreshData;
     await _doApply(rd.companyId, rd.mapped, selectedFields);
 }
 
-// 显式挂到 window（避免 SPA 路由切换后 onclick 找不到函数）
-window.openTagSelector = openTagSelector;
-window.addTag = addTag;
-window.removeTag = removeTag;
 window.refreshCompany = refreshCompany;
 window._applyFromDiffModal = _applyFromDiffModal;
 
@@ -775,6 +788,18 @@ window.openPhoneTagSelector = openPhoneTagSelector;
 window.setPhoneTag = setPhoneTag;
 window.clearPhoneTag = clearPhoneTag;
 window.refreshPhoneTag = refreshPhoneTag;
+
+// ── 来源文件展开/收起 ──
+function toggleSourceFiles(el) {
+    const collapse = el.closest('.detail-foot').querySelector('.source-files-collapse');
+    if (!collapse) return;
+    const chevron = el.querySelector('.meta-chevron');
+    const isHidden = collapse.style.display === 'none';
+    collapse.style.display = isHidden ? 'block' : 'none';
+    if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
+}
+window.toggleSourceFiles = toggleSourceFiles;
+
 })();
 </script>
 {% endblock %}

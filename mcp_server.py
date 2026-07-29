@@ -14,9 +14,12 @@
 - get_stats: 统计查询（法人/股东/行业）
 """
 import sys
+import sqlite3
 from mcp.server.fastmcp import FastMCP
-from db import get_db
-from utils import normalize_phone, normalize_credit_code, normalize_name
+from db import get_db, DB_PATH
+from utils import normalize_phone, normalize_credit_code, normalize_name, \
+    normalize_person_name, normalize_email
+from extract_service import extract_company_info
 import math
 
 # 复用 api.py 中已稳定的电话标注实现（避免重复维护导致 bug 漂移）
@@ -587,6 +590,186 @@ def annotate_phones(text: str) -> str:
     return f"发现 {len(matches)} 个号码（{len(unique_phones)} 个不重复）：\n\n{annotated}"
 
 
+# ─ extract_and_import：智能提取录入 ──────────────────────────────────────────
+
+@mcp.tool()
+def extract_and_import(text: str, method: str = "auto") -> dict:
+    """从文本中提取企业信息并录入数据库。
+
+    Args:
+        text: 包含企业信息的文本（如从天眼查、企查查复制的工商信息）
+        method: 提取方式，可选 auto/regex/llm，默认 auto
+
+    Returns:
+        提取并录入结果
+    """
+    result = extract_company_info(text, method=method)
+    fields = result["fields"]
+
+    if not fields or not fields.get("name"):
+        return {"error": "未能提取到企业名称"}
+
+    # 连接数据库
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        from data_helpers import sync_phones, sync_shareholders
+        from utils import normalize_name, normalize_person_name, normalize_email, normalize_credit_code
+
+        # 更新时自动维护的 normalized 字段
+        _NORMALIZED_MAP = {
+            "name": ("normalized_name", normalize_name),
+            "legal_person": ("normalized_legal_person", normalize_person_name),
+            "email": ("normalized_email", normalize_email),
+        }
+
+        name = fields["name"]
+        norm_name = normalize_name(name)
+
+        # 提取电话和股东
+        phone_val = str(fields.pop("phone", "")).strip()
+        other_phone_val = str(fields.pop("other_phone", "")).strip()
+        shareholders_val = str(fields.pop("shareholders", "")).strip()
+        fields.pop("taxpayer_id", None)
+
+        # 重复检查
+        existing = conn.execute(
+            "SELECT id, name FROM companies WHERE normalized_name = ? LIMIT 1",
+            [norm_name]
+        ).fetchone()
+
+        if existing:
+            # 更新已有记录
+            company_id = existing["id"]
+            for field, value in fields.items():
+                if field in ("source", "status"):
+                    continue
+                conn.execute(
+                    f"UPDATE companies SET {field} = ? WHERE id = ?",
+                    [value, company_id]
+                )
+            # 更新规范化字段
+            for field, (norm_field, norm_fn) in _NORMALIZED_MAP.items():
+                if field in fields:
+                    conn.execute(
+                        f"UPDATE companies SET {norm_field} = ? WHERE id = ?",
+                        [norm_fn(fields[field]), company_id]
+                    )
+            # 更新电话和股东
+            if phone_val or other_phone_val:
+                sync_phones(conn, company_id, phone_val, other_phone_val)
+            if shareholders_val:
+                sync_shareholders(conn, company_id, shareholders_val)
+            conn.commit()
+
+            return {
+                "action": "updated",
+                "id": company_id,
+                "name": name,
+                "method_used": result["method_used"],
+                "field_count": result["field_count"],
+                "message": f"已更新: {name}",
+            }
+
+        # 新建记录
+        fields["normalized_name"] = norm_name
+        if "legal_person" in fields:
+            fields["normalized_legal_person"] = normalize_person_name(fields["legal_person"])
+        if "email" in fields:
+            fields["normalized_email"] = normalize_email(fields["email"])
+        if "credit_code" in fields:
+            fields["credit_code"] = normalize_credit_code(fields["credit_code"])
+            if "taxpayer_id" not in fields:
+                fields["taxpayer_id"] = fields["credit_code"]
+
+        fields["source"] = "mcp"
+        fields["status"] = "active"
+
+        cols = ", ".join(fields.keys())
+        placeholders = ", ".join(["?"] * len(fields))
+        cursor = conn.execute(
+            f"INSERT INTO companies ({cols}) VALUES ({placeholders})",
+            list(fields.values())
+        )
+        company_id = cursor.lastrowid
+
+        if phone_val or other_phone_val:
+            sync_phones(conn, company_id, phone_val, other_phone_val)
+        if shareholders_val:
+            sync_shareholders(conn, company_id, shareholders_val)
+
+        conn.commit()
+
+        return {
+            "action": "created",
+            "id": company_id,
+            "name": name,
+            "method_used": result["method_used"],
+            "field_count": result["field_count"],
+            "message": f"已录入: {name}",
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        conn.close()
+
+
+# ── 按地址查询企业 ───────────────────────────────────────────────────────────────
+
+# EntHub Web 服务地址（用于生成企业详情页链接）
+_BASE_URL = "http://127.0.0.1:5210"
+
+
+@mcp.tool()
+def search_by_address(address: str, limit: int = 20) -> dict:
+    """按地址查询企业，返回企业详情页链接。
+
+    用于将外部表格中的企业地址与 EntHub 关联：
+    输入地址关键词，返回匹配的企业及其详情页 URL。
+
+    Args:
+        address: 地址关键词（如“文三路100号”“西湖区”等）
+        limit: 返回条数（默认 20，最大 50）
+
+    Returns:
+        匹配的企业列表，每条含 id/name/address/detail_url
+    """
+    db = get_db()
+    address = address.strip()
+    limit = min(50, max(1, limit))
+
+    if not address:
+        return {"code": 0, "message": "ok", "data": {"query": "", "count": 0, "results": []}}
+
+    like_q = f"%{address}%"
+    rows = db.execute(
+        """SELECT c.id, c.name, c.address, c.credit_code,
+                  c.legal_person, c.city, c.district,
+                  (SELECT group_concat(phone, '; ')
+                   FROM company_phones
+                   WHERE company_id = c.id
+                   ORDER BY is_primary DESC, is_recommended DESC) AS phone
+           FROM companies c
+           WHERE c.address LIKE ? OR c.annual_report_address LIKE ?
+              OR c.mailing_address LIKE ?
+           ORDER BY c.id LIMIT ?""",
+        [like_q, like_q, like_q, limit]
+    ).fetchall()
+
+    results = []
+    for r in rows:
+        d = dict(r)
+        d["detail_url"] = f"{_BASE_URL}/company/{d['id']}"
+        results.append(d)
+
+    return {"code": 0, "message": "ok", "data": {
+        "query": address,
+        "count": len(results),
+        "results": results
+    }}
+
+
 # ── 启动 ──────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -602,11 +785,17 @@ if __name__ == "__main__":
         print("   - find_relations: 关联企业查询")
         print("   - get_companies_list: 企业列表")
         print("   - get_stats: 统计查询")
+        print("   - extract_and_import: 智能提取录入")
+        print("   - check_phone_count: 查询号码重复数")
+        print("   - check_phones_batch: 批量号码重复数")
+        print("   - annotate_phones: 文本号码标注")
+        print("   - search_by_address: 按地址查询企业，返回详情页链接")
         print("\n在 AI 工具中配置 MCP Server 地址后，可以用自然语言查询：")
         print('  "帮我找所有叫科技的公司"')
         print('  "查一下 ID 为 2 的企业详情"')
         print('  "找和张三有关联的企业"')
         print('  "统计出现 5 次以上的法人"')
+        print('  "从这段文本提取企业信息并录入"')
         mcp.run(transport="streamable-http")
     else:
         # stdio 模式（Claude Desktop 自动拉起，无需打印日志）

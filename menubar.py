@@ -139,6 +139,7 @@ class EntHubMenuBar(rumps.App):
             self.status_item,
             None,
             rumps.MenuItem("一键标注号码", callback=self.on_quick_annotate),
+            rumps.MenuItem("智能提取录入", callback=self.on_smart_extract),
             None,
             rumps.MenuItem("打开控制台", callback=self.on_open_console),
             rumps.MenuItem("备份管理", callback=self.on_open_backup),
@@ -180,6 +181,68 @@ class EntHubMenuBar(rumps.App):
         self.auto_start_item.title = f"{mark} 开机启动"
         state = "开启" if new_val else "关闭"
         rumps.notification("EntHub", f"开机启动已{state}", "")
+
+    def on_smart_extract(self, _):
+        """智能提取录入：从剪贴板读取 → 验证提取 → 成功才跳转"""
+        import urllib.request
+        import urllib.error
+        import json
+
+        print("[EntHub] 智能提取录入开始...", flush=True)
+
+        # 1. 读剪贴板
+        try:
+            text = subprocess.check_output(["pbpaste"]).decode("utf-8")
+        except Exception as e:
+            print(f"[EntHub] 读取剪贴板失败：{e}", flush=True)
+            self._notify_result("读取剪贴板失败", type="error")
+            return
+
+        if not text.strip():
+            print("[EntHub] 剪贴板为空", flush=True)
+            self._notify_result("剪贴板为空", type="warning")
+            return
+
+        print(f"[EntHub] 剪贴板内容长度：{len(text)} 字", flush=True)
+
+        # 2. 调用提取 API 验证
+        try:
+            req = urllib.request.Request(
+                f"{URL}/api/quick-import/extract",
+                data=json.dumps({"text": text, "method": "auto"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read())
+        except urllib.error.URLError:
+            print("[EntHub] 服务未运行", flush=True)
+            self._notify_result("服务未运行，请先启动 EntHub", type="error")
+            return
+        except Exception as e:
+            print(f"[EntHub] 提取 API 调用失败：{e}", flush=True)
+            self._notify_result("提取失败", type="error")
+            return
+
+        # 3. 检查提取结果
+        if data.get("code") != 0:
+            msg = data.get("message", "未知错误")
+            print(f"[EntHub] 提取失败：{msg}", flush=True)
+            self._notify_result(f"提取失败：{msg}", type="error")
+            return
+
+        fields = data.get("data", {}).get("fields", {})
+        name = fields.get("name")
+
+        if not name:
+            print("[EntHub] 未能提取到企业名称", flush=True)
+            self._notify_result("未能提取到企业名称", type="warning")
+            return
+
+        # 4. 提取成功，打开浏览器
+        print(f"[EntHub] 提取成功：{name}，打开录入页面...", flush=True)
+        _open("/add?auto_fill=1")
+        self._notify_result(f"已识别「{name}」，打开录入页面", type="success")
 
     def on_quick_annotate(self, _):
         """一键标注：从剪贴板读取 → 标注号码 → 写回剪贴板"""

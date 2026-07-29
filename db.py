@@ -129,6 +129,7 @@ def init_db():
             company_id        INTEGER NOT NULL,
             name              TEXT NOT NULL,
             normalized_name   TEXT NOT NULL,
+            position          TEXT,
             FOREIGN KEY (company_id) REFERENCES companies(id)
         );
 
@@ -192,6 +193,7 @@ def init_db():
     _migrate(conn, "import_preview", "will_update", "INTEGER DEFAULT 0")
     _migrate(conn, "companies", "normalized_legal_person", "TEXT")
     _migrate(conn, "companies", "normalized_email", "TEXT")
+    _migrate(conn, "company_shareholders", "position", "TEXT")
 
     # 迁移：如果 phone_tag_map 还是旧的多标签 schema（复合主键），重建为单标签
     _pk_cols = [r for r in conn.execute("PRAGMA table_info(phone_tag_map)").fetchall() if r[5]]

@@ -714,12 +714,12 @@ def _merge_shareholders_cached(db, company_id, shareholders_str, sh_sets):
         sset = set()
         sh_sets[company_id] = sset
     added = 0
-    for raw, norm in split_shareholders(shareholders_str):
+    for raw, norm, position in split_shareholders(shareholders_str):
         if norm and norm not in sset:
             db.execute(
                 "INSERT INTO company_shareholders "
-                "(company_id, name, normalized_name) VALUES (?, ?, ?)",
-                [company_id, raw, norm]
+                "(company_id, name, normalized_name, position) VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, position]
             )
             sset.add(norm)
             added += 1

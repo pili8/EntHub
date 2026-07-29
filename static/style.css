@@ -1715,11 +1715,38 @@ tr:hover td { background: #f8fafc; }
     margin-bottom: 16px;
 }
 .detail-name {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.012em;
-    line-height: 1.25;
+font-size: 28px;
+font-weight: 700;
+color: var(--text);
+letter-spacing: -0.012em;
+line-height: 1.25;
+}
+.detail-name-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+.detail-refresh-btn {
+    flex-shrink: 0;
+    font-size: 13px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+    white-space: nowrap;
+    margin-top: 4px;
+}
+.detail-refresh-btn:hover {
+    border-color: var(--accent, #4a90d9);
+    color: var(--accent, #4a90d9);
+}
     word-break: break-word;
 }
 .detail-former {
@@ -1834,6 +1861,27 @@ tr:hover td { background: #f8fafc; }
 .dup-high { background: var(--danger-light);  color: var(--danger);  }
 
 /* 关联企业 */
+.detail-rel-section {
+    background: var(--bg-secondary, #f8f9fa);
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+}
+.rel-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+.rel-section-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-weight: 400;
+}
+
 .rel-block { margin-bottom: 18px; }
 .rel-block:last-child { margin-bottom: 0; }
 .rel-block-title {
@@ -1944,19 +1992,100 @@ tr:hover td { background: #f8fafc; }
     transition: background 0.15s, border-color 0.15s;
 }
 .shareholder-tag:hover {
-    background: var(--bg-hover, #e8e8e8);
-    border-color: var(--accent, #4a90d9);
-    color: var(--accent, #4a90d9);
+background: var(--bg-hover, #e8e8e8);
+border-color: var(--accent, #4a90d9);
+color: var(--accent, #4a90d9);
+}
+.shareholder-tag .shareholder-pos {
+margin-left: 6px;
+padding: 1px 6px;
+background: var(--accent, #4a90d9);
+color: #fff;
+border-radius: 8px;
+font-size: 11px;
+font-weight: 500;
 }
 
-/* 元信息 */
+/* 元信息（位于关联企业上方，跟随企业信息） */
 .detail-foot {
-    margin-top: 36px;
-    padding-top: 20px;
-    border-top: 1px dashed var(--border);
+    margin-top: 12px;
+    margin-bottom: 24px;
+    padding: 8px 0 14px;
+    border-bottom: 1px dashed var(--border);
     font-size: 12px;
     color: var(--text-muted);
-    text-align: center;
+}
+.detail-foot .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.detail-foot .meta-main {
+    justify-content: flex-end;
+}
+.detail-foot .meta-id {
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.detail-foot .meta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.detail-foot .meta-badge-import {
+    background: #DBEAFE;
+    color: #1E40AF;
+}
+.detail-foot .meta-badge-manual {
+    background: #DCFCE7;
+    color: #15803D;
+}
+.detail-foot .meta-badge-other {
+    background: #F3F4F6;
+    color: #6B7280;
+}
+.detail-foot .meta-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.detail-foot .meta-updated {
+    color: var(--accent, #4a90d9);
+}
+.detail-foot .meta-badge-clickable {
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.detail-foot .meta-badge-clickable:hover {
+    opacity: 0.75;
+}
+.detail-foot .meta-chevron {
+    transition: transform 0.2s;
+}
+
+/* 来源文件（低调展开） */
+.source-files-collapse {
+    margin-top: 6px;
+    padding-left: 2px;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.7;
+}
+.source-files-label {
+    color: var(--text-muted);
+}
+.source-files-text {
+    color: var(--text-muted);
 }
 
 /* ======================================================================= */

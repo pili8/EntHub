@@ -10,7 +10,7 @@
     <div class="page-subtitle">粘贴工商信息自动提取，或手动录入</div>
   </div>
 
-  <form action="{{ url_for('companies_bp.add_company') }}" method="post">
+  <form id="add-company-form" action="{{ url_for('companies_bp.add_company') }}" method="post">
 
     <!-- ═══ 智能提取部分 ═══ -->
     <div class="smart-card">
@@ -116,8 +116,8 @@
    智能提取卡片
 ═══════════════════════════════════════════════ */
 .smart-card {
-  background: white;
-  border: 1px solid var(--border-strong);
+  background: linear-gradient(135deg, #FFF8F4 0%, #FFF1E8 100%);
+  border: 1px solid #E8C4A8;
   border-radius: var(--radius-lg);
   overflow: hidden;
   margin-bottom: 24px;
@@ -212,6 +212,11 @@
   left: 12px;
   display: flex;
   gap: 4px;
+  transition: left 0.2s, right 0.2s;
+}
+.smart-input-tools--right {
+  left: auto;
+  right: 12px;
 }
 .smart-input-tool-btn {
   display: inline-flex;
@@ -382,6 +387,7 @@ const btnExtract = document.getElementById('btn-extract');
 const qeCharCount = document.getElementById('qe-char-count');
 const qeStatus = document.getElementById('qe-status');
 const qeMethod = document.getElementById('qe-method');
+const inputTools = document.querySelector('.smart-input-tools');
 
 // 输入时：控制按钮状态
 qeText.addEventListener('input', updateQeState);
@@ -393,6 +399,8 @@ function updateQeState() {
   qeCharCount.textContent = `${len} 字`;
   btnExtract.disabled = !hasText;
   if (!hasText) qeStatus.style.display = 'none';
+  // 有文字时按钮移到右边，无文字时在左边
+  inputTools.classList.toggle('smart-input-tools--right', hasText);
 }
 
 // 粘贴
@@ -583,5 +591,205 @@ function clearAllInputs() {
   });
 }
 window.clearAllInputs = clearAllInputs;
+
+// ── 自动填充（从菜单/ MCP 调用时 auto_fill=1）──
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('auto_fill') !== '1') return;
+
+  // 等页面渲染完再执行
+  requestAnimationFrame(() => {
+    setTimeout(async () => {
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          showQeStatus('error', '浏览器不支持读取剪贴板，请手动粘贴');
+          return;
+        }
+        const text = await navigator.clipboard.readText();
+        if (!text || !text.trim()) {
+          showQeStatus('warning', '剪贴板为空');
+          return;
+        }
+        qeText.value = text;
+        updateQeState();
+        // 直接调用提取，不需要点击按钮
+        await doExtract(null);
+      } catch (e) {
+        showQeStatus('error', '自动填充失败: ' + e.message);
+      }
+    }, 500);  // 等 500ms 确保页面完全加载
+  });
+})();
+
+// ── 表单 AJAX 提交 + 重复企业处理 ─────────────────────────────────────────
+const addForm = document.getElementById('add-company-form');
+let _submitting = false;  // 防止重复提交
+
+addForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  if (_submitting) return;
+  _submitting = true;
+
+  // 禁用提交按钮
+  const submitBtns = addForm.querySelectorAll('button[type="submit"]');
+  submitBtns.forEach(b => { b.disabled = true; });
+
+  try {
+    const fd = new FormData(addForm);
+    fd.set('_ajax', '1');
+
+    const resp = await fetch(addForm.action, { method: 'POST', body: fd });
+    const result = await resp.json();
+
+    if (result.code === 0) {
+      // 成功：跳转
+      window._enthubToast && window._enthubToast('success', '操作成功', result.message);
+      setTimeout(() => { window.location.href = result.redirect; }, 300);
+    } else if (result.code === 409) {
+      // 重复企业：弹出三选项弹窗
+      _showDuplicateModal(result.data, fd);
+    } else {
+      // 错误
+      window._enthubToast && window._enthubToast('error', '操作失败', result.message);
+    }
+  } catch(err) {
+    window._enthubToast && window._enthubToast('error', '网络错误', err.message);
+  } finally {
+    _submitting = false;
+    submitBtns.forEach(b => { b.disabled = false; });
+  }
+});
+
+// ── 重复企业处理弹窗 ──
+function _showDuplicateModal(data, originalFormData) {
+  const eid = data.existing_id;
+  const ename = data.existing_name;
+  const newPhones = data.new_phones || [];
+  const newShareholders = data.new_shareholders || [];
+
+  // 构建信息摘要
+  let phoneBadge = '';
+  if (data.has_new_phones) {
+    phoneBadge = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#DCFCE7;color:#15803D;border-radius:10px;font-size:11px;font-weight:600;">${newPhones.length} 个新号码</span>`;
+  } else {
+    phoneBadge = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#F3F4F6;color:#9CA3AF;border-radius:10px;font-size:11px;">无新号码</span>`;
+  }
+
+  let shBadge = '';
+  if (data.has_new_shareholders) {
+    shBadge = `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#FFEDD5;color:#C2410C;border-radius:10px;font-size:11px;font-weight:600;">${newShareholders.length} 个新股东</span>`;
+  }
+
+  // 新号码列表
+  let phoneList = '';
+  if (data.has_new_phones) {
+    phoneList = `<div style="margin-top:6px;font-size:12px;color:#15803D;line-height:1.6;">${newPhones.map(p => '📞 ' + p).join('　')}</div>`;
+  }
+
+  // 新股东列表
+  let shList = '';
+  if (data.has_new_shareholders) {
+    shList = `<div style="margin-top:4px;font-size:12px;color:#C2410C;line-height:1.6;">${newShareholders.map(s => '👤 ' + s).join('　')}</div>`;
+  }
+
+  // 选项卡片
+  const hasMerge = data.has_new_phones || data.has_new_shareholders;
+  const options = [
+    {
+      icon: '🔍', title: '查看已有企业',
+      desc: '跳转到「' + ename + '」的详情页面，不做任何修改',
+      action: () => { closeModal(); window.location.href = `/company/${eid}`; }
+    },
+    {
+      icon: '✏️', title: '覆盖更新',
+      desc: '用表单数据更新已有企业的工商字段（空字段不覆盖），同时追加新号码和新股东',
+      action: async () => { closeModal(); await _resubmitWithAction(originalFormData, 'overwrite', eid); }
+    },
+  ];
+  if (hasMerge) {
+    const mergeParts = [];
+    if (data.has_new_phones) mergeParts.push(`${newPhones.length} 个电话号码`);
+    if (data.has_new_shareholders) mergeParts.push(`${newShareholders.length} 个股东`);
+    options.push({
+      icon: '➕', title: '仅合并新数据',
+      desc: `只追加${mergeParts.join('和')}，不修改已有工商字段`,
+      action: async () => { closeModal(); await _resubmitWithAction(originalFormData, 'merge_phones', eid); }
+    });
+  }
+
+  const optionCards = options.map((opt, i) => `
+    <div class="dup-option" data-idx="${i}" style="
+      display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--border);
+      border-radius:8px;cursor:pointer;transition:all 0.15s;margin-bottom:8px;">
+      <div style="font-size:18px;flex-shrink:0;line-height:1.4;">${opt.icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">${opt.title}</div>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.4;">${opt.desc}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const content = `
+    <div style="margin-bottom:10px;">
+      <p style="margin:0;font-size:13px;color:var(--text);">
+        <strong>「${ename}」</strong>已在数据库中
+      </p>
+      <div style="margin-top:4px;font-size:12px;color:var(--text-muted);">
+        电话${phoneBadge}${shBadge}
+      </div>
+      ${phoneList}${shList}
+    </div>
+    <div style="margin-top:10px;">
+      ${optionCards}
+    </div>
+  `;
+
+  showModal('发现重复企业', content, [
+    { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' }
+  ]);
+
+  // 绑定卡片点击事件
+  document.querySelectorAll('.dup-option').forEach(card => {
+    card.addEventListener('mouseenter', () => {
+      card.style.borderColor = 'var(--accent)';
+      card.style.background = 'var(--accent-light, #FFF8F4)';
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.borderColor = 'var(--border)';
+      card.style.background = '';
+    });
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.idx);
+      options[idx].action();
+    });
+  });
+}
+
+// ── 带操作参数重新提交 ──
+async function _resubmitWithAction(originalFormData, action, existingId) {
+  const fd = new FormData();
+  for (const [key, value] of originalFormData.entries()) {
+    fd.append(key, value);
+  }
+  fd.set('_ajax', '1');
+  fd.set('_action', action);
+  fd.set('_existing_id', String(existingId));
+
+  window._enthubToast && window._enthubToast('info', '正在处理...', '');
+
+  try {
+    const resp = await fetch(addForm.action, { method: 'POST', body: fd });
+    const result = await resp.json();
+
+    if (result.code === 0) {
+      window._enthubToast && window._enthubToast('success', '操作成功', result.message);
+      setTimeout(() => { window.location.href = result.redirect; }, 300);
+    } else {
+      window._enthubToast && window._enthubToast('error', '操作失败', result.message);
+    }
+  } catch(err) {
+    window._enthubToast && window._enthubToast('error', '网络错误', err.message);
+  }
+}
 </script>
 {% endblock %}
