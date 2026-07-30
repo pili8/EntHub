@@ -13,7 +13,7 @@ from utils import (
     phone_location, phone_location_str,
     get_phone_tags, get_phone_tags_batch,
 )
-from data_helpers import sync_phones, sync_shareholders
+from data_helpers import sync_phones, sync_emails, sync_shareholders
 from extract_service import extract_company_info
 
 api_bp = Blueprint('api_bp', __name__)
@@ -165,8 +165,8 @@ def company_detail(company_id):
         ORDER BY cp.is_primary DESC, cp.is_recommended DESC
     """, [company_id]).fetchall()
 
-    # 附加归属地和电话标记
-    from utils import phone_location, get_phone_tags_batch
+    # 附加归属地、电话标记和校验状态
+    from utils import phone_location, get_phone_tags_batch, validate_phone
     phone_tag_map = get_phone_tags_batch(
         g.db, [r['normalized_phone'] for r in company_phones]
     ) if company_phones else {}
@@ -175,7 +175,22 @@ def company_detail(company_id):
         cp_dict = dict(cp)
         cp_dict['location'] = phone_location(cp['phone'])
         cp_dict['tag'] = phone_tag_map.get(cp['normalized_phone'])
+        is_valid, phone_type, reason = validate_phone(cp['normalized_phone'])
+        cp_dict['phone_valid'] = is_valid
+        cp_dict['phone_type'] = phone_type
+        cp_dict['phone_invalid_reason'] = reason if not is_valid else ""
         phone_list.append(cp_dict)
+
+    # 关联邮箱
+    company_emails = g.db.execute("""
+        SELECT ce.email, ce.normalized_email, ce.is_primary,
+               (SELECT COUNT(DISTINCT company_id) FROM company_emails ce2
+                WHERE ce2.normalized_email = ce.normalized_email) AS dup_count
+        FROM company_emails ce
+        WHERE ce.company_id = ?
+        ORDER BY ce.is_primary DESC
+    """, [company_id]).fetchall()
+    email_list = [dict(e) for e in company_emails]
 
     relations = {}
     relation_counts = {}
@@ -198,13 +213,12 @@ def company_detail(company_id):
         """, [company_id] + phone_norms).fetchall()
         relations['phones'] = [dict(r) for r in related]
 
-    # 其他关联（法人/股东/行业/邮箱）
+    # 其他关联（法人/股东/行业）
     for field, key in [('legal_person', 'legal_person'),
                        ('shareholders', 'shareholders'),
-                       ('industry', 'industry'),
-                       ('email', 'email')]:
+                       ('industry', 'industry')]:
         val = row[field] if row[field] else None
-        if val and val != '-' and (field != 'email' or '@' in val):
+        if val and val != '-':
             related = g.db.execute(f"""
                 SELECT c.id, c.name, c.address,
                        (SELECT group_concat(phone, '; ')
@@ -221,6 +235,25 @@ def company_detail(company_id):
             ).fetchone()[0]
             relation_counts[key] = cnt
 
+    # 关联邮箱（查 company_emails 表）
+    email_norms = [r['normalized_email'] for r in company_emails if r['normalized_email']]
+    if email_norms:
+        placeholders = ','.join(['?'] * len(email_norms))
+        related = g.db.execute(f"""
+            SELECT DISTINCT c.id, c.name, c.address,
+                   (SELECT group_concat(phone, '; ')
+                    FROM company_phones
+                    WHERE company_id = c.id
+                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+            FROM companies c
+            JOIN company_emails ce ON ce.company_id = c.id
+            WHERE c.id <> ? AND ce.normalized_email IN ({placeholders})
+              AND ce.normalized_email <> ''
+            ORDER BY c.name LIMIT 10
+        """, [company_id] + email_norms).fetchall()
+        relations['email'] = [dict(r) for r in related]
+        relation_counts['email'] = len(relations['email'])
+
     # 标签
     tags = g.db.execute("""
         SELECT t.id, t.name, t.color FROM tags t
@@ -232,6 +265,7 @@ def company_detail(company_id):
     return _ok({
         "company": company,
         "phones": phone_list,
+        "emails": email_list,
         "relations": relations,
         "relation_counts": relation_counts,
         "tags": [dict(t) for t in tags]
@@ -264,6 +298,19 @@ def relations():
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE cp.normalized_phone = ?
+            ORDER BY c.name LIMIT ?
+        """, [norm_value, limit]).fetchall()
+    elif rel_type == 'email':
+        norm_value = normalize_email(value)
+        rows = g.db.execute("""
+            SELECT DISTINCT c.id, c.name, c.address,
+                   (SELECT group_concat(phone, '; ')
+                    FROM company_phones
+                    WHERE company_id = c.id
+                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+            FROM companies c
+            JOIN company_emails ce ON ce.company_id = c.id
+            WHERE ce.normalized_email = ?
             ORDER BY c.name LIMIT ?
         """, [norm_value, limit]).fetchall()
     else:
@@ -396,7 +443,7 @@ _COMPANY_FIELDS = [
     "established_date", "approved_date", "business_term",
     "province", "city", "district", "insured_count",
     "company_type", "industry", "former_name", "website",
-    "email", "other_email", "business_scope", "business_status",
+    "email", "business_scope", "business_status",
     "enterprise_scale", "mailing_address", "english_name",
 ]
 
@@ -404,7 +451,6 @@ _COMPANY_FIELDS = [
 _NORMALIZED_MAP = {
     "name": ("normalized_name", normalize_name),
     "legal_person": ("normalized_legal_person", normalize_person_name),
-    "email": ("normalized_email", normalize_email),
 }
 
 
@@ -433,7 +479,7 @@ def create_company():
         "legal_person": "...",
         ...其他工商字段...
         "phone": "138xxx; 028-xxx",  // 可选，存入 company_phones
-        "other_phone": "...",
+        "email": "a@b.com",         // 可选，存入 company_emails
         "shareholders": "张三; 李四",  // 可选，存入 company_shareholders
         "source": "api",             // 来源标识，默认 api
     }
@@ -451,8 +497,6 @@ def create_company():
     fields["normalized_name"] = normalize_name(name)
     if "legal_person" in fields:
         fields["normalized_legal_person"] = normalize_person_name(fields["legal_person"])
-    if "email" in fields:
-        fields["normalized_email"] = normalize_email(fields["email"])
     if "credit_code" in fields:
         fields["credit_code"] = normalize_credit_code(fields["credit_code"])
 
@@ -462,7 +506,7 @@ def create_company():
 
     # 提取电话和股东
     phone_val = str(data.get("phone", "")).strip()
-    other_phone_val = str(data.get("other_phone", "")).strip()
+    email_val = str(data.get("email", "")).strip()
     shareholders_val = str(data.get("shareholders", "")).strip()
 
     # 重复检查
@@ -484,8 +528,12 @@ def create_company():
     company_id = cursor.lastrowid
 
     # 电话
-    if phone_val or other_phone_val:
-        sync_phones(g.db, company_id, phone_val, other_phone_val)
+    if phone_val:
+        sync_phones(g.db, company_id, phone_val)
+
+    # 邮箱
+    if email_val:
+        sync_emails(g.db, company_id, email_val)
 
     # 股东
     if shareholders_val:
@@ -520,12 +568,12 @@ def update_company(company_id):
 
     # 提取电话和股东
     phone_val = str(data.get("phone", "")).strip()
-    other_phone_val = str(data.get("other_phone", "")).strip()
+    email_val = str(data.get("email", "")).strip()
     shareholders_val = str(data.get("shareholders", "")).strip()
 
-    # 电话/股东不入 companies 主表
+    # 电话/邮箱/股东不入 companies 主表
     fields.pop("phone", None)
-    fields.pop("other_phone", None)
+    fields.pop("email", None)
     fields.pop("shareholders", None)
 
     updated_fields = []
@@ -563,9 +611,14 @@ def update_company(company_id):
             )
 
     # 电话
-    if phone_val or other_phone_val:
-        sync_phones(g.db, company_id, phone_val, other_phone_val)
+    if phone_val:
+        sync_phones(g.db, company_id, phone_val)
         updated_fields.append("phone")
+
+    # 邮箱
+    if email_val:
+        sync_emails(g.db, company_id, email_val)
+        updated_fields.append("email")
 
     # 股东
     if shareholders_val:
@@ -649,11 +702,11 @@ def quick_import():
     name = fields["name"]
     norm_name = normalize_name(name)
 
-    # 电话/股东从 fields 中提取
+    # 电话/邮箱/股东从 fields 中提取
     phone_val = fields.pop("phone", "")
-    other_phone_val = fields.pop("other_phone", "")
+    email_val = fields.pop("email", "")
     shareholders_val = fields.pop("shareholders", "")
-    fields.pop("taxpayer_id", None)  # 自动补充的，不单独处理
+    fields.pop("taxpayer_id", None)
 
     # 2. 重复检查
     existing = g.db.execute(
@@ -690,8 +743,10 @@ def quick_import():
                     [norm_fn(fields[field]), company_id]
                 )
 
-        if phone_val or other_phone_val:
-            sync_phones(g.db, company_id, phone_val, other_phone_val)
+        if phone_val:
+            sync_phones(g.db, company_id, phone_val)
+        if email_val:
+            sync_emails(g.db, company_id, email_val)
         if shareholders_val:
             sync_shareholders(g.db, company_id, shareholders_val)
 
@@ -713,8 +768,6 @@ def quick_import():
     fields["normalized_name"] = norm_name
     if "legal_person" in fields:
         fields["normalized_legal_person"] = normalize_person_name(fields["legal_person"])
-    if "email" in fields:
-        fields["normalized_email"] = normalize_email(fields["email"])
     if "credit_code" in fields:
         fields["credit_code"] = normalize_credit_code(fields["credit_code"])
         if "taxpayer_id" not in fields:
@@ -731,8 +784,10 @@ def quick_import():
     )
     company_id = cursor.lastrowid
 
-    if phone_val or other_phone_val:
-        sync_phones(g.db, company_id, phone_val, other_phone_val)
+    if phone_val:
+        sync_phones(g.db, company_id, phone_val)
+    if email_val:
+        sync_emails(g.db, company_id, email_val)
     if shareholders_val:
         sync_shareholders(g.db, company_id, shareholders_val)
 

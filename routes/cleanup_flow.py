@@ -10,20 +10,20 @@ from db import DB_PATH
 import backup
 import tasks
 from queries import invalidate_cache
-from data_helpers import merge_phones, merge_shareholders
+from data_helpers import merge_phones, merge_emails, merge_shareholders
 
 bp = Blueprint('cleanup_flow_bp', __name__)
 
 
 # 与 import 流程一致的全量字段列表
 IMPORT_FIELDS = [
-    "name", "phone", "other_phone", "address", "annual_report_address",
+    "name", "phone", "address", "annual_report_address",
     "credit_code", "taxpayer_id", "registration_no", "org_code",
     "legal_person", "registered_capital", "paid_capital",
     "established_date", "approved_date", "business_term",
     "province", "city", "district", "insured_count",
     "company_type", "industry", "former_name", "website",
-    "email", "other_email", "business_scope", "business_status",
+    "email", "business_scope", "business_status",
     "enterprise_scale", "shareholders", "mailing_address",
     "english_name", "tags", "source_file",
 ]
@@ -289,14 +289,19 @@ def _cleanup_worker(task_queue, stop_event, clean_nan, clean_header,
             deleted_total += n
             send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
 
-        # 5. 清理孤立电话
+        # 5. 清理孤立电话和邮箱
         if not stop_event.is_set():
             step += 1
-            send("step", {"step": step, "label": "清理孤立电话记录"})
-            n = db.execute(
+            send("step", {"step": step, "label": "清理孤立关联记录"})
+            n1 = db.execute(
                 "DELETE FROM company_phones "
                 "WHERE company_id NOT IN (SELECT id FROM companies)"
             ).rowcount
+            n2 = db.execute(
+                "DELETE FROM company_emails "
+                "WHERE company_id NOT IN (SELECT id FROM companies)"
+            ).rowcount
+            n = n1 + n2
             deleted_total += n
             send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
 
@@ -378,11 +383,11 @@ def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
         placeholders = ",".join(["?"] * len(ids))
         rows = db.execute(f"""
             SELECT c.id, c.name, c.credit_code, c.legal_person,
-                   c.address, c.province, c.city, c.industry, c.business_status, c.email,
+                   c.address, c.province, c.city, c.industry, c.business_status,
                    c.updated_at, c.registered_capital, c.paid_capital,
                    c.established_date, c.approved_date, c.business_term,
                    c.district, c.insured_count, c.company_type, c.former_name,
-                   c.website, c.other_email, c.business_scope, c.enterprise_scale,
+                   c.website, c.business_scope, c.enterprise_scale,
                    c.shareholders, c.mailing_address, c.english_name, c.tags,
                    c.annual_report_address, c.taxpayer_id, c.registration_no, c.org_code,
                    c.source_file,
@@ -396,7 +401,7 @@ def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
                     CASE WHEN c.city <> '' THEN 1 ELSE 0 END +
                     CASE WHEN c.industry <> '' THEN 1 ELSE 0 END +
                     CASE WHEN c.business_status <> '' THEN 1 ELSE 0 END +
-                    CASE WHEN c.email <> '' THEN 1 ELSE 0 END) AS completeness
+                    CASE WHEN (SELECT COUNT(*) FROM company_emails WHERE company_id = c.id) > 0 THEN 1 ELSE 0 END) AS completeness
             FROM companies c WHERE c.id IN ({placeholders})
         """, ids).fetchall()
 
@@ -422,7 +427,15 @@ def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
             if dup_phone_rows:
                 phones_list = [p["phone"] for p in dup_phone_rows if p["phone"]]
                 if phones_list:
-                    merge_phones(db, keep_id, phones_list[0], ";".join(phones_list[1:]), "")
+                    merge_phones(db, keep_id, ";".join(phones_list), "")
+
+            # 邮箱累加
+            dup_email_rows = db.execute(
+                "SELECT email FROM company_emails WHERE company_id = ?", [r["id"]]
+            ).fetchall()
+            if dup_email_rows:
+                emails_str = ";".join([e["email"] for e in dup_email_rows if e["email"]])
+                merge_emails(db, keep_id, emails_str)
 
             # 股东累加
             dup_sh_rows = db.execute(
@@ -442,7 +455,7 @@ def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
 
             # 其他字段：保留记录为空时，从被删记录补全
             for f in IMPORT_FIELDS:
-                if f in ("name", "phone", "other_phone", "shareholders",
+                if f in ("name", "phone", "email", "shareholders",
                          "source_file", "tags"):
                     continue  # 这些字段特殊处理或不合并
                 kept_val = updates.get(f) or keep[f]
@@ -469,6 +482,8 @@ def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
         delete_ids = [r["id"] for r in rows[1:]]
         del_placeholders = ",".join(["?"] * len(delete_ids))
         db.execute(f"DELETE FROM company_phones WHERE company_id IN ({del_placeholders})",
+                   delete_ids)
+        db.execute(f"DELETE FROM company_emails WHERE company_id IN ({del_placeholders})",
                    delete_ids)
         db.execute(f"DELETE FROM company_shareholders WHERE company_id IN ({del_placeholders})",
                    delete_ids)

@@ -78,6 +78,7 @@ def batch_delete_companies():
         placeholders = ",".join("?" * len(ids))
         g.db.execute(f"DELETE FROM company_tags WHERE company_id IN ({placeholders})", ids)
         g.db.execute(f"DELETE FROM company_phones WHERE company_id IN ({placeholders})", ids)
+        g.db.execute(f"DELETE FROM company_emails WHERE company_id IN ({placeholders})", ids)
         g.db.execute(f"DELETE FROM companies WHERE id IN ({placeholders})", ids)
         g.db.commit()
         return jsonify({

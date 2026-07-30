@@ -33,7 +33,9 @@ def index():
             COUNT(*)                                       AS total,
             COUNT(DISTINCT normalized_name)                AS unique_names,
             (SELECT COUNT(DISTINCT normalized_phone) FROM company_phones) AS unique_phones,
-            (SELECT COUNT(*) FROM company_phones) AS rows_with_phone
+            (SELECT COUNT(*) FROM company_phones) AS rows_with_phone,
+            (SELECT COUNT(DISTINCT normalized_email) FROM company_emails) AS unique_emails,
+            (SELECT COUNT(*) FROM company_emails) AS rows_with_email
         FROM companies
     """).fetchone()
     rows = g.db.execute("""
@@ -276,7 +278,6 @@ _EXPORT_COLUMNS = [
     ("legal_person",          "法定代表人"),
     ("phone",                 "电话"),
     ("email",                 "邮箱"),
-    ("other_email",           "其他邮箱"),
     ("website",               "网址"),
     ("credit_code",           "统一信用代码"),
     ("taxpayer_id",           "纳税人识别号"),
@@ -319,7 +320,7 @@ def browse_export():
     selected_ids = [int(x) for x in ids_raw.split(",") if x.strip().isdigit()]
 
     # 全字段列表（排除 normalized_* 和 status）
-    _all_cols = [c[0] for c in _EXPORT_COLUMNS if c[0] != "phone"]
+    _all_cols = [c[0] for c in _EXPORT_COLUMNS if c[0] not in ("phone", "email")]
     _select_cols = ", ".join(f"c.{c}" for c in _all_cols)
 
     if selected_ids:
@@ -327,7 +328,10 @@ def browse_export():
         rows = g.db.execute(f"""
             SELECT {_select_cols},
                    (SELECT GROUP_CONCAT(p.normalized_phone, ';')
-                      FROM company_phones p WHERE p.company_id = c.id) AS phone
+                      FROM company_phones p WHERE p.company_id = c.id) AS phone,
+                   (SELECT GROUP_CONCAT(e.email, '; ')
+                      FROM company_emails e WHERE e.company_id = c.id
+                      ORDER BY e.is_primary DESC) AS email
               FROM companies c
              WHERE c.id IN ({placeholders})
              ORDER BY c.id
@@ -338,7 +342,10 @@ def browse_export():
         rows = g.db.execute(f"""
             SELECT {_select_cols},
                    (SELECT GROUP_CONCAT(p.normalized_phone, ';')
-                      FROM company_phones p WHERE p.company_id = c.id) AS phone
+                      FROM company_phones p WHERE p.company_id = c.id) AS phone,
+                   (SELECT GROUP_CONCAT(e.email, '; ')
+                      FROM company_emails e WHERE e.company_id = c.id
+                      ORDER BY e.is_primary DESC) AS email
               FROM companies c
               {where_clause}
              ORDER BY c.id
@@ -380,7 +387,7 @@ def browse_export():
     # 列宽自适应
     col_widths = {
         "id": 8, "name": 30, "former_name": 20, "english_name": 20,
-        "legal_person": 10, "phone": 25, "email": 22, "other_email": 22,
+        "legal_person": 10, "phone": 25, "email": 25,
         "website": 20, "credit_code": 22, "taxpayer_id": 20,
         "registration_no": 18, "org_code": 14,
         "registered_capital": 14, "paid_capital": 14,
@@ -543,24 +550,26 @@ def browse_relation_groups():
     elif dup_type == "email":
         total = g.db.execute("""
             SELECT COUNT(*) FROM (
-                SELECT normalized_email FROM companies
+                SELECT normalized_email FROM company_emails
                 WHERE normalized_email IS NOT NULL AND normalized_email <> ''
-                GROUP BY normalized_email HAVING COUNT(*) >= ?
+                GROUP BY normalized_email HAVING COUNT(DISTINCT company_id) >= ?
             )
         """, [min_count]).fetchone()[0]
         rows = g.db.execute(f"""
             SELECT t.val, t.display_val, t.cnt,
                    (SELECT GROUP_CONCAT(cname, '; ') FROM (
-                       SELECT name AS cname FROM companies
-                       WHERE normalized_email = t.val LIMIT 10
+                       SELECT c.name AS cname
+                       FROM company_emails ce2
+                       JOIN companies c ON c.id = ce2.company_id
+                       WHERE ce2.normalized_email = t.val LIMIT 10
                    )) AS company_names
             FROM (
-                SELECT normalized_email AS val,
-                       MIN(email)        AS display_val,
-                       COUNT(*)          AS cnt
-                FROM companies
-                WHERE normalized_email IS NOT NULL AND normalized_email <> ''
-                GROUP BY normalized_email
+                SELECT ce.normalized_email AS val,
+                       MIN(ce.email)        AS display_val,
+                       COUNT(DISTINCT ce.company_id) AS cnt
+                FROM company_emails ce
+                WHERE ce.normalized_email IS NOT NULL AND ce.normalized_email <> ''
+                GROUP BY ce.normalized_email
                 HAVING cnt >= ?
                 ORDER BY {order_sql}
                 LIMIT ? OFFSET ?
@@ -739,14 +748,16 @@ def relation_group_detail():
 
         elif dup_type == "email":
             total = g.db.execute(
-                "SELECT COUNT(*) FROM companies WHERE normalized_email = ?",
+                "SELECT COUNT(DISTINCT company_id) FROM company_emails "
+                "WHERE normalized_email = ?",
                 [val]
             ).fetchone()[0]
             companies = g.db.execute(f"""
                 SELECT c.id, c.name, c.district, c.legal_person, c.business_status,
                        {COMPANY_LIST_PHONE_SUBQUERY}
                 FROM companies c
-                WHERE c.normalized_email = ?
+                JOIN company_emails ce ON ce.company_id = c.id
+                WHERE ce.normalized_email = ?
                 ORDER BY c.name LIMIT ? OFFSET ?
             """, [val, per_page, offset]).fetchall()
 
@@ -797,10 +808,11 @@ def browse_relation_top():
              WHERE c2.normalized_legal_person = c.normalized_legal_person
                AND c2.normalized_legal_person IS NOT NULL
                AND c2.normalized_legal_person <> '') AS legal_person_count,
-            (SELECT COUNT(*) FROM companies c2
-             WHERE c2.normalized_email = c.normalized_email
-               AND c2.normalized_email IS NOT NULL
-               AND c2.normalized_email <> '') AS email_count
+            (SELECT COUNT(DISTINCT ce.company_id) FROM company_emails ce
+             JOIN companies c3 ON c3.id = ce.company_id
+             WHERE ce.normalized_email IN (
+                 SELECT normalized_email FROM company_emails WHERE company_id = c.id
+             ) AND ce.company_id != c.id) AS email_count
         FROM companies c
         LEFT JOIN company_phones cp ON cp.company_id = c.id
         LEFT JOIN company_shareholders cs ON cs.company_id = c.id

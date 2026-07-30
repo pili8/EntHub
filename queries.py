@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 from utils import (
     normalize_phone, normalize_credit_code, normalize_name,
+    normalize_email,
 )
 
 # ── 常量 ────────────────────────────────────────────────────────────────────
@@ -32,21 +33,22 @@ ALLOWED_SORTS = {
 "industry": "industry",
 }
 
-# 文本搜索字段（按优先级排序）。第一项是 normalized_name，匹配时用归一化值。
+    # 文本搜索字段（按优先级排序）。第一项是 normalized_name，匹配时用归一化值。
+# email 字段在 company_emails 表中，text_search 内部特殊处理。
 TEXT_SEARCH_FIELDS = [
     ("normalized_name", "名称", 1),
     ("former_name",     "曾用名", 2),
     ("address",         "地址",  3),
     ("legal_person",    "法人",  4),
     ("shareholders",    "股东",  5),
-    ("email",           "邮箱",  6),
+    ("email",           "邮箱",  6),  # 特殊：查 company_emails 表
     ("website",         "网站",  7),
 ]
 
 # 精确筛选字段
 EXACT_FILTERS = ("city", "district", "business_status", "industry", "company_type")
 
-# 列表查询的标准字段（含电话聚合子查询）
+# 列表查询的标准字段（含电话/邮箱聚合子查询）
 COMPANY_LIST_PHONE_SUBQUERY = (
     "(SELECT group_concat(phone, '; ') "
     "FROM company_phones "
@@ -54,12 +56,20 @@ COMPANY_LIST_PHONE_SUBQUERY = (
     "ORDER BY is_primary DESC, is_recommended DESC) AS phone"
 )
 
+COMPANY_LIST_EMAIL_SUBQUERY = (
+    "(SELECT group_concat(email, '; ') "
+    "FROM company_emails "
+    "WHERE company_id = c.id "
+    "ORDER BY is_primary DESC) AS email"
+)
+
 COMPANY_LIST_COLUMNS = f"""
     c.id, c.name, c.address, c.credit_code,
     c.legal_person, c.business_status, c.province, c.city,
     c.district, c.established_date, c.registered_capital,
     c.industry, c.enterprise_scale, c.created_at,
-    {COMPANY_LIST_PHONE_SUBQUERY}
+    {COMPANY_LIST_PHONE_SUBQUERY},
+    {COMPANY_LIST_EMAIL_SUBQUERY}
 """
 
 
@@ -382,6 +392,60 @@ def phone_stats_grouped(db, page, per_page, min_count):
     return total, pages, rows
 
 
+# ── 邮箱重复统计 ──────────────────────────────────────────────────────────────
+
+def email_dup_count(db, normalized_email):
+    """查询邮箱关联了多少家不同企业。"""
+    if not normalized_email:
+        return 0
+    return db.execute(
+        "SELECT COUNT(DISTINCT company_id) FROM company_emails "
+        "WHERE normalized_email = ?",
+        [normalized_email]
+    ).fetchone()[0]
+
+
+def email_stats_grouped(db, page, per_page, min_count):
+    """按 normalized_email 分组统计重复邮箱，返回 (total, pages, rows)。"""
+    total = db.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT normalized_email FROM company_emails
+            WHERE normalized_email IS NOT NULL AND normalized_email <> ''
+            GROUP BY normalized_email
+            HAVING COUNT(*) >= ?
+        )
+    """, [min_count]).fetchone()[0]
+
+    pages = max(1, math.ceil(total / per_page))
+    offset = (page - 1) * per_page
+
+    rows = db.execute("""
+        SELECT t.normalized_email,
+               t.display_email,
+               t.cnt,
+               (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                   SELECT c.name AS cname
+                   FROM company_emails ce2
+                   JOIN companies c ON c.id = ce2.company_id
+                   WHERE ce2.normalized_email = t.normalized_email
+                   LIMIT 10
+               )) AS company_names
+        FROM (
+            SELECT ce.normalized_email,
+                   MIN(ce.email) AS display_email,
+                   COUNT(*) AS cnt
+            FROM company_emails ce
+            WHERE ce.normalized_email IS NOT NULL AND ce.normalized_email <> ''
+            GROUP BY ce.normalized_email
+            HAVING cnt >= ?
+            ORDER BY cnt DESC
+            LIMIT ? OFFSET ?
+        ) t
+    """, [min_count, per_page, offset]).fetchall()
+
+    return total, pages, rows
+
+
 # ── 文本搜索（多字段带优先级） ──────────────────────────────────────────────
 
 def text_search(db, q, per_page, offset):
@@ -394,9 +458,11 @@ def text_search(db, q, per_page, offset):
     like_name = "%" + norm_q + "%"
 
     # total: UNION 去重
-    # 第一个字段是 normalized_name，用归一化值匹配；其他用原文 LIKE。
+    # 第一个字段是 normalized_name，用归一化值匹配；email 查 company_emails 表；其余用原文 LIKE。
     total_sql = "SELECT COUNT(*) FROM (\n    " + "\n    UNION\n    ".join(
-        f"SELECT id FROM companies WHERE {field} LIKE ?"
+        (f"SELECT company_id FROM company_emails WHERE email LIKE ?"
+         if field == "email" else
+         f"SELECT id FROM companies WHERE {field} LIKE ?")
         for field, _, _ in TEXT_SEARCH_FIELDS
     ) + "\n)"
     # 第一个参数用归一化的 like_name，其余用 like_q
@@ -407,10 +473,16 @@ def text_search(db, q, per_page, offset):
     branches = []
     for field, label, priority in TEXT_SEARCH_FIELDS:
         param = "like_name" if field == "normalized_name" else "like_q"
-        branches.append(
-            f"            SELECT id, '{label}' AS matched_field, {priority} AS priority "
-            f"FROM companies WHERE {field} LIKE ?"
-        )
+        if field == "email":
+            branches.append(
+                f"            SELECT company_id AS id, '{label}' AS matched_field, {priority} AS priority "
+                f"FROM company_emails WHERE email LIKE ?"
+            )
+        else:
+            branches.append(
+                f"            SELECT id, '{label}' AS matched_field, {priority} AS priority "
+                f"FROM companies WHERE {field} LIKE ?"
+            )
     branches_sql = "\n            UNION ALL\n".join(branches)
 
     rows = db.execute(f"""
@@ -461,6 +533,26 @@ def search_by_credit_code(db, norm_code, per_page, offset,
         WHERE c.credit_code = ?
         LIMIT ? OFFSET ?
     """, [matched_label, norm_code, per_page, offset]).fetchall()
+    return total, rows
+
+
+# ── 邮箱精确搜索 ─────────────────────────────────────────────────────────────
+
+def search_by_email(db, norm_email, per_page, offset,
+                    matched_label="邮箱"):
+    """按 normalized_email 搜索企业。"""
+    total = db.execute(
+        "SELECT COUNT(*) FROM company_emails WHERE normalized_email = ?",
+        [norm_email]
+    ).fetchone()[0]
+    rows = db.execute(f"""
+        SELECT {COMPANY_LIST_COLUMNS},
+               ? AS matched_field
+        FROM company_emails ce
+        JOIN companies c ON ce.company_id = c.id
+        WHERE ce.normalized_email = ?
+        ORDER BY c.name LIMIT ? OFFSET ?
+    """, [matched_label, norm_email, per_page, offset]).fetchall()
     return total, rows
 
 

@@ -250,8 +250,8 @@ def map_jinghai_to_enthub(raw_response):
     # - reportTaxFrom / reportTaxTotal: 纳税信息
 
     # 注意: API 工商信息接口不返回以下字段:
-    # - phone / other_phone (电话) → 需单独调用联系方式接口
-    # - email / other_email (邮箱) → 需单独调用联系方式接口
+    # - phone (电话) → 需单独调用联系方式接口
+    # - email (邮箱) → 需单独调用联系方式接口
     # - website (网址) → 需单独调用网站信息接口
     # - shareholders (股东) → 需单独调用股东信息接口 (ID: 10004)
     # - annual_report_address (年报地址) → 需单独调用年报接口

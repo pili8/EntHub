@@ -18,7 +18,7 @@ import sqlite3
 from mcp.server.fastmcp import FastMCP
 from db import get_db, DB_PATH
 from utils import normalize_phone, normalize_credit_code, normalize_name, \
-    normalize_person_name, normalize_email
+    normalize_person_name, normalize_email, validate_phone
 from extract_service import extract_company_info
 import math
 
@@ -131,7 +131,7 @@ def search_companies(q: str, limit: int = 20) -> dict:
                    UNION ALL
                    SELECT id, '股东', 5 FROM companies WHERE shareholders LIKE ?
                    UNION ALL
-                   SELECT id, '邮箱', 6 FROM companies WHERE email LIKE ?
+                   SELECT company_id AS id, '邮箱', 6 FROM company_emails WHERE email LIKE ?
                    UNION ALL
                    SELECT id, '网站', 7 FROM companies WHERE website LIKE ?
                ) m
@@ -172,6 +172,27 @@ def get_company_detail(company_id: int) -> dict:
         ORDER BY cp.is_primary DESC, cp.is_recommended DESC
     """, [company_id]).fetchall()
     
+    # 为电话附加校验状态
+    phone_list = []
+    for cp in company_phones:
+        cp_dict = dict(cp)
+        is_valid, phone_type, reason = validate_phone(cp['normalized_phone'])
+        cp_dict['phone_valid'] = is_valid
+        cp_dict['phone_type'] = phone_type
+        cp_dict['phone_invalid_reason'] = reason if not is_valid else ""
+        phone_list.append(cp_dict)
+
+    # 关联邮箱
+    company_emails = db.execute("""
+        SELECT ce.email, ce.normalized_email, ce.is_primary,
+               (SELECT COUNT(DISTINCT company_id) FROM company_emails ce2
+                WHERE ce2.normalized_email = ce.normalized_email) AS dup_count
+        FROM company_emails ce
+        WHERE ce.company_id = ?
+        ORDER BY ce.is_primary DESC
+    """, [company_id]).fetchall()
+    email_list = [dict(e) for e in company_emails]
+
     relations = {}
     relation_counts = {}
     
@@ -193,13 +214,12 @@ def get_company_detail(company_id: int) -> dict:
         """, [company_id] + phone_norms).fetchall()
         relations['phones'] = [dict(r) for r in related]
     
-    # 其他关联（法人/股东/行业/邮箱）
+    # 其他关联（法人/股东/行业）
     for field, key in [('legal_person', 'legal_person'),
                        ('shareholders', 'shareholders'),
-                       ('industry', 'industry'),
-                       ('email', 'email')]:
+                       ('industry', 'industry')]:
         val = row[field] if row[field] else None
-        if val and val != '-' and (field != 'email' or '@' in val):
+        if val and val != '-':
             related = db.execute(f"""
                 SELECT c.id, c.name, c.address,
                        (SELECT group_concat(phone, '; ')
@@ -215,6 +235,25 @@ def get_company_detail(company_id: int) -> dict:
                 f"SELECT COUNT(*) FROM companies WHERE {field} = ?", [val]
             ).fetchone()[0]
             relation_counts[key] = cnt
+
+    # 关联邮箱（查 company_emails 表）
+    email_norms = [r['normalized_email'] for r in company_emails if r['normalized_email']]
+    if email_norms:
+        placeholders = ','.join(['?'] * len(email_norms))
+        related = db.execute(f"""
+            SELECT DISTINCT c.id, c.name, c.address,
+                   (SELECT group_concat(phone, '; ')
+                    FROM company_phones
+                    WHERE company_id = c.id
+                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+            FROM companies c
+            JOIN company_emails ce ON ce.company_id = c.id
+            WHERE c.id <> ? AND ce.normalized_email IN ({placeholders})
+              AND ce.normalized_email <> ''
+            ORDER BY c.name LIMIT 10
+        """, [company_id] + email_norms).fetchall()
+        relations['email'] = [dict(r) for r in related]
+        relation_counts['email'] = len(relations['email'])
     
     # 标签
     tags = db.execute("""
@@ -226,7 +265,8 @@ def get_company_detail(company_id: int) -> dict:
     
     return {"code": 0, "message": "ok", "data": {
         "company": company,
-        "phones": [dict(p) for p in company_phones],
+        "phones": phone_list,
+        "emails": email_list,
         "relations": relations,
         "relation_counts": relation_counts,
         "tags": [dict(t) for t in tags]
@@ -265,6 +305,19 @@ def find_relations(rel_type: str, value: str, limit: int = 20) -> dict:
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE cp.normalized_phone = ?
+            ORDER BY c.name LIMIT ?
+        """, [norm_value, limit]).fetchall()
+    elif rel_type == 'email':
+        norm_value = normalize_email(value)
+        rows = db.execute("""
+            SELECT DISTINCT c.id, c.name, c.address,
+                   (SELECT group_concat(cp2.phone, '; ')
+                    FROM company_phones cp2
+                    WHERE cp2.company_id = c.id
+                    ORDER BY cp2.is_primary DESC, cp2.is_recommended DESC) AS phone
+            FROM companies c
+            JOIN company_emails ce ON ce.company_id = c.id
+            WHERE ce.normalized_email = ?
             ORDER BY c.name LIMIT ?
         """, [norm_value, limit]).fetchall()
     else:
@@ -613,14 +666,13 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
-        from data_helpers import sync_phones, sync_shareholders
+        from data_helpers import sync_phones, sync_emails, sync_shareholders
         from utils import normalize_name, normalize_person_name, normalize_email, normalize_credit_code
 
         # 更新时自动维护的 normalized 字段
         _NORMALIZED_MAP = {
-            "name": ("normalized_name", normalize_name),
-            "legal_person": ("normalized_legal_person", normalize_person_name),
-            "email": ("normalized_email", normalize_email),
+        "name": ("normalized_name", normalize_name),
+        "legal_person": ("normalized_legal_person", normalize_person_name),
         }
 
         name = fields["name"]
@@ -628,7 +680,7 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
 
         # 提取电话和股东
         phone_val = str(fields.pop("phone", "")).strip()
-        other_phone_val = str(fields.pop("other_phone", "")).strip()
+        email_val = str(fields.pop("email", "")).strip()
         shareholders_val = str(fields.pop("shareholders", "")).strip()
         fields.pop("taxpayer_id", None)
 
@@ -655,9 +707,11 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
                         f"UPDATE companies SET {norm_field} = ? WHERE id = ?",
                         [norm_fn(fields[field]), company_id]
                     )
-            # 更新电话和股东
-            if phone_val or other_phone_val:
-                sync_phones(conn, company_id, phone_val, other_phone_val)
+            # 更新电话、邮箱和股东
+            if phone_val:
+                sync_phones(conn, company_id, phone_val)
+            if email_val:
+                sync_emails(conn, company_id, email_val)
             if shareholders_val:
                 sync_shareholders(conn, company_id, shareholders_val)
             conn.commit()
@@ -675,8 +729,6 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
         fields["normalized_name"] = norm_name
         if "legal_person" in fields:
             fields["normalized_legal_person"] = normalize_person_name(fields["legal_person"])
-        if "email" in fields:
-            fields["normalized_email"] = normalize_email(fields["email"])
         if "credit_code" in fields:
             fields["credit_code"] = normalize_credit_code(fields["credit_code"])
             if "taxpayer_id" not in fields:
@@ -693,8 +745,10 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
         )
         company_id = cursor.lastrowid
 
-        if phone_val or other_phone_val:
-            sync_phones(conn, company_id, phone_val, other_phone_val)
+        if phone_val:
+            sync_phones(conn, company_id, phone_val)
+        if email_val:
+            sync_emails(conn, company_id, email_val)
         if shareholders_val:
             sync_shareholders(conn, company_id, shareholders_val)
 

@@ -1,19 +1,19 @@
-"""企业数据工具函数：电话和股东的多值字段拆分、同步、合并。
+"""企业数据工具函数：电话、邮箱和股东的多值字段拆分、同步、合并。
 
 抽离自 app.py，供 Web 路由、REST API、导入流程复用。
 """
 import re
-from utils import normalize_phone, normalize_person_name
+from utils import normalize_phone, normalize_person_name, normalize_email, validate_phone
 
 
 # ── 电话 ────────────────────────────────────────────────────────────────────
 
-def split_phones(phone_str, other_phone_str):
-    """拆分 phone 和 other_phone 字段。
+def split_phones(phone_str):
+    """拆分电话字段，返回 [(raw_phone, normalized_phone), ...]，第一条为主号。
 
-    主号和副号字段都支持多号码（按 ; ； , ， 、 / 分隔）。
-    返回 [(raw_phone, normalized_phone), ...]，第一条为主号。
+    多号码按 ; ； , ， 、 / 分隔。
     去重按 normalized_phone。
+    无效号码（归一化后校验不通过）自动跳过。
     """
     SEPS = [';', '；', ',', '，', '、', '/']
 
@@ -30,11 +30,16 @@ def split_phones(phone_str, other_phone_str):
 
     result = []
     seen = set()
-    for raw in _split(phone_str) + _split(other_phone_str):
+    for raw in _split(phone_str):
         norm = normalize_phone(raw)
-        if norm and norm not in seen:
-            result.append((raw, norm))
-            seen.add(norm)
+        if not norm or norm in seen:
+            continue
+        # 校验：无效号码跳过
+        is_valid, _, _ = validate_phone(norm)
+        if not is_valid:
+            continue
+        result.append((raw, norm))
+        seen.add(norm)
     return result
 
 
@@ -55,7 +60,10 @@ def _split_recommended(recommended_str):
         if raw:
             norm = normalize_phone(raw)
             if norm:
-                out.append((raw, norm))
+                # 推荐电话也做校验
+                is_valid, _, _ = validate_phone(norm)
+                if is_valid:
+                    out.append((raw, norm))
     return out
 
 
@@ -82,8 +90,7 @@ def _auto_set_primary_tag(db, normalized_phone):
         )
 
 
-def sync_phones(db, company_id, phone_str, other_phone_str,
-                recommended_str=""):
+def sync_phones(db, company_id, phone_str, recommended_str=""):
     """全量重建：先删除该公司所有电话，再插入。
 
     用于新增/编辑/导入新公司。
@@ -92,7 +99,7 @@ def sync_phones(db, company_id, phone_str, other_phone_str,
         "DELETE FROM company_phones WHERE company_id = ?",
         [company_id]
     )
-    phones = split_phones(phone_str, other_phone_str)
+    phones = split_phones(phone_str)
     for i, (raw, norm) in enumerate(phones):
         is_primary = 1 if i == 0 else 0
         db.execute(
@@ -114,8 +121,7 @@ def sync_phones(db, company_id, phone_str, other_phone_str,
         )
 
 
-def merge_phones(db, company_id, phone_str, other_phone_str,
-                 recommended_str=""):
+def merge_phones(db, company_id, phone_str, recommended_str=""):
     """增量合并：保留已有电话，仅追加新号码。
 
     用于导入时遇到已存在公司，避免覆盖主号。
@@ -135,7 +141,7 @@ def merge_phones(db, company_id, phone_str, other_phone_str,
     ).fetchone()["count"] > 0
 
     # 追加新号码
-    for raw, norm in split_phones(phone_str, other_phone_str):
+    for raw, norm in split_phones(phone_str):
         if norm and norm not in existing_norms:
             is_primary = 1 if not has_primary else 0
             db.execute(
@@ -159,6 +165,88 @@ def merge_phones(db, company_id, phone_str, other_phone_str,
                 [company_id, raw, norm]
             )
             existing_norms.add(norm)
+
+
+# ── 邮箱 ────────────────────────────────────────────────────────────────────
+
+def split_emails(email_str):
+    """拆分邮箱字段，返回 [(raw_email, normalized_email), ...]，第一条为主邮箱。
+
+    多邮箱按 ; ； , ， 、 / 分隔。
+    去重按 normalized_email。
+    """
+    SEPS = [';', '；', ',', '，', '、', '/']
+
+    def _split(s):
+        if not s:
+            return []
+        result = [str(s)]
+        for sep in SEPS:
+            new_result = []
+            for part in result:
+                new_result.extend(part.split(sep))
+            result = new_result
+        return [p.strip() for p in result if p.strip()]
+
+    result = []
+    seen = set()
+    for raw in _split(email_str):
+        norm = normalize_email(raw)
+        if norm and norm not in seen and norm != '-':
+            result.append((raw, norm))
+            seen.add(norm)
+    return result
+
+
+def sync_emails(db, company_id, email_str):
+    """全量重建：先删除该公司所有邮箱，再插入。
+
+    用于新增/编辑/导入新公司。
+    """
+    db.execute(
+        "DELETE FROM company_emails WHERE company_id = ?",
+        [company_id]
+    )
+    emails = split_emails(email_str)
+    for i, (raw, norm) in enumerate(emails):
+        is_primary = 1 if i == 0 else 0
+        db.execute(
+            "INSERT INTO company_emails "
+            "(company_id, email, normalized_email, is_primary) "
+            "VALUES (?, ?, ?, ?)",
+            [company_id, raw, norm, is_primary]
+        )
+
+
+def merge_emails(db, company_id, email_str):
+    """增量合并：保留已有邮箱，仅追加新邮箱。
+
+    用于导入时遇到已存在公司。
+    """
+    existing = db.execute(
+        "SELECT normalized_email FROM company_emails WHERE company_id = ?",
+        [company_id]
+    ).fetchall()
+    existing_norms = {row["normalized_email"] for row in existing}
+
+    has_primary = db.execute(
+        "SELECT COUNT(*) AS count FROM company_emails "
+        "WHERE company_id = ? AND is_primary = 1",
+        [company_id]
+    ).fetchone()["count"] > 0
+
+    for raw, norm in split_emails(email_str):
+        if norm and norm not in existing_norms:
+            is_primary = 1 if not has_primary else 0
+            db.execute(
+                "INSERT INTO company_emails "
+                "(company_id, email, normalized_email, is_primary) "
+                "VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, is_primary]
+            )
+            existing_norms.add(norm)
+            if is_primary:
+                has_primary = True
 
 
 # ── 股东 ────────────────────────────────────────────────────────────────────

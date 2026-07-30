@@ -22,6 +22,7 @@ def backup_page():
     # 数据统计
     total_records = g.db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
     total_phones = g.db.execute("SELECT COUNT(*) FROM company_phones").fetchone()[0]
+    total_emails = g.db.execute("SELECT COUNT(*) FROM company_emails").fetchone()[0]
 
     # 上次备份信息
     last_backup = backups[0] if backups else None
@@ -32,6 +33,7 @@ def backup_page():
                            db_size_mb=db_size_mb,
                            total_records=total_records,
                            total_phones=total_phones,
+                           total_emails=total_emails,
                            last_backup=last_backup)
 
 

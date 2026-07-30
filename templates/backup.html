@@ -37,6 +37,10 @@
                 <div class="stat-value">{{ '{:,}'.format(total_phones) }} 条</div>
             </div>
             <div class="stat-item">
+                <div class="stat-label">邮箱记录</div>
+                <div class="stat-value">{{ '{:,}'.format(total_emails) }} 条</div>
+            </div>
+            <div class="stat-item">
                 <div class="stat-label">上次备份</div>
                 <div class="stat-value">
                     {% if last_backup %}

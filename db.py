@@ -59,10 +59,7 @@ def init_db():
             industry              TEXT,
             former_name           TEXT,
             website               TEXT,
-            email                 TEXT,
-            normalized_email      TEXT,
             normalized_legal_person TEXT,
-            other_email           TEXT,
             business_scope        TEXT,
             business_status       TEXT,
             enterprise_scale      TEXT,
@@ -87,8 +84,6 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_business_status ON companies(business_status);
         CREATE INDEX IF NOT EXISTS idx_industry        ON companies(industry);
         CREATE INDEX IF NOT EXISTS idx_enterprise_scale ON companies(enterprise_scale);
-        CREATE INDEX IF NOT EXISTS idx_email           ON companies(email);
-        CREATE INDEX IF NOT EXISTS idx_norm_email        ON companies(normalized_email);
         CREATE INDEX IF NOT EXISTS idx_norm_legal_person ON companies(normalized_legal_person);
         CREATE INDEX IF NOT EXISTS idx_registered_capital ON companies(registered_capital);
         CREATE INDEX IF NOT EXISTS idx_insured_count   ON companies(insured_count);
@@ -135,6 +130,18 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_csh_norm_name   ON company_shareholders(normalized_name);
         CREATE INDEX IF NOT EXISTS idx_csh_company_id  ON company_shareholders(company_id);
+
+        CREATE TABLE IF NOT EXISTS company_emails (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id        INTEGER NOT NULL,
+            email             TEXT NOT NULL,
+            normalized_email  TEXT NOT NULL,
+            is_primary        INTEGER DEFAULT 0,
+            FOREIGN KEY (company_id) REFERENCES companies(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ce_norm_email   ON company_emails(normalized_email);
+        CREATE INDEX IF NOT EXISTS idx_ce_company_id    ON company_emails(company_id);
 
         CREATE TABLE IF NOT EXISTS recent_searches (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -192,7 +199,6 @@ def init_db():
     _migrate(conn, "company_phones", "is_recommended", "INTEGER DEFAULT 0")
     _migrate(conn, "import_preview", "will_update", "INTEGER DEFAULT 0")
     _migrate(conn, "companies", "normalized_legal_person", "TEXT")
-    _migrate(conn, "companies", "normalized_email", "TEXT")
     _migrate(conn, "company_shareholders", "position", "TEXT")
 
     # 迁移：如果 phone_tag_map 还是旧的多标签 schema（复合主键），重建为单标签
@@ -235,7 +241,10 @@ def init_db():
         SELECT 
             c.id, c.name, c.normalized_name, c.credit_code,
             c.legal_person, c.normalized_legal_person,
-            c.email, c.normalized_email, c.other_email,
+            (SELECT group_concat(e.email, '; ')
+             FROM company_emails e
+             WHERE e.company_id = c.id
+             ORDER BY e.is_primary DESC) AS email_all,
             c.address, c.annual_report_address, c.mailing_address,
             c.province, c.city, c.district,
             c.registered_capital, c.paid_capital,

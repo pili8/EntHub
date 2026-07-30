@@ -77,20 +77,13 @@
     <h2 class="detail-section-title">联系方式</h2>
     <div class="detail-grid">
         <div class="detail-field">
-            <div class="detail-label">电话</div>
+            <div class="detail-label">电话 <small style="color: #999;">多个用 ; 分隔</small></div>
             <input type="text" name="phone" class="form-input" value="{{ company.phone or '' }}">
+            <div id="phone-check-hint" style="margin-top: 4px;"></div>
         </div>
         <div class="detail-field">
-            <div class="detail-label">其他电话</div>
-            <input type="text" name="other_phone" class="form-input" value="{{ company.other_phone or '' }}">
-        </div>
-        <div class="detail-field">
-            <div class="detail-label">邮箱</div>
+            <div class="detail-label">邮箱 <small style="color: #999;">多个用 ; 分隔</small></div>
             <input type="text" name="email" class="form-input" value="{{ company.email or '' }}">
-        </div>
-        <div class="detail-field">
-            <div class="detail-label">其他邮箱</div>
-            <input type="text" name="other_email" class="form-input" value="{{ company.other_email or '' }}">
         </div>
         <div class="detail-field">
             <div class="detail-label">网址</div>
@@ -159,3 +152,50 @@
         <textarea name="business_scope" class="form-input" rows="4" style="resize: vertical">{{ company.business_scope or '' }}</textarea>
     </div>
 </section>
+
+<script>
+// ── 电话格式校验（blur 时触发） ──
+(function() {
+  const phoneInput = document.querySelector('input[name="phone"]');
+  if (!phoneInput) return;
+  phoneInput.addEventListener('blur', function() {
+    const val = this.value.trim();
+    const hint = document.getElementById('phone-check-hint');
+    if (!hint) return;
+    if (!val) { hint.innerHTML = ''; return; }
+
+    const seps = [';', '；', ',', '，', '、', '/'];
+    let parts = [val];
+    for (const sep of seps) {
+      const np = [];
+      for (const p of parts) np.push(...p.split(sep));
+      parts = np;
+    }
+    parts = parts.map(p => p.trim()).filter(p => p);
+
+    const invalid = [];
+    for (const part of parts) {
+      let s = part.replace(/\s/g, '');
+      let main = s;
+      const extMatch = main.match(/(\d{7,8})-(\d{1,6})$/);
+      if (extMatch) { main = main.slice(0, extMatch.index) + extMatch[1]; }
+      let digits = main.replace(/\D/g, '');
+      if (digits.startsWith('86') && digits.length > 11) digits = digits.slice(2);
+      if (digits.startsWith('0817')) digits = digits.slice(4);
+      const n = digits.length;
+      let valid = false;
+      if (n === 11 && digits[0] === '1' && '3456789'.includes(digits[1])) valid = true;
+      else if (n === 10 && (digits.startsWith('400') || digits.startsWith('800'))) valid = true;
+      else if ((n === 7 || n === 8) && !digits.startsWith('0')) valid = true;
+      else if ((n >= 10 && n <= 12) && digits.startsWith('0')) valid = true;
+      if (!valid) invalid.push(part);
+    }
+
+    if (invalid.length > 0) {
+      hint.innerHTML = '<span style="color:#f97316;font-size:12px;">⚠ ' + invalid.length + ' 个号码格式异常：' + invalid.join(', ') + '</span>';
+    } else {
+      hint.innerHTML = '<span style="color:#16a34a;font-size:12px;">✓ 号码格式正常</span>';
+    }
+  });
+})();
+</script>

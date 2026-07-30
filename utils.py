@@ -89,6 +89,74 @@ def normalize_phone(phone):
     return digits + extension
 
 
+# ── 电话号码校验 ──────────────────────────────────────────────────────────────
+
+def validate_phone(normalized_phone):
+    """校验归一化后的电话号码，返回 (is_valid, phone_type, reason)。
+
+    phone_type: 'mobile' | 'landline' | 'toll_free'
+              | 'mobile_ext' | 'landline_ext' | 'toll_free_ext'
+              | 'invalid'
+    reason: 无效时的人类可读原因，有效时为空串。
+
+    校验作用于 normalize_phone() 的输出，不重复归一化逻辑。
+    """
+    if not normalized_phone:
+        return (False, 'invalid', '号码为空或无法归一化')
+
+    s = str(normalized_phone).strip()
+
+    # 拆分主号和分机号
+    if '-' in s:
+        parts = s.split('-', 1)
+        main = parts[0]
+        ext = parts[1]
+        has_ext = True
+    else:
+        main = s
+        has_ext = False
+
+    # 主号必须全为数字
+    if not main.isdigit():
+        return (False, 'invalid', '号码含非法字符')
+
+    n = len(main)
+
+    # ── 手机号：11 位，1[3-9] 开头 ──
+    if n == 11 and main[0] == '1' and main[1] in '3456789':
+        return (True, 'mobile_ext' if has_ext else 'mobile', '')
+
+    # ── 400/800 号码：10 位，以 400 或 800 开头 ──
+    if n == 10 and (main.startswith('400') or main.startswith('800')):
+        return (True, 'toll_free_ext' if has_ext else 'toll_free', '')
+
+    # ── 座机（无区号）：7-8 位，不以 0 开头 ──
+    if n in (7, 8) and not main.startswith('0'):
+        return (True, 'landline_ext' if has_ext else 'landline', '')
+
+    # ── 座机（带区号）：10-12 位，以 0 开头 ──
+    if n in (10, 11, 12) and main.startswith('0'):
+        return (True, 'landline_ext' if has_ext else 'landline', '')
+
+    # ── 以下均为无效 ──
+    if n == 11 and main[0] == '1' and main[1] not in '3456789':
+        return (False, 'invalid', '11 位号码但非有效手机号段（应以 13-19 开头）')
+
+    if n < 7:
+        return (False, 'invalid', f'号码过短：{n} 位，有效号码至少 7 位')
+
+    if n == 9:
+        return (False, 'invalid', '号码长度异常：9 位，不匹配任何有效号码格式')
+
+    if n == 10 and not main.startswith('0') and not main.startswith('400') and not main.startswith('800'):
+        return (False, 'invalid', '10 位号码不符合座机或 400/800 格式')
+
+    if n > 12 and not has_ext:
+        return (False, 'invalid', f'号码过长：{n} 位，超出有效范围')
+
+    return (False, 'invalid', f'号码格式异常：{n} 位')
+
+
 def normalize_person_name(name):
     """Normalize a person name: trim, full-width to half-width."""
     import unicodedata
@@ -128,8 +196,8 @@ COLUMN_ALIASES = {
     "手机": "phone", "联系人电话": "phone", "座机": "phone",
     "phone": "phone", "tel": "phone", "telephone": "phone",
     "mobile": "phone", "contact": "phone",
-    # 其他电话
-    "其他电话": "other_phone", "other_phone": "other_phone",
+    # 其他电话（合并到 phone，不再单独区分）
+    "其他电话": "phone", "other_phone": "phone",
     # 地址
     "地址": "address", "住址": "address",
     "公司地址": "address", "企业地址": "address",
@@ -185,8 +253,8 @@ COLUMN_ALIASES = {
     "网址": "website", "website": "website", "url": "website",
     # 邮箱
     "邮箱": "email", "email": "email",
-    # 其他邮箱
-    "其他邮箱": "other_email", "other_email": "other_email",
+    # 其他邮箱（合并到 email，不再单独区分）
+    "其他邮箱": "email", "other_email": "email",
     # 经营范围
     "经营范围": "business_scope", "business_scope": "business_scope",
     # 登记状态 / 经营状态
@@ -219,7 +287,7 @@ CONTAINS_ALIASES = [
     ("最新地址", "annual_report_address"),
     # 邮箱类
     ("邮箱（工商信息）", "email"),
-    ("邮箱（企业认证", "other_email"),
+    ("邮箱（企业认证", "email"),
 ]
 
 # ── Secondary phone columns (启信宝: 联系电话2~10) ────────────────────────────

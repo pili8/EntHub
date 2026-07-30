@@ -1,127 +1,73 @@
-# Changelog
+# CHANGELOG
 
-所有重要的版本变更记录。
+## 2026-07-30 — 邮箱独立表 + 电话号码校验
 
-## [v0.4.0] - 2026-07-19
+### 破坏性变更
 
-### 新增
+- **`companies` 表移除 `email`、`normalized_email`、`other_email` 字段**
+  - 邮箱数据迁移到独立的 `company_emails` 表（结构参照 `company_phones`）
+  - 首次启动应用时 `init_db()` 自动创建新表，旧列残留不影响功能
+  - **存量数据迁移**：需运行一次性迁移脚本将 `companies.email/other_email` 数据导入 `company_emails`
 
-**电话重复数查询（核心特性）**
+- **`other_phone` / `other_email` 字段移除**
+  - 电话和邮箱各自合并为单个字段，多值通过分号 `;` 分隔
+  - 导入时旧文件中的 `其他电话` / `其他邮箱` 列自动映射到 `phone` / `email`
+  - 前端表单从两个输入框合并为一个（带"多个用 ; 分隔"提示）
 
-新增 3 个 API 端点：
-- `GET /api/phone_count` - 单号码查询（返回号码、归一化、重复数）
-- `POST /api/phone_count_batch` - 批量查询（号码数组，每号返回重复数）
-- `POST /api/phone_count_text` - 文本标注（自动提取号码并标注重复数）
+### 新功能
 
-新增 3 个 MCP 工具：
-- `check_phone_count` - 查询单个号码
-- `check_phones_batch` - 批量查询
-- `annotate_phones` - 文本标注
+- **电话号码格式校验 `validate_phone()`**
+  - 校验规则：手机 11 位 `1[3-9]`、座机 7-8 位 / 10-12 位 `0` 开头、400/800 号码 10 位
+  - 导入时自动跳过无效号码（不写入数据库）
+  - 详情页无效号码显示橙色 ⚠ 格式异常标记
+  - 录入/编辑页输入框 blur 时前端 JS 实时校验并提示
 
-新增 Web 页面 `/phones`：
-- Tab 1: 单号码查询（显示重复数 + 关联企业列表）
-- Tab 2: 批量查询（表格展示，颜色标识）
-- Tab 3: 文本标注（粘贴文本，自动标注，一键复制）
+- **导入进度增加 `phones_invalid` 计数**
+  - SSE 进度推送中新增 `phones_invalid` 字段，统计因格式异常被跳过的号码数量
 
-**导航栏更新**
-- 新增「电话」入口
-- 顺序调整为：浏览 → 电话 → 关联 → 标签 → MCP → 录入 → 导入
+- **MCP Server 详情接口增加 `emails` 字段**
+  - `get_company_detail` 返回值增加 `emails` 列表（含 `dup_count`、`is_primary`）
+  - `find_relations` 增加 `email` 关联类型，查询 `company_emails` 表
 
-**归一化逻辑升级**
-- 手机号：去掉 +86/86 前缀
-- 南充座机（0817）：去掉 0817 区号
-- 分机号：保留格式 XXXXXXX-XXX（短横线保留）
-- 其他区号（0571、010 等）：保留完整
+### 涉及文件（~25 个）
 
-**颜色标识**
-- 🟢 1 次（唯一/可信）
-- 🟡 2-5 次（少量重复/可疑）
--  6+ 次（高度重复/中介号码）
+| 层次 | 文件 |
+|------|------|
+| 工具层 | `utils.py` |
+| 数据库 | `db.py` |
+| 数据工具 | `data_helpers.py` |
+| 查询层 | `queries.py` |
+| 路由 | `routes/companies.py`, `routes/import_flow.py`, `routes/quick_import.py`, `routes/cleanup_flow.py`, `routes/backup_flow.py`, `routes/pages.py`, `routes/api_legacy.py` |
+| REST API | `api.py` |
+| MCP | `mcp_server.py` |
+| 外部集成 | `enthub_api.py` |
+| 模板 | `templates/_company_form.html`, `templates/company_detail.html`, `templates/import_preview.html`, `templates/backup.html` |
+| 测试 | `tests/test_phone_parsing.py` |
 
-### 技术细节
+### API 变更
 
-- 号码提取正则覆盖：手机号、座机（带/不带区号）、分机号、400/800
-- 文本标注从后往前替换，避免位置偏移
-- 重复数=1 也标注（用户确认）
-- 所有 API 返回统一三段式 JSON
+- `GET /api/companies/<id>` 返回值新增 `emails` 字段（`[{email, normalized_email, is_primary, dup_count, phone_valid, phone_type, phone_invalid_reason}, ...]`）
+- `GET /api/relations?type=email&value=xxx` 现查询 `company_emails` 表
+- `POST /api/companies` 请求体 `phone` 字段支持多号码分号分隔，新增 `email` 字段（多邮箱分号分隔）
+- `PUT /api/companies/<id>` 同上
+- MCP `get_company_detail` 返回值同 REST API
+- MCP `find_relations(rel_type='email')` 查询 `company_emails` 表
 
-## [v0.3.0] - 2026-07-18
+### 数据迁移指南
 
-### 新增
+如果已有数据库中 `companies` 表有 `email` / `other_email` 数据，需运行一次性迁移：
 
-**REST API 体系（核心特性）**
-- 新增 `api.py` 模块，提供完整的 JSON API 接口
-- 统一响应格式：`{"code": 0, "message": "ok", "data": {...}}`
-- 企业列表 API：`GET /api/companies`
-  - 支持筛选：城市、区县、行业、经营状态、成立年份、注册资本、社保人数
-  - 支持排序：名称、ID、成立日期、注册资本等
-  - 支持分页：page、per_page
-  - 支持搜索：q 参数
-- 企业详情 API：`GET /api/companies/<id>`
-  - 返回完整企业信息
-  - 包含所有关联电话及重复次数
-  - 包含 5 类关联企业（同电话/同法人/同股东/同行业/同邮箱）
-  - 包含关联数量统计
-  - 包含企业标签
-- 关联查询 API：`GET /api/relations`
-  - 支持按电话、邮箱、法人、股东查询关联企业
-  - 自动归一化电话号码
-- 统计 API（3 个）
-  - `GET /api/stats/legal_person` - 法人统计
-  - `GET /api/stats/shareholder` - 股东统计
-  - `GET /api/stats/industry` - 行业统计
-  - 支持筛选最小关联企业数
-  - 支持分页
+```sql
+-- 将 companies 表中的邮箱数据迁移到 company_emails 表
+INSERT INTO company_emails (company_id, email, normalized_email, is_primary)
+SELECT id, email, lower(email), 1
+FROM companies
+WHERE email IS NOT NULL AND email <> '' AND email <> '-';
 
-**响应格式统一**
-- `/api/search` - 搜索 API 改为三段式，新增返回 `legal_person`、`city` 字段
-- `/api/phone_stats` - 电话统计 API 改为三段式
-- `/api/tags` - 标签 CRUD 全部改为三段式
-- `/api/companies/<id>/tags` - 企业标签关联 API 改为三段式
-- `/api/companies/batch-delete` - 批量删除 API 改为三段式
-- `/api/companies/batch-add-tag` - 批量添加标签 API 改为三段式
-
-### 技术细节
-
-- 使用 Flask Blueprint 组织 API 代码
-- 统一错误码：1001（参数错误）、1002（资源不存在）、2001（服务器错误）
-- 错误响应包含中文 message，便于调试
-- 所有 API 自动继承 `before_request` 的数据库连接管理
-
-### 使用示例
-
-```bash
-# 查询企业列表
-curl "http://127.0.0.1:5210/api/companies?q=科技&city=杭州市&per_page=10"
-
-# 查询企业详情
-curl "http://127.0.0.1:5210/api/companies/2"
-
-# 搜索
-curl "http://127.0.0.1:5210/api/search?q=张三"
-
-# 查询关联企业
-curl "http://127.0.0.1:5210/api/relations?type=legal_person&value=张三"
-
-# 统计
-curl "http://127.0.0.1:5210/api/stats/industry?min_count=5"
-
-# 标签管理
-curl -X POST "http://127.0.0.1:5210/api/tags" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "重要客户", "color": "#ef4444"}'
+INSERT INTO company_emails (company_id, email, normalized_email, is_primary)
+SELECT id, other_email, lower(other_email), 0
+FROM companies
+WHERE other_email IS NOT NULL AND other_email <> '' AND other_email <> '-';
 ```
 
-## [v0.2.0] - 2026-07-17
-
-- 关联发现页面
-- 批量操作功能
-- 标签管理系统
-- 数据库压缩功能
-
-## [v0.1.0] - 2026-07-14
-
-- 企业搜索
-- 电话搜索
-- Excel 导入
-- 手动录入
+迁移后可安全忽略 `companies` 表中残留的 `email` / `other_email` / `normalized_email` 列（SQLite 不支持 DROP COLUMN，但新代码不再读写这些列）。

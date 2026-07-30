@@ -11,7 +11,7 @@ from utils import (
     normalize_name, normalize_credit_code,
     normalize_person_name, normalize_email,
 )
-from data_helpers import sync_phones, sync_shareholders
+from data_helpers import sync_phones, sync_emails, sync_shareholders
 from extract_service import extract_company_info, count_extracted_fields, post_process_fields
 from ._base import make_bp
 
@@ -41,7 +41,6 @@ FIELD_LABELS = {
     "website": "网址",
     "email": "邮箱",
     "phone": "电话",
-    "other_phone": "其他电话",
     "org_code": "组织机构代码",
     "registration_no": "注册号",
     "shareholders": "股东",
@@ -196,7 +195,7 @@ def extract_and_import():
 
     # 提取电话和股东
     phone_val = str(fields.pop("phone", "")).strip()
-    other_phone_val = str(fields.pop("other_phone", "")).strip()
+    email_val = str(fields.pop("email", "")).strip()
     shareholders_val = str(fields.pop("shareholders", "")).strip()
     fields.pop("taxpayer_id", None)
 
@@ -223,7 +222,6 @@ def extract_and_import():
         _NORMALIZED_MAP = {
             "name": ("normalized_name", normalize_name),
             "legal_person": ("normalized_legal_person", normalize_person_name),
-            "email": ("normalized_email", normalize_email),
         }
         for field, value in fields.items():
             if field in ("source", "status"):
@@ -243,8 +241,10 @@ def extract_and_import():
                 "UPDATE companies SET credit_code = ? WHERE id = ?",
                 [normalize_credit_code(fields["credit_code"]), company_id]
             )
-        if phone_val or other_phone_val:
-            sync_phones(g.db, company_id, phone_val, other_phone_val)
+        if phone_val:
+            sync_phones(g.db, company_id, phone_val)
+        if email_val:
+            sync_emails(g.db, company_id, email_val)
         if shareholders_val:
             sync_shareholders(g.db, company_id, shareholders_val)
         g.db.execute(
@@ -263,8 +263,6 @@ def extract_and_import():
     fields["normalized_name"] = norm_name
     if "legal_person" in fields:
         fields["normalized_legal_person"] = normalize_person_name(fields["legal_person"])
-    if "email" in fields:
-        fields["normalized_email"] = normalize_email(fields["email"])
     if "credit_code" in fields:
         fields["credit_code"] = normalize_credit_code(fields["credit_code"])
         if "taxpayer_id" not in fields:
@@ -281,8 +279,10 @@ def extract_and_import():
     )
     company_id = cursor.lastrowid
 
-    if phone_val or other_phone_val:
-        sync_phones(g.db, company_id, phone_val, other_phone_val)
+    if phone_val:
+        sync_phones(g.db, company_id, phone_val)
+    if email_val:
+        sync_emails(g.db, company_id, email_val)
     if shareholders_val:
         sync_shareholders(g.db, company_id, shareholders_val)
 

@@ -31,7 +31,10 @@ from db import DB_PATH
 import backup
 import tasks
 from queries import invalidate_cache
-from data_helpers import split_phones, _split_recommended, split_shareholders, _auto_set_primary_tag
+from data_helpers import (
+    split_phones, _split_recommended, split_shareholders, _auto_set_primary_tag,
+    split_emails, sync_emails, merge_emails,
+)
 from utils import (
     map_columns, clean_val, is_industrial_park_file,
     extract_date_from_filename,
@@ -44,20 +47,20 @@ bp = Blueprint('import_flow_bp', __name__)
 
 # 全量字段列表（导入流程独立维护，避免与 companies 模块循环依赖）
 IMPORT_FIELDS = [
-    "name", "phone", "other_phone", "address", "annual_report_address",
+    "name", "phone", "address", "annual_report_address",
     "credit_code", "taxpayer_id", "registration_no", "org_code",
     "legal_person", "registered_capital", "paid_capital",
     "established_date", "approved_date", "business_term",
     "province", "city", "district", "insured_count",
     "company_type", "industry", "former_name", "website",
-    "email", "other_email", "business_scope", "business_status",
+    "email", "business_scope", "business_status",
     "enterprise_scale", "shareholders", "mailing_address",
     "english_name", "tags", "source_file",
 ]
 
 # 参与字段级 diff（签名比对）的列。
 # 注意：不含 source_file（文件名变化不应触发更新），也不含
-# phone/other_phone/shareholders/other_email（由增量合并单独处理）。
+# phone/email/shareholders（由增量合并单独处理）。
 HASH_COLS = [
     "normalized_name", "credit_code", "address", "annual_report_address",
     "mailing_address", "taxpayer_id", "registration_no", "org_code",
@@ -65,7 +68,7 @@ HASH_COLS = [
     "established_date", "approved_date", "business_term",
     "province", "city", "district", "insured_count",
     "company_type", "industry", "former_name", "website",
-    "normalized_email", "business_scope", "business_status",
+    "business_scope", "business_status",
     "enterprise_scale", "english_name", "tags",
 ]
 
@@ -92,8 +95,7 @@ def import_page():
 TEMPLATE_COLUMNS = [
     ("name",                  "企业名称",          True,  "必填，企业全称",                              "示例科技有限公司"),
     ("legal_person",          "法定代表人",        False, "企业法定代表人姓名",                          "张三"),
-    ("phone",                 "联系电话",          False, "主电话，座机或手机",                          "0571-88889999"),
-    ("other_phone",           "其他电话",          False, "多个号码用分号 ; 分隔",                       "13800138000;13900139000"),
+    ("phone",                 "联系电话",          False, "多个号码用分号 ; 分隔",                       "0571-88889999;13800138000"),
     ("credit_code",           "统一社会信用代码",  False, "18 位统一社会信用代码",                       "91330100MA12345678"),
     ("taxpayer_id",           "纳税人识别号",      False, "纳税人识别号",                               ""),
     ("registration_no",       "注册号",            False, "工商注册号",                                 ""),
@@ -117,8 +119,7 @@ TEMPLATE_COLUMNS = [
     ("former_name",           "曾用名",            False, "多个用分号分隔",                             ""),
     ("english_name",          "英文名",            False, "企业英文名称",                               ""),
     ("website",               "网址",              False, "企业官网",                                  "www.example.com"),
-    ("email",                 "邮箱",              False, "企业邮箱",                                  "contact@example.com"),
-    ("other_email",           "其他邮箱",          False, "多个用分号分隔",                             ""),
+    ("email",                 "邮箱",              False, "多个邮箱用分号 ; 分隔",                      "contact@example.com;info@example.com"),
     ("business_scope",        "经营范围",          False, "经营范围全文",                              "技术开发、技术服务、技术咨询"),
     ("shareholders",          "股东",              False, "多个股东用分号 ; 分隔",                      "张三;李四"),
     ("tags",                  "标签",              False, "多个标签用分号 ; 分隔",                      "重点客户;待跟进"),
@@ -126,7 +127,7 @@ TEMPLATE_COLUMNS = [
 
 # 列宽配置（按字段名）
 TEMPLATE_COL_WIDTHS = {
-    "name": 30, "legal_person": 10, "phone": 18, "other_phone": 25,
+    "name": 30, "legal_person": 10, "phone": 25,
     "credit_code": 22, "taxpayer_id": 20, "registration_no": 18,
     "org_code": 14, "registered_capital": 14, "paid_capital": 14,
     "established_date": 12, "approved_date": 12, "business_term": 20,
@@ -135,7 +136,7 @@ TEMPLATE_COL_WIDTHS = {
     "province": 6, "city": 8, "district": 10,
     "address": 35, "annual_report_address": 35, "mailing_address": 30,
     "former_name": 18, "english_name": 20, "website": 20,
-    "email": 22, "other_email": 22, "business_scope": 40,
+    "email": 25, "business_scope": 40,
     "shareholders": 20, "tags": 15,
 }
 
@@ -396,7 +397,7 @@ def _row_to_record(row, col_map, col_index, sec_phones, rec_phones, source_name)
         val = row[idx] if idx < len(row) else None
         record[field] = clean_val(val)
 
-    # 副电话列（启信宝：联系电话2~10）合并到 other_phone
+    # 副电话列（启信宝：联系电话2~10）合并到 phone
     sec_parts = []
     for sc in sec_phones:
         if sc in col_index:
@@ -405,9 +406,9 @@ def _row_to_record(row, col_map, col_index, sec_phones, rec_phones, source_name)
             if v:
                 sec_parts.append(v)
     if sec_parts:
-        existing_other = record.get("other_phone", "")
-        merged = ";".join(p for p in [existing_other] + sec_parts if p)
-        record["other_phone"] = merged
+        existing_phone = record.get("phone", "")
+        merged = ";".join(p for p in [existing_phone] + sec_parts if p)
+        record["phone"] = merged
 
     # 推荐电话
     rec_parts = []
@@ -630,7 +631,6 @@ def _incoming_values(rec):
         rec.get("industry", ""),
         rec.get("former_name", ""),
         rec.get("website", ""),
-        normalize_email(rec.get("email", "")),
         rec.get("business_scope", ""),
         rec.get("business_status", ""),
         rec.get("enterprise_scale", ""),
@@ -664,7 +664,21 @@ def _has_real_changes(db, company_id, rec, hash_cols_sql):
 
 # ── 增量合并（带预加载缓存，避免逐行 SELECT） ──────────────────────────────
 
-def _merge_phones_cached(db, company_id, phone_str, other_phone_str,
+def _count_raw_phones(phone_str):
+    """Count total phone parts in input string before validation."""
+    if not phone_str:
+        return 0
+    SEPS = [';', '；', ',', '，', '、', '/']
+    result = [str(phone_str)]
+    for sep in SEPS:
+        new_result = []
+        for part in result:
+            new_result.extend(part.split(sep))
+        result = new_result
+    return len([p for p in result if p.strip()])
+
+
+def _merge_phones_cached(db, company_id, phone_str,
                          recommended_str, phone_sets, has_primary):
     """用预加载的号码集合做增量合并，返回新增号码条数。
 
@@ -676,8 +690,12 @@ def _merge_phones_cached(db, company_id, phone_str, other_phone_str,
         sset = set()
         phone_sets[company_id] = sset
 
+    raw_count = _count_raw_phones(phone_str)
+    valid_phones = split_phones(phone_str)
+    skipped_invalid = raw_count - len(valid_phones)
+
     added = 0
-    for raw, norm in split_phones(phone_str, other_phone_str):
+    for raw, norm in valid_phones:
         if norm and norm not in sset:
             is_primary = 1 if company_id not in has_primary else 0
             db.execute(
@@ -702,7 +720,8 @@ def _merge_phones_cached(db, company_id, phone_str, other_phone_str,
             )
             sset.add(norm)
             added += 1
-    return added
+
+    return added, skipped_invalid
 
 
 def _merge_shareholders_cached(db, company_id, shareholders_str, sh_sets):
@@ -722,6 +741,36 @@ def _merge_shareholders_cached(db, company_id, shareholders_str, sh_sets):
                 [company_id, raw, norm, position]
             )
             sset.add(norm)
+            added += 1
+    return added
+
+
+def _merge_emails_cached(db, company_id, email_str, email_sets, has_email_primary):
+    """用预加载的邮箱集合做增量合并，返回新增邮箱条数。
+
+    语义与 data_helpers.merge_emails 一致：只追加归一化后不重复的新邮箱，
+    不覆盖已有主邮箱；仅当公司无主邮箱时才把首个新邮箱设为主邮箱。
+    """
+    if not email_str:
+        return 0
+    eset = email_sets.get(company_id)
+    if eset is None:
+        eset = set()
+        email_sets[company_id] = eset
+
+    added = 0
+    for raw, norm in split_emails(email_str):
+        if norm and norm not in eset:
+            is_primary = 1 if company_id not in has_email_primary else 0
+            db.execute(
+                "INSERT INTO company_emails "
+                "(company_id, email, normalized_email, is_primary) "
+                "VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, is_primary]
+            )
+            eset.add(norm)
+            if is_primary:
+                has_email_primary.add(company_id)
             added += 1
     return added
 
@@ -760,11 +809,12 @@ def _stream_records(meta_file):
         wb.close()
 
 
-def _stats(processed, total, inserted, updated, phones_merged, skipped):
+def _stats(processed, total, inserted, updated, phones_merged, skipped, phones_invalid=0):
     return {
         "processed": processed, "total": total,
         "inserted": inserted, "updated": updated,
         "phones_merged": phones_merged, "skipped": skipped,
+        "phones_invalid": phones_invalid,
     }
 
 
@@ -778,11 +828,9 @@ def _do_insert(db, rec):
     fields["normalized_name"] = rec.get("normalized_name", "")
     lp = fields.get("legal_person", "")
     fields["normalized_legal_person"] = normalize_person_name(lp) if lp else ""
-    em = fields.get("email", "")
-    fields["normalized_email"] = normalize_email(em) if em else ""
     # 这些由调用方单独处理，不写入 companies 主表
     fields.pop("phone", None)
-    fields.pop("other_phone", None)
+    fields.pop("email", None)
     fields.pop("shareholders", None)
     fields["status"] = "active"
     fields["source"] = "import"
@@ -806,22 +854,9 @@ def _do_update(db, company_id, rec):
     fields["normalized_name"] = rec.get("normalized_name", "")
     lp = fields.get("legal_person", "")
     fields["normalized_legal_person"] = normalize_person_name(lp) if lp else ""
-    em = fields.get("email", "")
-    fields["normalized_email"] = normalize_email(em) if em else ""
     fields.pop("phone", None)
-    fields.pop("other_phone", None)
+    fields.pop("email", None)
     fields.pop("shareholders", None)
-
-    # other_email 增量合并（不覆盖已有）
-    oe = fields.pop("other_email", "")
-    if oe:
-        existing_oe = db.execute(
-            "SELECT other_email FROM companies WHERE id = ?",
-            [company_id]).fetchone()["other_email"] or ""
-        merged_oe = set(p.strip() for p in existing_oe.split(";") if p.strip())
-        merged_oe.update(p.strip() for p in oe.replace(",", ";").split(";")
-                         if p.strip() and p.strip() != "-")
-        fields["other_email"] = "; ".join(sorted(merged_oe))
 
     fields["updated_at"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
@@ -883,8 +918,21 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
             if norm:
                 sh_sets.setdefault(cid, set()).add(norm)
 
+        # 预加载邮箱索引
+        email_sets = {}    # id -> set(normalized_email)
+        has_email_primary = set()
+        for row in db.execute(
+            "SELECT company_id, normalized_email, is_primary FROM company_emails"
+        ):
+            cid = row["company_id"]
+            norm = row["normalized_email"] or ""
+            if norm:
+                email_sets.setdefault(cid, set()).add(norm)
+            if row["is_primary"]:
+                has_email_primary.add(cid)
+
         # ── 逐文件、逐行处理 ──
-        inserted = updated = phones_merged = skipped = processed = 0
+        inserted = updated = phones_merged = skipped = phones_invalid = processed = 0
         report_every = max(1, total // 100) if total else 1
         today_ts = None  # 懒加载，仅在有变更时取一次
 
@@ -893,7 +941,7 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                 if stop_event.is_set():
                     db.commit()
                     send("stopped", _stats(processed, total, inserted, updated,
-                                           phones_merged, skipped))
+                                           phones_merged, skipped, phones_invalid))
                     _cleanup(meta, batch_id, db)
                     return
 
@@ -919,9 +967,10 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
 
                     # 同步写入电话，并更新缓存
                     pset = set()
-                    for i, (raw, norm) in enumerate(
-                            split_phones(rec.get("phone", ""),
-                                         rec.get("other_phone", ""))):
+                    _raw = rec.get("phone", "")
+                    _valid = split_phones(_raw)
+                    phones_invalid += _count_raw_phones(_raw) - len(_valid)
+                    for i, (raw, norm) in enumerate(_valid):
                         db.execute(
                             "INSERT INTO company_phones "
                             "(company_id, phone, normalized_phone, is_primary) "
@@ -946,6 +995,20 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                                 [new_id, raw, norm]
                             )
                             pset.add(norm)
+                    # 同步写入邮箱
+                    eset = set()
+                    for i, (raw, norm) in enumerate(split_emails(rec.get("email", ""))):
+                        db.execute(
+                            "INSERT INTO company_emails "
+                            "(company_id, email, normalized_email, is_primary) "
+                            "VALUES (?, ?, ?, ?)",
+                            [new_id, raw, norm, 1 if i == 0 else 0]
+                        )
+                        if norm:
+                            eset.add(norm)
+                    email_sets[new_id] = eset
+                    if eset:
+                        has_email_primary.add(new_id)
                     _merge_shareholders_cached(db, new_id,
                                                rec.get("shareholders", ""), sh_sets)
                     inserted += 1
@@ -954,11 +1017,15 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                     incoming_sig = _incoming_signature(rec)
                     sig_match = (sig_index.get(existing_id) == incoming_sig)
 
-                    phone_added = _merge_phones_cached(
-                        db, existing_id, rec.get("phone", ""),
-                        rec.get("other_phone", ""),
+                    _raw = rec.get("phone", "")
+                    phone_added, _skipped = _merge_phones_cached(
+                        db, existing_id, _raw,
                         rec.get("_recommended_phone", ""),
                         phone_sets, has_primary)
+                    phones_invalid += _skipped
+                    email_added = _merge_emails_cached(
+                        db, existing_id, rec.get("email", ""),
+                        email_sets, has_email_primary)
                     sh_added = _merge_shareholders_cached(
                         db, existing_id, rec.get("shareholders", ""), sh_sets)
 
@@ -974,7 +1041,7 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                         _do_update(db, existing_id, rec)
                         sig_index[existing_id] = incoming_sig
                         updated += 1
-                    elif phone_added or sh_added:
+                    elif phone_added or email_added or sh_added:
                         # 仅补了电话/股东 → 数据已变，刷新 updated_at
                         if today_ts is None:
                             today_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -991,7 +1058,7 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                     db.commit()
                 if processed % report_every == 0:
                     send("progress", _stats(processed, total, inserted, updated,
-                                            phones_merged, skipped))
+                                            phones_merged, skipped, phones_invalid))
 
         db.commit()
         db.execute("DELETE FROM import_preview WHERE batch_id = ?", [batch_id])
@@ -1000,7 +1067,7 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
         # 数据已变更，清空筛选器缓存
         invalidate_cache()
         send("done", _stats(total, total, inserted, updated,
-                            phones_merged, skipped))
+                           phones_merged, skipped, phones_invalid))
     except Exception as e:
         try:
             if db:

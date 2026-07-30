@@ -157,6 +157,9 @@
           {% if cp.location %}
           <span class="phone-location" title="归属地">{{ cp.location.province }}{% if cp.location.city and cp.location.city != cp.location.province %} {{ cp.location.city }}{% endif %} {{ cp.location.carrier }}</span>
           {% endif %}
+          {% if not cp.phone_valid %}
+          <span style="color: #f97316; font-size: 12px;" title="{{ cp.phone_invalid_reason }}">⚠ 格式异常</span>
+          {% endif %}
           <div class="phone-tags">
             {% if cp.is_recommended %}
               <span class="phone-tag phone-tag-secondary">推荐</span>
@@ -183,25 +186,31 @@
 
     <div class="contact-divider"></div>
 
-    <div class="detail-grid detail-grid-3">
-      <div class="detail-field">
-        <div class="detail-label">邮箱</div>
-        <div class="detail-value">
-          {% if company.email %}
-            <a href="{{ url_for('pages_bp.search', q=company.email) }}">{{ company.email }}</a>
-            <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.email }}', this)" title="复制邮箱">
-              <i data-lucide="copy" aria-hidden="true"></i>
-            </button>
-            {% if field_counts.email and field_counts.email > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.email >= 5 else 'dup-mid' }}">共 {{ field_counts.email }} 家</span>
+    {% if company_emails %}
+      <div class="phone-list">
+        {% for ce in company_emails %}
+        <div class="phone-row">
+          <a href="{{ url_for('pages_bp.search', q=ce.email) }}" class="phone-number">{{ ce.email }}</a>
+          <button type="button" class="copy-btn" onclick="copyToClipboard('{{ ce.email }}', this)" title="复制邮箱">
+            <i data-lucide="copy" aria-hidden="true"></i>
+          </button>
+          <div class="phone-tags">
+            {% if ce.dup_count > 1 %}
+              <span class="dup-count {{ 'dup-high' if ce.dup_count >= 5 else 'dup-mid' }}">共 {{ ce.dup_count }} 家</span>
+            {% else %}
+              <span class="phone-unique">唯一</span>
             {% endif %}
-          {% else %}<span class="muted">—</span>{% endif %}
+          </div>
         </div>
+        {% endfor %}
       </div>
-      <div class="detail-field">
-        <div class="detail-label">其他邮箱</div>
-        <div class="detail-value">{{ company.other_email or '—' }}</div>
-      </div>
+    {% else %}
+      <div class="muted">未登记邮箱</div>
+    {% endif %}
+
+    <div class="contact-divider"></div>
+
+    <div class="detail-grid detail-grid-3">
       <div class="detail-field">
         <div class="detail-label">网址</div>
         <div class="detail-value">
