@@ -1,11 +1,234 @@
 {% extends "base.html" %}
 
-{% block title %}设置 · EntHub{% endblock %}
+{% block title %}设置{% endblock %}
 
 {% block content %}
 <div class="page">
   <div class="page-header" style="margin-bottom: 24px;">
     <h1 class="page-title" style="font-size: 22px; font-weight: 600; margin: 0;">设置</h1>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       〇、网络访问地址
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <i data-lucide="globe" style="width:16px;height:16px;color:var(--accent)"></i>
+      网络访问地址
+      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">局域网内其他设备可通过以下地址访问</span>
+    </h2>
+
+    <div class="settings-card" style="border-left-color: var(--accent);">
+      <div class="settings-card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 600;">访问入口</span>
+        </div>
+        <span style="font-size: 12px; color: var(--text-muted);">端口: {{ APP_PORT }}</span>
+      </div>
+      <div class="network-addresses">
+        <div class="address-item">
+          <div class="address-label">
+            <i data-lucide="terminal" style="width:14px;height:14px"></i>
+            本机访问
+          </div>
+          <div class="address-value">
+            <code>http://127.0.0.1:{{ APP_PORT }}</code>
+            <button class="addr-btn" onclick="copyToClipboard('http://127.0.0.1:{{ APP_PORT }}', this)" title="复制">
+              <i data-lucide="copy" style="width:14px;height:14px"></i>
+            </button>
+          </div>
+        </div>
+        {% if local_ips %}
+          {% for ip in local_ips %}
+          <div class="address-item">
+            <div class="address-label">
+              <i data-lucide="wifi" style="width:14px;height:14px"></i>
+              局域网访问 {{ '(推荐)' if loop.first else '' }}
+            </div>
+            <div class="address-value">
+              <button class="addr-btn" onclick="toggleQRCode(this, 'http://{{ ip }}:{{ APP_PORT }}')" title="显示二维码">
+                <i data-lucide="qr-code" style="width:14px;height:14px"></i>
+              </button>
+              <code>http://{{ ip }}:{{ APP_PORT }}</code>
+              <button class="addr-btn" onclick="copyToClipboard('http://{{ ip }}:{{ APP_PORT }}', this)" title="复制">
+                <i data-lucide="copy" style="width:14px;height:14px"></i>
+              </button>
+            </div>
+          </div>
+          <div class="qr-code-wrap" style="display:none; padding: 8px 0; text-align: center;">
+            <div style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: inline-block;">
+              <img class="qr-img" data-url="http://{{ ip }}:{{ APP_PORT }}" style="width:140px;height:140px;display:block;">
+              <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 6px;">
+                <code>http://{{ ip }}:{{ APP_PORT }}</code>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div class="address-item">
+          <div class="address-label">
+            <i data-lucide="wifi" style="width:14px;height:14px"></i>
+            局域网访问
+          </div>
+          <div class="address-value" style="color: var(--text-muted);">
+            未检测到局域网 IP，请检查网络连接
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       〇、访问密码保护
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <i data-lucide="lock" style="width:16px;height:16px;color:var(--accent)"></i>
+      访问密码保护
+      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">设置密码后，访问 EntHub 需要输入密码</span>
+    </h2>
+
+    <div class="settings-card" style="border-left-color: {{ '#22c55e' if password_enabled else '#d1d5db' }};">
+      <div class="settings-card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 600;">密码保护</span>
+          {% if password_enabled %}
+          <span class="status-badge status-badge-active">已启用</span>
+          {% else %}
+          <span class="status-badge status-badge-inactive">未启用</span>
+          {% endif %}
+        </div>
+        <span style="font-size: 12px; color: var(--text-muted);">
+          {% if password_enabled %}
+          密码已设置，访问需验证
+          {% else %}
+          所有人均可直接访问控制台
+          {% endif %}
+        </span>
+      </div>
+
+      <form method="post" action="{{ url_for('settings_flow_bp.update_password') }}" style="padding: 16px 20px;">
+        {% if password_enabled %}
+        <div style="margin-bottom: 14px;">
+          <label class="settings-label">当前密码</label>
+          <div style="position: relative;">
+            <input type="password" name="current_password" class="form-input masked-input" placeholder="输入当前密码" style="width: 100%; max-width: 360px; padding: 7px 36px 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+            <button type="button" onclick="toggleMask(this)" tabindex="-1" class="eye-btn"><i data-lucide="eye" style="width:14px;height:14px"></i></button>
+          </div>
+        </div>
+        {% endif %}
+        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 14px; align-items: end; max-width: 600px;">
+          <div>
+            <label class="settings-label">新密码</label>
+            <div style="position: relative;">
+              <input type="password" name="new_password" class="form-input masked-input" placeholder="至少 4 位" minlength="4" style="width: 100%; padding: 7px 36px 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+              <button type="button" onclick="toggleMask(this)" tabindex="-1" class="eye-btn"><i data-lucide="eye" style="width:14px;height:14px"></i></button>
+            </div>
+          </div>
+          <div>
+            <label class="settings-label">确认密码</label>
+            <div style="position: relative;">
+              <input type="password" name="confirm_password" class="form-input masked-input" placeholder="再次输入密码" minlength="4" style="width: 100%; padding: 7px 36px 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+              <button type="button" onclick="toggleMask(this)" tabindex="-1" class="eye-btn"><i data-lucide="eye" style="width:14px;height:14px"></i></button>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; padding-bottom: 7px;">
+            <button type="submit" class="btn-sm btn-primary-sm">
+              <i data-lucide="save" style="width:14px;height:14px"></i>
+              {{ '修改密码' if password_enabled else '设置密码' }}
+            </button>
+            {% if password_enabled %}
+            <button type="button" class="btn-sm btn-danger-sm" onclick="confirmDisablePassword(event)">
+              <i data-lucide="unlock" style="width:14px;height:14px"></i>
+              关闭保护
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </form>
+
+      {% if password_enabled %}
+      <form method="post" action="{{ url_for('settings_flow_bp.disable_password') }}" id="disable-password-form" style="display:none;"></form>
+      {% endif %}
+
+      <!-- 安全提示 -->
+      <div style="padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border);">
+        <p><strong>关于安全方案：</strong></p>
+        <ul style="margin: 4px 0 0 16px; line-height: 1.8;">
+          <li>密码使用 <code>werkzeug</code> 哈希存储，不保存明文</li>
+          <li>登录状态通过加密 Cookie 保持，无需重复输入</li>
+          <li>适用于局域网访问场景，提供基础安全防护</li>
+          <li><strong>建议：</strong>设置密码后，局域网内其他设备访问时需要输入密码，可防止未授权访问</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       〇、金山多维表 Webhook
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <i data-lucide="table-2" style="width:16px;height:16px;color:var(--accent)"></i>
+      金山多维表
+      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">从企业详情页一键发送数据到金山多维表</span>
+    </h2>
+
+    <div class="settings-card" style="border-left-color: {{ '#22c55e' if webhook_url else '#d1d5db' }};">
+      <div class="settings-card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 600;">Webhook 推送</span>
+          {% if webhook_url %}
+          <span class="status-badge status-badge-active">已配置</span>
+          {% else %}
+          <span class="status-badge status-badge-inactive">未配置</span>
+          {% endif %}
+        </div>
+        <span style="font-size: 12px; color: var(--text-muted);">
+          {% if webhook_url %}Webhook 地址已设置{% else %}配置后可在企业详情页发送数据{% endif %}
+        </span>
+      </div>
+
+      <form method="post" action="{{ url_for('settings_flow_bp.save_kinboard_webhook') }}" style="padding: 16px 20px;">
+        <div style="display: flex; gap: 14px; align-items: end; max-width: 600px;">
+          <div style="flex: 1;">
+            <label class="settings-label">Webhook URL</label>
+            <input type="url" name="webhook_url" value="{{ webhook_url }}"
+                   placeholder="https://flow.aliyun.com/trigger/..."
+                   style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: monospace;">
+          </div>
+          <button type="submit" class="btn-sm btn-primary-sm" style="padding-bottom: 7px;">
+            <i data-lucide="save" style="width:14px;height:14px"></i> 保存
+          </button>
+        </div>
+      </form>
+
+      <div style="padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border);">
+        <p><strong>发送字段说明：</strong></p>
+        <ul style="margin: 4px 0 0 16px; line-height: 1.8;">
+          <li><code>公司名</code> — 企业名称</li>
+          <li><code>地址</code> — 优先最新年报地址，没有则传注册地址</li>
+          <li><code>法人</code> — 刘亚民（法人）</li>
+          <li><code>电话号码</code> — 每个号码一行</li>
+          <li><code>备注</code> — 注册日期 + 资本（实缴）</li>
+        </ul>
+        <p style="margin-top: 10px;"><strong>WPS 自动化流程配置：</strong></p>
+        <ol style="margin: 4px 0 0 16px; line-height: 1.8;">
+          <li>在 WPS 多维表 → 自动化流程 → 添加「Webhook 触发器」</li>
+          <li>请求头：留空（EntHub 会自动发送 <code>Content-Type: application/json</code>）</li>
+          <li>请求体（raw）填入以下示例，定义字段结构：</li>
+        </ol>
+        <pre style="background: var(--bg); padding: 10px; border-radius: 6px; margin: 8px 0; overflow-x: auto; font-size: 11px; line-height: 1.6;">{
+  "公司名": "",
+  "地址": "",
+  "法人": "",
+  "电话号码": "",
+  "备注": ""
+}</pre>
+        <p style="margin-top: 8px;">4. 后续添加「创建记录」动作，将上述字段映射到多维表对应列</p>
+      </div>
+    </div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════
@@ -183,6 +406,14 @@
   color: white;
   border-color: var(--accent);
 }
+.btn-danger-sm {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+.btn-danger-sm:hover {
+  background: var(--danger-hover, #a33a0a);
+}
 .btn-outline-sm {
   background: #f1f3f5;
   border-color: #dee2e6;
@@ -198,11 +429,112 @@
   padding: 2px;
   color: var(--text-muted);
 }
+/* ── 网络地址样式 ── */
+.network-addresses {
+  padding: 8px 20px;
+}
+.address-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.address-item:last-child {
+  border-bottom: none;
+}
+.address-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 120px;
+}
+.address-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.address-value code {
+  background: var(--bg);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.addr-btn {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+.addr-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.addr-btn.copied {
+  color: var(--success);
+  border-color: var(--success);
+  background: var(--success-light);
+}
+.addr-btn.qr-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+/* ── 状态徽章 ── */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.status-badge-active {
+  background: #ECFDF3;
+  color: #16A34A;
+}
+.status-badge-inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+}
 </style>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// ── 二维码切换（服务端生成） ──
+function toggleQRCode(btn, url) {
+  const wrap = btn.closest('.address-item').nextElementSibling;
+  if (!wrap || !wrap.classList.contains('qr-code-wrap')) return;
+  const isHidden = wrap.style.display === 'none';
+  wrap.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    // 只加载一次
+    const img = wrap.querySelector('.qr-img');
+    if (img && !img.src) {
+      img.src = '/api/settings/qrcode?url=' + encodeURIComponent(url);
+    }
+    btn.classList.add('qr-active');
+  } else {
+    btn.classList.remove('qr-active');
+  }
+}
+window.toggleQRCode = toggleQRCode;
+
 async function testConnection(key) {
   const btn = document.getElementById('test-btn-' + key);
   if (!btn) return;
@@ -261,5 +593,12 @@ function toggleMask(btn) {
   if (window.lucide) lucide.createIcons();
 }
 window.toggleMask = toggleMask;
+
+function confirmDisablePassword(e) {
+  if (confirm('确定要关闭密码保护吗？\n\n关闭后，所有访问者均可直接进入控制台，无需密码验证。')) {
+    document.getElementById('disable-password-form').submit();
+  }
+}
+window.confirmDisablePassword = confirmDisablePassword;
 </script>
 {% endblock %}

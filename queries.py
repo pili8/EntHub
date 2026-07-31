@@ -452,52 +452,171 @@ def text_search(db, q, per_page, offset):
     """7 字段文本搜索，按命中字段优先级排序。
 
     返回 (total, rows)，rows 中含 matched_field 字段。
+
+    优化策略：
+    - 3字以上查询：走 FTS5 全文索引（~0.002s）
+    - 2字及以下：回退 OR 单次扫描 LIKE（~1s）
     """
     norm_q = normalize_name(q)
     like_q = "%" + q + "%"
     like_name = "%" + norm_q + "%"
 
-    # total: UNION 去重
-    # 第一个字段是 normalized_name，用归一化值匹配；email 查 company_emails 表；其余用原文 LIKE。
-    total_sql = "SELECT COUNT(*) FROM (\n    " + "\n    UNION\n    ".join(
-        (f"SELECT company_id FROM company_emails WHERE email LIKE ?"
-         if field == "email" else
-         f"SELECT id FROM companies WHERE {field} LIKE ?")
-        for field, _, _ in TEXT_SEARCH_FIELDS
-    ) + "\n)"
-    # 第一个参数用归一化的 like_name，其余用 like_q
-    total_params = [like_name] + [like_q] * (len(TEXT_SEARCH_FIELDS) - 1)
-    total = db.execute(total_sql, total_params).fetchone()[0]
+    # 检查 FTS5 表是否可用
+    fts_available = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='companies_fts'"
+    ).fetchone() is not None
 
-    # 排序查询：UNION ALL + GROUP BY id + MIN(priority)
-    branches = []
-    for field, label, priority in TEXT_SEARCH_FIELDS:
-        param = "like_name" if field == "normalized_name" else "like_q"
-        if field == "email":
-            branches.append(
-                f"            SELECT company_id AS id, '{label}' AS matched_field, {priority} AS priority "
-                f"FROM company_emails WHERE email LIKE ?"
-            )
-        else:
-            branches.append(
-                f"            SELECT id, '{label}' AS matched_field, {priority} AS priority "
-                f"FROM companies WHERE {field} LIKE ?"
-            )
-    branches_sql = "\n            UNION ALL\n".join(branches)
+    if fts_available and len(q) >= 3:
+        return _text_search_fts(db, q, like_q, like_name, per_page, offset)
+    else:
+        return _text_search_like(db, q, like_q, like_name, per_page, offset)
+
+
+def _text_search_fts(db, q, like_q, like_name, per_page, offset):
+    """FTS5 快速路径：JOIN + CASE 确定命中字段。"""
+    total = db.execute(
+        "SELECT COUNT(*) FROM companies_fts WHERE companies_fts MATCH ?",
+        [q],
+    ).fetchone()[0]
+
+    if total == 0:
+        return 0, []
 
     rows = db.execute(f"""
         SELECT {COMPANY_LIST_COLUMNS},
-               m.matched_field
-        FROM (
-{branches_sql}
-        ) m
-        JOIN companies c ON c.id = m.id
-        GROUP BY c.id
-        ORDER BY MIN(m.priority), c.name
+               CASE
+                   WHEN c.normalized_name LIKE ? THEN '名称'
+                   WHEN c.former_name LIKE ? THEN '曾用名'
+                   WHEN c.address LIKE ? THEN '地址'
+                   WHEN c.legal_person LIKE ? THEN '法人'
+                   WHEN c.shareholders LIKE ? THEN '股东'
+                   WHEN c.website LIKE ? THEN '网站'
+                   WHEN EXISTS (SELECT 1 FROM company_emails WHERE company_id = c.id AND email LIKE ?) THEN '邮箱'
+               END AS matched_field
+        FROM companies_fts f
+        JOIN companies c ON c.id = f.rowid
+        WHERE f.companies_fts MATCH ?
+        ORDER BY
+            CASE
+                WHEN c.normalized_name LIKE ? THEN 1
+                WHEN c.former_name LIKE ? THEN 2
+                WHEN c.address LIKE ? THEN 3
+                WHEN c.legal_person LIKE ? THEN 4
+                WHEN c.shareholders LIKE ? THEN 5
+                WHEN c.website LIKE ? THEN 6
+                ELSE 7
+            END,
+            c.name
         LIMIT ? OFFSET ?
-    """, total_params + [per_page, offset]).fetchall()
+    """, [
+        like_name, like_q, like_q, like_q, like_q, like_q, like_q,  # CASE matched_field
+        q,  # WHERE MATCH
+        like_name, like_q, like_q, like_q, like_q, like_q,  # ORDER BY priority
+        per_page, offset,
+    ]).fetchall()
 
     return total, rows
+
+
+def _text_search_like(db, q, like_q, like_name, per_page, offset):
+    """LIKE 回退路径：分优先级渐进式搜索。
+
+    首页（offset=0）用渐进式（快），翻页用 CASE 单次扫描（正确）。
+    """
+    # COUNT: OR 单次扫描
+    total = db.execute(
+        "SELECT COUNT(*) FROM companies WHERE "
+        " normalized_name LIKE ? OR former_name LIKE ?"
+        " OR address LIKE ? OR legal_person LIKE ?"
+        " OR shareholders LIKE ? OR website LIKE ?"
+        " OR id IN (SELECT company_id FROM company_emails WHERE email LIKE ?)",
+        [like_name] + [like_q] * 6,
+    ).fetchone()[0]
+
+    if total == 0:
+        return 0, []
+
+    # 首页：渐进式（快），翻页：CASE 单次扫描（正确分页）
+    if offset == 0:
+        rows = _like_progressive(db, like_q, like_name, per_page)
+    else:
+        rows = _like_case_query(db, like_q, like_name, per_page, offset)
+
+    return total, rows
+
+
+def _like_progressive(db, like_q, like_name, per_page):
+    """渐进式搜索：逐字段搜索，够 per_page 条就停。"""
+    needed = per_page
+    results = []
+    seen_ids = set()
+
+    for field, label, priority in TEXT_SEARCH_FIELDS:
+        if needed <= 0:
+            break
+        like_param = like_name if field == "normalized_name" else like_q
+        if field == "email":
+            sql = (f"SELECT {{}} FROM company_emails ce "
+                   f"JOIN companies c ON c.id = ce.company_id "
+                   f"WHERE ce.email LIKE ? "
+                   f"ORDER BY c.name LIMIT ?")
+            params = [like_param, needed]
+        else:
+            sql = (f"SELECT {{}}, '{label}' AS matched_field "
+                   f"FROM companies c WHERE c.{field} LIKE ? "
+                   f"ORDER BY c.name LIMIT ?")
+            params = [like_param, needed]
+
+        rows = db.execute(sql.format(COMPANY_LIST_COLUMNS), params).fetchall()
+        for r in rows:
+            if r["id"] not in seen_ids:
+                seen_ids.add(r["id"])
+                results.append(r)
+                needed -= 1
+
+    # 按优先级排序
+    _priority_map = {label: priority for _, label, priority in TEXT_SEARCH_FIELDS}
+    results.sort(key=lambda r: (_priority_map.get(r["matched_field"], 9), r["name"]))
+    return results
+
+
+def _like_case_query(db, like_q, like_name, per_page, offset):
+    """CASE 单次扫描：用于翻页，保证分页正确性。"""
+    rows = db.execute(f"""
+        SELECT {COMPANY_LIST_COLUMNS},
+               CASE
+                   WHEN c.normalized_name LIKE ? THEN '名称'
+                   WHEN c.former_name LIKE ? THEN '曾用名'
+                   WHEN c.address LIKE ? THEN '地址'
+                   WHEN c.legal_person LIKE ? THEN '法人'
+                   WHEN c.shareholders LIKE ? THEN '股东'
+                   WHEN c.website LIKE ? THEN '网站'
+                   ELSE '邮箱'
+               END AS matched_field
+        FROM companies c
+        WHERE c.normalized_name LIKE ? OR c.former_name LIKE ?
+           OR c.address LIKE ? OR c.legal_person LIKE ?
+           OR c.shareholders LIKE ? OR c.website LIKE ?
+           OR c.id IN (SELECT company_id FROM company_emails WHERE email LIKE ?)
+        ORDER BY
+            CASE
+                WHEN c.normalized_name LIKE ? THEN 1
+                WHEN c.former_name LIKE ? THEN 2
+                WHEN c.address LIKE ? THEN 3
+                WHEN c.legal_person LIKE ? THEN 4
+                WHEN c.shareholders LIKE ? THEN 5
+                WHEN c.website LIKE ? THEN 6
+                ELSE 7
+            END,
+            c.name
+        LIMIT ? OFFSET ?
+    """, [
+        like_name, like_q, like_q, like_q, like_q, like_q,  # CASE matched_field
+        like_name, like_q, like_q, like_q, like_q, like_q, like_q,  # WHERE
+        like_name, like_q, like_q, like_q, like_q, like_q,  # ORDER BY priority
+        per_page, offset,
+    ]).fetchall()
+    return rows
 
 
 # ── 电话/信用代码精确搜索 ───────────────────────────────────────────────────

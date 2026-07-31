@@ -1,6 +1,9 @@
-"""配置管理：读写 config.json，支持 API 密钥和配额统计。"""
+"""配置管理：读写 config.json，支持 API 密钥、配额统计、访问密码。"""
 import json
 from pathlib import Path
+from werkzeug.security import generate_password_hash, check_password_hash
+
+APP_PORT = 5210
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
 
@@ -160,6 +163,21 @@ def set_quota_remaining(remaining):
     return get_quota()
 
 
+# ── 金山多维表 Webhook ──────────────────────────────────────────────────────
+
+def get_webhook_url():
+    """获取金山多维表 Webhook URL。"""
+    config = load_config()
+    return config.get("webhook_url", "")
+
+
+def save_webhook_url(url):
+    """保存金山多维表 Webhook URL。"""
+    config = load_config()
+    config["webhook_url"] = url.strip()
+    save_config(config)
+
+
 # ── LLM API 配置 ─────────────────────────────────────────────────────────────
 
 DEFAULT_LLM = {
@@ -199,3 +217,33 @@ def is_llm_ready():
     """检查 LLM API 是否已配置好。"""
     llm = get_llm_config()
     return bool(llm.get("enabled") and llm.get("api_key") and llm.get("base_url"))
+
+
+# ── 访问密码管理 ─────────────────────────────────────────────────────────────
+
+def get_access_password() -> str:
+    """获取已设置的访问密码哈希，未设置返回空字符串。"""
+    config = load_config()
+    return config.get("access_password", "")
+
+
+def set_access_password(plain_password: str) -> None:
+    """设置访问密码（存储哈希值，不存明文）。"""
+    if not plain_password:
+        return
+    config = load_config()
+    config["access_password"] = generate_password_hash(plain_password)
+    save_config(config)
+
+
+def verify_access_password(plain_password: str) -> bool:
+    """验证密码是否匹配。如果未设置密码，返回 True（不设密码就是全开放）。"""
+    password_hash = get_access_password()
+    if not password_hash:
+        return True  # 未设置密码，默认放行
+    return check_password_hash(password_hash, plain_password)
+
+
+def is_password_enabled() -> bool:
+    """检查是否启用了密码保护。"""
+    return bool(get_access_password())

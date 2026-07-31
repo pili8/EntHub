@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}{% if val %}{{ field_icon }} {{ field_label }}关联：{{ val }}{% else %}关联发现{% endif %} · EntHub{% endblock %}
+{% block title %}{% if val %}{{ field_icon }} {{ field_label }}关联：{{ val }}{% else %}关联发现{% endif %}{% endblock %}
 
 {% block content %}
 {% if val %}
 {# ── 详情模式：显示某个分组的企业列表 ── #}
 <div class="page-header">
     <div style="display: flex; align-items: center; gap: 12px;">
-        <a href="/relations?dup_type={{ dup_type }}" class="btn btn-secondary btn-sm">
+        <a href="{{ '/tags' if from_page == 'tags' else '/relations?dup_type=' ~ dup_type }}" class="btn btn-secondary btn-sm">
             <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
             返回
         </a>
@@ -72,6 +72,13 @@
                     hx-target="#relation-groups-container"
                     hx-swap="innerHTML">
                 🏷️ 标签关联
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
+                    data-type="phone_tag"
+                    hx-get="{{ url_for('pages_bp.browse_relation_groups', dup_type='phone_tag', sort='count_desc') }}"
+                    hx-target="#relation-groups-container"
+                    hx-swap="innerHTML">
+                🏷️ 电话标记
             </button>
             <button type="button" class="btn btn-secondary btn-sm relation-type-btn"
                     data-type="shareholder"

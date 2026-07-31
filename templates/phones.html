@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}电话查询 · EntHub{% endblock %}
+{% block title %}电话查询{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -391,7 +391,6 @@ async function querySinglePhone(evt) {
             const loc = result.location;
             let locStr = loc.province;
             if (loc.city && loc.city !== loc.province) locStr += ' ' + loc.city;
-            if (loc.carrier) locStr += ' ' + loc.carrier;
             locEl.innerHTML = '<span style="display: inline-block; padding: 2px 8px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; font-size: 12px;">' + locStr + '</span>';
         } else {
             locEl.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
@@ -491,7 +490,6 @@ async function queryBatchPhones(evt) {
                 const loc = r.location;
                 let locStr = loc.province;
                 if (loc.city && loc.city !== loc.province) locStr += ' ' + loc.city;
-                if (loc.carrier) locStr += ' ' + loc.carrier;
                 locHtml = '<span style="font-size: 12px; color: var(--text-secondary);">' + locStr + '</span>';
             }
             // 标记（单标签模式）

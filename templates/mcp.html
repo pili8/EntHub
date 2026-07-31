@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}MCP 管理 · EntHub{% endblock %}
+{% block title %}MCP 管理{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -17,7 +17,7 @@
                     {% if running %}运行中{% else %}已停止{% endif %}
                 </div>
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                    {% if running and pid %}PID: {{ pid }} · 端口 8000（HTTP 模式）{% else %}未启动（stdio 模式可不启动）{% endif %}
+                    {% if running and pid %}PID: {{ pid }} · 端口 5310（HTTP 模式）{% else %}未启动（stdio 模式可不启动）{% endif %}
                 </div>
             </div>
         </div>
@@ -351,9 +351,15 @@
             <strong>🌐 HTTP 模式</strong>：需要先点上方「启动」按钮运行 MCP Server，多端可共享访问。
         </div>
 
+        {% if password_enabled %}
+        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #92400e; line-height: 1.6;">
+            <strong>🔐 已启用密码保护</strong>：HTTP 模式的 URL 需要在末尾加 <code style="background: white; padding: 1px 4px; border-radius: 3px;">?token=你的密码</code>，否则连接会被拒绝（401）。stdio 模式不受影响。
+        </div>
+        {% endif %}
+
         <div style="margin-bottom: 12px;">
             <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">📡 MCP Server URL（启动后才能访问）：</div>
-            <code style="display: block; padding: 8px 12px; background: var(--bg-secondary); border-radius: 4px; font-size: 12px; font-family: monospace;">{{ server_url }}</code>
+            <code style="display: block; padding: 8px 12px; background: var(--bg-secondary); border-radius: 4px; font-size: 12px; font-family: monospace; word-break: break-all;">{{ server_url }}{% if password_enabled %}?token=你的密码{% endif %}</code>
         </div>
 
         <!-- JSON 配置 -->
@@ -366,7 +372,7 @@
   "mcpServers": {
     "enthub": {
       "type": "http",
-      "url": "{{ server_url }}"
+      "url": "{{ server_url }}{% if password_enabled %}?token=你的密码{% endif %}"
     }
   }
 }</code></pre>
@@ -408,9 +414,9 @@
                     <tr>
                         <td style="padding: 10px 12px;"><div style="font-weight: 500;">URL *</div><div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">服务地址</div></td>
                         <td style="padding: 10px 12px;"><span style="color: #22c55e; font-weight: 500;">必填</span></td>
-                        <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px; word-break: break-all;">{{ server_url }}</code></td>
+                        <td style="padding: 10px 12px;"><code style="font-family: monospace; background: white; padding: 2px 6px; border-radius: 3px; word-break: break-all;">{{ server_url }}{% if password_enabled %}?token=你的密码{% endif %}</code></td>
                         <td style="padding: 10px 12px; text-align: right;">
-                            <button onclick="copyToClipboard('{{ server_url }}', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                            <button onclick="copyToClipboard('{{ server_url }}{% if password_enabled %}?token=你的密码{% endif %}', this)" class="copy-btn" style="background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">
                                 <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
                             </button>
                         </td>
@@ -420,7 +426,7 @@
         </div>
         {% if lan_url %}
         <div style="margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; font-size: 12px; color: #166534; line-height: 1.6;">
-            💡 <strong>局域网/其他设备</strong>请把 URL 改为：<code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ lan_url }}</code>
+            💡 <strong>局域网/其他设备</strong>请把 URL 改为：<code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ lan_url }}{% if password_enabled %}?token=你的密码{% endif %}</code>
         </div>
         {% endif %}
     </div>

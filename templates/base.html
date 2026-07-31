@@ -2,12 +2,109 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}EntHub{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#FBFAF7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#1F1B17" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="format-detection" content="telephone=no">
+    <title>EntHub · {% block title %}控制台{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23D97757'/%3E%3Cpath d='M22 50V20a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v30z' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M22 32h-4a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M42 26h4a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3h-4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cline x1='28' y1='24' x2='34' y2='24' stroke='%23fff' stroke-width='2'/%3E%3Cline x1='28' y1='30' x2='34' y2='30' stroke='%23fff' stroke-width='2'/%3E%3Cline x1='28' y1='36' x2='34' y2='36' stroke='%23fff' stroke-width='2'/%3E%3Cline x1='28' y1='42' x2='34' y2='42' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='menubar_icon.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <nav class="nav">
+    <!-- ─────────── 移动端顶部栏（mobile-only） ─────────── -->
+    <header class="m-topbar">
+        <a href="{{ url_for('pages_bp.index') }}" class="m-topbar-logo" aria-label="返回首页">
+            <span class="m-topbar-logo-icon">
+                <i data-lucide="building-2" aria-hidden="true"></i>
+            </span>
+            <span class="m-topbar-logo-text">EntHub</span>
+        </a>
+        <button type="button" class="m-topbar-btn" onclick="mToggleSearch()" aria-label="搜索">
+            <i data-lucide="search" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="m-topbar-btn" onclick="mToggleDrawer()" aria-label="菜单">
+            <i data-lucide="menu" aria-hidden="true"></i>
+        </button>
+    </header>
+
+    <!-- ─────────── 移动端搜索浮层（mobile-only） ─────────── -->
+    <div class="m-search-overlay" id="m-search-overlay" hidden>
+        <form action="{{ url_for('pages_bp.search') }}" method="get" class="m-search-form" role="search">
+            <i data-lucide="search" class="m-search-icon" aria-hidden="true"></i>
+            <input type="text" name="q" class="m-search-input" placeholder="搜企业、电话、地址、法人…" autocomplete="off" autofocus>
+            <button type="button" class="m-search-close" onclick="mToggleSearch()" aria-label="关闭">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </form>
+    </div>
+
+    <!-- ─────────── 移动端抽屉菜单（mobile-only） ─────────── -->
+    <div class="m-drawer-backdrop" id="m-drawer-backdrop" onclick="mToggleDrawer()" hidden></div>
+    <aside class="m-drawer" id="m-drawer" hidden aria-label="侧边菜单">
+        <div class="m-drawer-head">
+            <a href="{{ url_for('pages_bp.index') }}" class="m-drawer-logo">
+                <span class="m-topbar-logo-icon">
+                    <i data-lucide="building-2" aria-hidden="true"></i>
+                </span>
+                <span>EntHub</span>
+            </a>
+            <button type="button" class="m-drawer-close" onclick="mToggleDrawer()" aria-label="关闭菜单">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="m-drawer-body">
+            <div class="m-drawer-section-title">数据</div>
+            <a href="{{ url_for('pages_bp.search') }}" class="m-drawer-item" data-key="/search">
+                <i data-lucide="search"></i><span>搜索</span>
+            </a>
+            <a href="{{ url_for('pages_bp.browse') }}" class="m-drawer-item" data-key="/browse">
+                <i data-lucide="table"></i><span>浏览全部</span>
+            </a>
+            <a href="{{ url_for('pages_bp.phones_page') }}" class="m-drawer-item" data-key="/phones">
+                <i data-lucide="phone"></i><span>电话可信度</span>
+            </a>
+            <a href="{{ url_for('pages_bp.relation_discovery') }}" class="m-drawer-item" data-key="/relations">
+                <i data-lucide="git-branch"></i><span>关联发现</span>
+            </a>
+
+            <div class="m-drawer-section-title">操作</div>
+            <a href="{{ url_for('companies_bp.add_company') }}" class="m-drawer-item" data-key="/add">
+                <i data-lucide="plus-circle"></i><span>手动录入</span>
+            </a>
+            <a href="{{ url_for('import_flow_bp.import_page') }}" class="m-drawer-item" data-key="/import">
+                <i data-lucide="upload"></i><span>Excel 导入</span>
+            </a>
+            <a href="{{ url_for('tags_bp.tags_page') }}" class="m-drawer-item" data-key="/tags">
+                <i data-lucide="tag"></i><span>标签管理</span>
+            </a>
+            <a href="{{ url_for('mcp_flow_bp.mcp_page') }}" class="m-drawer-item" data-key="/mcp">
+                <i data-lucide="bot"></i><span>MCP 工具</span>
+            </a>
+
+            <div class="m-drawer-section-title">系统</div>
+            <a href="{{ url_for('backup_flow_bp.backup_page') }}" class="m-drawer-item" data-key="/backup">
+                <i data-lucide="database"></i><span>数据备份</span>
+            </a>
+            <a href="{{ url_for('cleanup_flow_bp.cleanup_page') }}" class="m-drawer-item" data-key="/cleanup">
+                <i data-lucide="sparkles"></i><span>数据整理</span>
+            </a>
+            <a href="{{ url_for('settings_flow_bp.settings_page') }}" class="m-drawer-item" data-key="/settings">
+                <i data-lucide="settings"></i><span>设置</span>
+            </a>
+<a href="{{ url_for('pages_bp.exit_server') }}" class="m-drawer-item m-drawer-item-warn" onclick="return confirmLink(event, '{{ url_for('pages_bp.exit_server') }}', '退出服务', '确定要退出 EntHub 服务吗？');">
+<i data-lucide="power"></i><span>退出服务</span>
+</a>
+        </div>
+        <div class="m-drawer-foot">
+            <span class="m-drawer-foot-dot"></span>
+            <span>服务运行中 · 127.0.0.1:{{ APP_PORT }}</span>
+        </div>
+    </aside>
+
+    <nav class="nav nav-desktop">
         <div class="nav-inner">
             <a href="{{ url_for('pages_bp.index') }}" class="nav-logo">
                 <span class="nav-logo-icon">
@@ -69,15 +166,41 @@
                                 <i data-lucide="settings" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
                                 设置
                             </a>
-                            <a href="{{ url_for('pages_bp.restart_server') }}" class="nav-dropdown-item" onclick="return confirmLink(event, '{{ url_for('pages_bp.restart_server') }}', '重启服务器', '确定要重启服务器吗？');" style="display: block; padding: 8px 16px; color: var(--warning); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
-                                <i data-lucide="rotate-cw" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
-                                重启
-                            </a>
+<a href="{{ url_for('pages_bp.exit_server') }}" class="nav-dropdown-item" onclick="return confirmLink(event, '{{ url_for('pages_bp.exit_server') }}', '退出服务', '确定要退出 EntHub 服务吗？');" style="display: block; padding: 8px 16px; color: var(--text-muted); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+<i data-lucide="power" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
+退出服务
+</a>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </nav>
+
+    <!-- ─────────── 移动端底部 Tab Bar（mobile-only） ─────────── -->
+    <nav class="m-tabbar" aria-label="主导航">
+        <a href="{{ url_for('pages_bp.index') }}" class="m-tab" data-key="/">
+            <i data-lucide="home" aria-hidden="true"></i>
+            <span>首页</span>
+        </a>
+        <a href="{{ url_for('pages_bp.search') }}" class="m-tab" data-key="/search">
+            <i data-lucide="search" aria-hidden="true"></i>
+            <span>搜索</span>
+        </a>
+        <button type="button" class="m-tab m-tab-fab" onclick="quickAnnotate(event)" aria-label="一键标注号码">
+            <span class="m-tab-fab-inner">
+                <i data-lucide="zap" aria-hidden="true"></i>
+            </span>
+            <span>标注</span>
+        </button>
+        <a href="{{ url_for('pages_bp.browse') }}" class="m-tab" data-key="/browse">
+            <i data-lucide="layout-list" aria-hidden="true"></i>
+            <span>浏览</span>
+        </a>
+        <a href="{{ url_for('companies_bp.add_company') }}" class="m-tab" data-key="/add">
+            <i data-lucide="plus-circle" aria-hidden="true"></i>
+            <span>录入</span>
+        </a>
     </nav>
 
     <div id="flash-area" class="flash-wrap">
@@ -188,6 +311,44 @@
         // Handle back/forward browser buttons
         window.addEventListener('popstate', function() {
             loadPage(location.href);
+        });
+
+        // ── Loading overlay ──
+        function showLoading() {
+            let ov = document.getElementById('spa-loading');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = 'spa-loading';
+                ov.style.cssText = 'position:fixed;inset:0;background:rgba(251,250,247,0.6);backdrop-filter:blur(2px);z-index:9999;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+                ov.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:16px 28px;background:white;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.08);"><span style="display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;"></span><span style="font-size:14px;color:var(--text-secondary);font-weight:500;">搜索中…</span></div>';
+                document.body.appendChild(ov);
+            }
+            ov.style.display = 'flex';
+        }
+        function hideLoading() {
+            const ov = document.getElementById('spa-loading');
+            if (ov) ov.style.display = 'none';
+        }
+        // Patch loadPage to show/hide loading
+        const _origLoadPage = loadPage;
+        loadPage = async function(url) {
+            showLoading();
+            try { await _origLoadPage(url); }
+            finally { hideLoading(); }
+        };
+
+        // ── Intercept search form submissions ──
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (!form.matches('form')) return;
+            // Only intercept GET forms (search)
+            if (form.method.toLowerCase() !== 'get') return;
+            e.preventDefault();
+            const url = form.action ? form.action.split('?')[0] : location.pathname;
+            const params = new URLSearchParams(new FormData(form));
+            const fullUrl = url + '?' + params.toString();
+            history.pushState(null, '', fullUrl);
+            loadPage(fullUrl);
         });
 
         // Mark ready after first paint
@@ -445,6 +606,93 @@
     window.quickAnnotate = quickAnnotate;
     window.doAnnotate = doAnnotate;
     window._enthubToast = _enthubToast;
+
+    // ── 移动端 UI：搜索浮层、抽屉、Tab Bar 激活态 ──
+    (function() {
+        // 1. 移动端搜索浮层
+        window.mToggleSearch = function() {
+            const ov = document.getElementById('m-search-overlay');
+            if (!ov) return;
+            if (ov.hidden) {
+                ov.hidden = false;
+                requestAnimationFrame(() => ov.classList.add('on'));
+                const input = ov.querySelector('.m-search-input');
+                if (input) setTimeout(() => input.focus(), 80);
+            } else {
+                ov.classList.remove('on');
+                setTimeout(() => { ov.hidden = true; }, 220);
+            }
+        };
+        // 浮层表单提交
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (!form.matches || !form.matches('.m-search-form')) return;
+            // 让全局 SPA 路由接管 form 提交（见下）
+        });
+
+        // 2. 抽屉开关
+        window.mToggleDrawer = function() {
+            const drawer = document.getElementById('m-drawer');
+            const backdrop = document.getElementById('m-drawer-backdrop');
+            if (!drawer) return;
+            const opening = drawer.hidden;
+            drawer.hidden = !opening;
+            if (backdrop) backdrop.hidden = !opening;
+            // 同步动画状态
+            requestAnimationFrame(() => {
+                drawer.classList.toggle('on', opening);
+                if (backdrop) backdrop.classList.toggle('on', opening);
+                document.body.classList.toggle('m-drawer-open', opening);
+            });
+        };
+
+        // 3. Tab Bar 激活态 + Drawer 激活态
+        function syncActiveKeys() {
+            const path = location.pathname;
+            document.querySelectorAll('.m-tab[data-key], .m-drawer-item[data-key]').forEach(el => {
+                const key = el.getAttribute('data-key');
+                if (!key) return;
+                // 精确匹配或前缀匹配（/search 与 /search?q=... 都算）
+                if (path === key || (key !== '/' && path.indexOf(key) === 0)) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        }
+        syncActiveKeys();
+        // 监听 popstate 与自定义路由事件
+        window.addEventListener('popstate', syncActiveKeys);
+        // 拦截 SPA 的 loadPage 调用后同步
+        const _origLoad = window.loadPage;
+        // loadPage 在 IIFE 内部定义，挂不到 window；改用轮询 hack：在 history.pushState 后刷新
+        const _pushState = history.pushState.bind(history);
+        history.pushState = function() {
+            const r = _pushState.apply(history, arguments);
+            setTimeout(syncActiveKeys, 0);
+            // 路由切换后关闭移动端抽屉
+            setTimeout(() => {
+                const drawer = document.getElementById('m-drawer');
+                if (drawer && !drawer.hidden) {
+                    window.mToggleDrawer();
+                }
+                // 关闭搜索浮层
+                const ov = document.getElementById('m-search-overlay');
+                if (ov && !ov.hidden) {
+                    window.mToggleSearch();
+                }
+            }, 50);
+            return r;
+        };
+
+        // 4. 搜索浮层表单提交后自动关闭浮层
+        const mForm = document.querySelector('.m-search-form');
+        if (mForm) {
+            mForm.addEventListener('submit', function() {
+                setTimeout(() => window.mToggleSearch(), 200);
+            });
+        }
+    })();
     </script>
     {% include "_modal.html" %}
     <div id="page-scripts">

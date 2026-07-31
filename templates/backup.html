@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}数据备份 - EntHub{% endblock %}
+{% block title %}数据备份{% endblock %}
 
 {% block content %}
 <div class="page">
@@ -70,6 +70,50 @@
         </p>
         {% endif %}
     </div>
+
+    <!-- 恢复数据（折叠） -->
+    {% if backups %}
+    <details class="restore-details">
+        <summary class="restore-summary">
+            <i data-lucide="rotate-ccw" style="width:14px;height:14px;color:var(--text-muted)"></i>
+            恢复数据
+            <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">选择备份文件恢复</span>
+        </summary>
+        <div class="restore-section">
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+                从备份文件恢复，当前数据将自动备份为「恢复前自动备份」。
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- 方式一：从已有备份中选择 -->
+                <form method="post" action="{{ url_for('backup_flow_bp.backup_restore_select') }}"
+                      onsubmit="return confirmSubmit(event, '恢复数据', '⚠️ 恢复将覆盖当前所有数据！\n\n当前数据库会自动备份为「恢复前自动备份」。\n\n确定恢复吗？')"
+                      style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <select name="filename" class="restore-select" required>
+                        <option value="">-- 选择备份文件 --</option>
+                        {% for b in backups %}
+                        <option value="{{ b.filename }}">{{ b.time }} — {{ b.filename }} ({{ (b.size / 1024)|round(1) }} KB)</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm" style="background: var(--bg-subtle); border: 1px solid var(--border);">
+                        <i data-lucide="rotate-ccw" style="width:14px;height:14px"></i>
+                        恢复
+                    </button>
+                </form>
+                <!-- 方式二：上传任意 .db 文件 -->
+                <form method="post" action="{{ url_for('backup_flow_bp.backup_restore_upload') }}"
+                      enctype="multipart/form-data"
+                      onsubmit="return confirmSubmit(event, '恢复数据', '⚠️ 恢复将覆盖当前所有数据！\n\n当前数据库会自动备份为「恢复前自动备份」。\n\n确定恢复吗？')"
+                      style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="file" name="file" accept=".db" class="restore-file-input" required>
+                    <button type="submit" class="btn btn-sm" style="background: var(--bg-subtle); border: 1px solid var(--border);">
+                        <i data-lucide="upload" style="width:14px;height:14px"></i>
+                        上传并恢复
+                    </button>
+                </form>
+            </div>
+        </div>
+    </details>
+    {% endif %}
 
     {% if backups %}
     <div class="card">
@@ -242,6 +286,65 @@
 }
 .btn-danger:hover {
     background: var(--danger-hover, #c82333);
+}
+.btn-restore {
+    background: var(--accent, #D97757);
+    color: white;
+    border: 1px solid var(--accent, #D97757);
+}
+.btn-restore:hover {
+    background: var(--accent-hover, #C9663F);
+}
+.btn-restore:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.restore-section {
+    padding: 16px 20px;
+}
+.restore-select {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: white;
+    min-width: 280px;
+    max-width: 100%;
+    color: var(--text);
+    cursor: pointer;
+}
+.restore-select:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+.restore-details {
+    margin-bottom: 16px;
+    background: var(--bg-subtle, #f8f9fa);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+.restore-summary {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+}
+.restore-summary:hover {
+    background: rgba(0,0,0,0.02);
+}
+.restore-file-input {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: white;
+    max-width: 280px;
 }
 .empty {
     text-align: center;

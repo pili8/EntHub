@@ -27,9 +27,69 @@ from api import (
     _phone_dup_count,
     _extract_and_annotate,
 )
+from queries import text_search, search_by_phone, search_by_credit_code
 
 # 创建 MCP Server（host/port 仅 HTTP 模式生效）
-mcp = FastMCP("EntHub", json_response=True, host="0.0.0.0", port=8000)
+mcp = FastMCP("EntHub", json_response=True, host="0.0.0.0", port=5310)
+
+# EntHub Web 服务地址（用于生成企业详情页链接）
+_BASE_URL = "http://127.0.0.1:5210"
+
+
+# ── HTTP 模式认证中间件 ──────────────────────────────────────────────────────
+# 复用 Web 设置的访问密码，不设密码时全放行
+def _check_token(token: str) -> bool:
+    """检查 token 是否匹配已设置的访问密码。未设密码时全放行。"""
+    from config import is_password_enabled, verify_access_password
+    if not is_password_enabled():
+        return True  # 未设密码，全放行
+    return verify_access_password(token)
+
+
+class TokenAuthMiddleware:
+    """ASGI 中间件：检查 ?token= 或 Authorization: Bearer"""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        # 从 query string 提取 token
+        token = None
+        qs = scope.get("query_string", b"").decode("utf-8", errors="replace")
+        if qs:
+            from urllib.parse import parse_qs
+            params = parse_qs(qs)
+            token = params.get("token", [None])[0]
+
+        # 从 Authorization header 提取 token
+        if not token:
+            for key, val in scope.get("headers", []):
+                if key == b"authorization":
+                    val_str = val.decode("utf-8", errors="replace")
+                    if val_str.startswith("Bearer "):
+                        token = val_str[7:]
+                    break
+
+        # 验证
+        if token and _check_token(token):
+            await self.app(scope, receive, send)
+            return
+
+        # 未通过，返回 401
+        resp_body = b'{"code": 401, "message": "\u9700\u8981\u8ba4\u8bc1\uff0c\u8bf7\u5728 URL \u52a0 ?token=\u5bc6\u7801 \u6216 Authorization: Bearer \u5bc6\u7801", "data": null}'
+        await send({
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                (b"content-type", b"application/json; charset=utf-8"),
+                (b"content-length", str(len(resp_body)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": resp_body})
 
 
 # ── 工具函数 ──────────────────────────────────────────────────
@@ -53,96 +113,168 @@ def _detect_query_type(q: str) -> str:
 @mcp.tool()
 def search_companies(q: str, limit: int = 20) -> dict:
     """搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）
-    
+
+    每条结果包含 detail_url 字段，可直接访问企业详情页。
+
     Args:
         q: 搜索关键词
         limit: 返回条数（默认 20，最大 50）
-    
+
     Returns:
-        搜索结果，包含 query/type/count/results
+        搜索结果，包含 query/type/count/results，每条 result 含 detail_url
     """
     db = get_db()
     q = q.strip()
     limit = min(50, max(1, limit))
-    
+
     if not q:
         return {"code": 0, "message": "ok", "data": {"query": "", "type": "text", "count": 0, "results": []}}
-    
+
     query_type = _detect_query_type(q)
-    
+
     if query_type == "phone":
         norm_q = normalize_phone(q)
-        rows = db.execute(
-            """SELECT c.id, c.name, c.address, c.credit_code,
-                      c.legal_person, c.city,
-                      (SELECT group_concat(phone, '; ')
-                       FROM company_phones
-                       WHERE company_id = c.id
-                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
-                      '电话' AS matched_field
-               FROM company_phones cp
-               JOIN companies c ON cp.company_id = c.id
-               WHERE cp.normalized_phone = ?
-               ORDER BY c.name LIMIT ?""",
-            [norm_q, limit]
-        ).fetchall()
-        return {"code": 0, "message": "ok", "data": {
-            "query": q, "type": "phone",
-            "count": len(rows), "results": [dict(r) for r in rows]
-        }}
+        total, rows = search_by_phone(db, norm_q, limit, 0)
     elif query_type == "credit_code":
         norm_q = normalize_credit_code(q)
-        rows = db.execute(
-            """SELECT c.id, c.name, c.address, c.credit_code,
-                      c.legal_person, c.city,
-                      (SELECT group_concat(phone, '; ')
-                       FROM company_phones
-                       WHERE company_id = c.id
-                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
-                      '信用代码' AS matched_field
-               FROM companies c WHERE c.credit_code = ?
-               LIMIT ?""",
-            [norm_q, limit]
-        ).fetchall()
-        return {"code": 0, "message": "ok", "data": {
-            "query": q, "type": "credit_code",
-            "count": len(rows), "results": [dict(r) for r in rows]
-        }}
+        total, rows = search_by_credit_code(db, norm_q, limit, 0)
     else:
-        norm_q_name = normalize_name(q)
-        like_q = "%" + q + "%"
-        like_name = "%" + norm_q_name + "%"
-        rows = db.execute(
-            """SELECT c.id, c.name, c.address, c.credit_code,
-                      c.legal_person, c.city,
-                      (SELECT group_concat(phone, '; ')
-                       FROM company_phones
-                       WHERE company_id = c.id
-                       ORDER BY is_primary DESC, is_recommended DESC) AS phone,
-                      m.matched_field
-               FROM (
-                   SELECT id, '名称' AS matched_field, 1 AS priority FROM companies WHERE normalized_name LIKE ?
-                   UNION ALL
-                   SELECT id, '曾用名', 2 FROM companies WHERE former_name LIKE ?
-                   UNION ALL
-                   SELECT id, '地址', 3 FROM companies WHERE address LIKE ?
-                   UNION ALL
-                   SELECT id, '法人', 4 FROM companies WHERE legal_person LIKE ?
-                   UNION ALL
-                   SELECT id, '股东', 5 FROM companies WHERE shareholders LIKE ?
-                   UNION ALL
-                   SELECT company_id AS id, '邮箱', 6 FROM company_emails WHERE email LIKE ?
-                   UNION ALL
-                   SELECT id, '网站', 7 FROM companies WHERE website LIKE ?
-               ) m
-               JOIN companies c ON c.id = m.id
-               GROUP BY c.id ORDER BY m.priority, c.name LIMIT ?""",
-            [like_name, like_q, like_q, like_q, like_q, like_q, like_q, limit]
-        ).fetchall()
+        total, rows = text_search(db, q, limit, 0)
+
+    results = []
+    for r in rows:
+        d = dict(r)
+        d["detail_url"] = f"{_BASE_URL}/company/{d['id']}"
+        results.append(d)
+
+    return {"code": 0, "message": "ok", "data": {
+        "query": q, "type": query_type,
+        "count": total, "results": results
+    }}
+
+
+@mcp.tool()
+def batch_match_companies(names: list, limit: int = 5) -> dict:
+    """批量匹配企业名称，返回每条名称对应的企业 ID 和详情页链接。
+
+    用于将外部表格中的企业名称批量关联到 EntHub：
+    一次性传入所有名称，内部直接查数据库，一次返回全部匹配结果。
+    852 条名称匹配仅需 1 次调用、不到 1 秒。
+
+    匹配策略：
+    - 精确匹配：normalized_name 完全一致（优先级最高）
+    - 模糊匹配：normalized_name LIKE %name%（按相关度排序）
+    - 未找到：返回空 results
+
+    Args:
+        names: 企业名称列表，最多 1000 个
+        limit: 每条名称最多返回的模糊匹配条数（默认 5，仅精确匹配无结果时生效）
+
+    Returns:
+        匹配结果，包含 total/input_count/matched/partial/unmatched/results
+        results 中每条含 input_name/match_type/matches[]
+        每个 match 含 id/name/credit_code/city/detail_url
+    """
+    db = get_db()
+    limit = min(20, max(1, limit))
+
+    if not names:
         return {"code": 0, "message": "ok", "data": {
-            "query": q, "type": "text",
-            "count": len(rows), "results": [dict(r) for r in rows]
+            "total": 0, "input_count": 0,
+            "matched": 0, "partial": 0, "unmatched": 0,
+            "results": []
         }}
+
+    names = names[:1000]  # 安全上限
+
+    # 一次性加载所有企业的 id/name/normalized_name/credit_code/city 到内存
+    # 几千条数据也就几百 KB，内存匹配比逐条 SQL 快几个数量级
+    all_companies = db.execute(
+        "SELECT id, name, normalized_name, credit_code, city FROM companies"
+    ).fetchall()
+
+    # 构建 normalized_name → company 的索引（精确匹配用）
+    exact_index = {}
+    for c in all_companies:
+        norm = c["normalized_name"]
+        if norm:
+            exact_index.setdefault(norm, []).append(c)
+
+    results = []
+    matched_count = 0
+    partial_count = 0
+    unmatched_count = 0
+
+    for raw_name in names:
+        raw_name = str(raw_name).strip()
+        if not raw_name:
+            continue
+
+        norm_name = normalize_name(raw_name)
+
+        # 1. 精确匹配
+        if norm_name and norm_name in exact_index:
+            companies = exact_index[norm_name]
+            matches = []
+            for c in companies[:limit]:
+                matches.append({
+                    "id": c["id"],
+                    "name": c["name"],
+                    "credit_code": c["credit_code"],
+                    "city": c["city"],
+                    "detail_url": f"{_BASE_URL}/company/{c['id']}",
+                })
+            results.append({
+                "input_name": raw_name,
+                "match_type": "exact",
+                "matches": matches,
+            })
+            matched_count += 1
+            continue
+
+        # 2. 模糊匹配：normalized_name LIKE %name%
+        like_pattern = f"%{norm_name}%" if norm_name else f"%{raw_name}%"
+        fuzzy_rows = db.execute(
+            """SELECT id, name, normalized_name, credit_code, city
+               FROM companies
+               WHERE normalized_name LIKE ?
+               ORDER BY length(normalized_name) ASC  -- 短名优先（更精确的匹配）
+               LIMIT ?""",
+            [like_pattern, limit]
+        ).fetchall()
+
+        if fuzzy_rows:
+            matches = []
+            for c in fuzzy_rows:
+                matches.append({
+                    "id": c["id"],
+                    "name": c["name"],
+                    "credit_code": c["credit_code"],
+                    "city": c["city"],
+                    "detail_url": f"{_BASE_URL}/company/{c['id']}",
+                })
+            results.append({
+                "input_name": raw_name,
+                "match_type": "fuzzy",
+                "matches": matches,
+            })
+            partial_count += 1
+        else:
+            results.append({
+                "input_name": raw_name,
+                "match_type": "none",
+                "matches": [],
+            })
+            unmatched_count += 1
+
+    return {"code": 0, "message": "ok", "data": {
+        "total": len(results),
+        "input_count": len(names),
+        "matched": matched_count,
+        "partial": partial_count,
+        "unmatched": unmatched_count,
+        "results": results,
+    }}
 
 
 @mcp.tool()
@@ -771,10 +903,6 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
 
 # ── 按地址查询企业 ───────────────────────────────────────────────────────────────
 
-# EntHub Web 服务地址（用于生成企业详情页链接）
-_BASE_URL = "http://127.0.0.1:5210"
-
-
 @mcp.tool()
 def search_by_address(address: str, limit: int = 20) -> dict:
     """按地址查询企业，返回企业详情页链接。
@@ -832,7 +960,7 @@ if __name__ == "__main__":
 
     if use_http:
         print("🚀 EntHub MCP Server 启动中（HTTP 模式）...")
-        print("📡 监听地址：http://localhost:8000/mcp")
+        print("📡 监听地址：http://localhost:5310/mcp")
         print("🔧 可用工具：")
         print("   - search_companies: 搜索企业")
         print("   - get_company_detail: 企业详情")
@@ -850,7 +978,16 @@ if __name__ == "__main__":
         print('  "找和张三有关联的企业"')
         print('  "统计出现 5 次以上的法人"')
         print('  "从这段文本提取企业信息并录入"')
-        mcp.run(transport="streamable-http")
+        # 获取底层 Starlette app，包一层认证中间件
+        starlette_app = mcp.streamable_http_app()
+        authed_app = TokenAuthMiddleware(starlette_app)
+
+        import uvicorn
+        import anyio
+        config = uvicorn.Config(authed_app, host="0.0.0.0", port=5310,
+                                log_level="info")
+        server = uvicorn.Server(config)
+        anyio.run(server.serve)
     else:
         # stdio 模式（Claude Desktop 自动拉起，无需打印日志）
         mcp.run(transport="stdio")

@@ -113,6 +113,190 @@ def delete_backup(filename: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
+def restore_backup(filename: str, db_path: Path) -> dict:
+    """从备份文件恢复数据库。
+
+    步骤：
+      1. 校验备份文件存在且合法
+      2. 创建当前数据库的自动备份（保险）
+      3. 用备份文件替换当前数据库
+      4. 清理 WAL/SHM 文件
+
+    Args:
+        filename: 备份文件名（如 "enthub_2024-01-01_12-00-00.db"）
+        db_path: 目标数据库路径
+
+    Returns:
+        dict: {success, message, backup_filename, error}
+    """
+    backup_dir = get_backup_dir()
+    backup_path = backup_dir / filename
+
+    # 安全检查：确保文件在备份目录内
+    if not backup_path.resolve().is_relative_to(backup_dir.resolve()):
+        return {"success": False, "error": "非法路径", "message": None}
+    if not backup_path.exists():
+        return {"success": False, "error": "备份文件不存在", "message": None}
+
+    try:
+        # 1. 先校验备份文件是合法的 SQLite 数据库
+        from db import DB_PATH
+        test_conn = sqlite3.connect(str(backup_path))
+        try:
+            test_conn.execute("SELECT COUNT(*) FROM companies").fetchone()
+        except Exception:
+            return {"success": False, "error": "备份文件不是有效的数据库", "message": None}
+        finally:
+            test_conn.close()
+
+        # 2. 创建当前数据库的自动备份（保险，防止恢复失败数据丢失）
+        auto_backup = create_backup(db_path, reason="恢复前自动备份")
+        if not auto_backup["success"]:
+            return {
+                "success": False,
+                "error": f"恢复前自动备份失败：{auto_backup.get('error')}",
+                "message": None,
+            }
+
+        # 3. 用备份文件替换当前数据库
+        # 先关闭当前连接（由调用方负责），然后复制文件
+        shutil.copy2(str(backup_path), str(db_path))
+
+        # 4. 清理 WAL/SHM 文件
+        wal_path = db_path.parent / f"{db_path.name}-wal"
+        shm_path = db_path.parent / f"{db_path.name}-shm"
+        for p in [wal_path, shm_path]:
+            if p.exists():
+                try:
+                    p.unlink()
+                except Exception:
+                    pass
+
+        # 校验恢复后的数据库
+        verify_conn = sqlite3.connect(str(db_path))
+        try:
+            count = verify_conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+            integrity = verify_conn.execute("PRAGMA integrity_check").fetchone()[0]
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"恢复后数据库校验失败：{e}",
+                "message": None,
+                "backup_filename": auto_backup["filename"],
+            }
+        finally:
+            verify_conn.close()
+
+        if integrity != "ok":
+            return {
+                "success": False,
+                "error": f"恢复后完整性检查未通过：{integrity}",
+                "message": None,
+                "backup_filename": auto_backup["filename"],
+            }
+
+        return {
+            "success": True,
+            "message": f"已从 {filename} 恢复，共 {count} 条企业记录",
+            "backup_filename": auto_backup["filename"],  # 恢复前的自动备份文件名
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"恢复失败：{e}",
+            "message": None,
+        }
+
+
+def restore_backup_from_file(backup_path: Path, db_path: Path) -> dict:
+    """从任意路径的备份文件恢复数据库（与 restore_backup 区别：传入的是文件路径，而非备份目录内的文件名）。
+
+    步骤：
+      1. 校验备份文件存在且合法
+      2. 创建当前数据库的自动备份（保险）
+      3. 用备份文件替换当前数据库
+      4. 清理 WAL/SHM 文件
+
+    Args:
+        backup_path: 备份文件路径
+        db_path: 目标数据库路径
+
+    Returns:
+        dict: {success, message, backup_filename, error}
+    """
+    if not backup_path.exists():
+        return {"success": False, "error": "备份文件不存在", "message": None}
+
+    try:
+        # 1. 先校验备份文件是合法的 SQLite 数据库
+        test_conn = sqlite3.connect(str(backup_path))
+        try:
+            test_conn.execute("SELECT COUNT(*) FROM companies").fetchone()
+        except Exception:
+            test_conn.close()
+            return {"success": False, "error": "备份文件不是有效的数据库", "message": None}
+        test_conn.close()
+
+        # 2. 创建当前数据库的自动备份（保险）
+        auto_backup = create_backup(db_path, reason="恢复前自动备份")
+        if not auto_backup["success"]:
+            return {
+                "success": False,
+                "error": f"恢复前自动备份失败：{auto_backup.get('error')}",
+                "message": None,
+            }
+
+        # 3. 用备份文件替换当前数据库
+        shutil.copy2(str(backup_path), str(db_path))
+
+        # 4. 清理 WAL/SHM 文件
+        wal_path = db_path.parent / f"{db_path.name}-wal"
+        shm_path = db_path.parent / f"{db_path.name}-shm"
+        for p in [wal_path, shm_path]:
+            if p.exists():
+                try:
+                    p.unlink()
+                except Exception:
+                    pass
+
+        # 校验恢复后的数据库
+        verify_conn = sqlite3.connect(str(db_path))
+        try:
+            count = verify_conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+            integrity = verify_conn.execute("PRAGMA integrity_check").fetchone()[0]
+        except Exception as e:
+            verify_conn.close()
+            return {
+                "success": False,
+                "error": f"恢复后数据库校验失败：{e}",
+                "message": None,
+                "backup_filename": auto_backup["filename"],
+            }
+        verify_conn.close()
+
+        if integrity != "ok":
+            return {
+                "success": False,
+                "error": f"恢复后完整性检查未通过：{integrity}",
+                "message": None,
+                "backup_filename": auto_backup["filename"],
+            }
+
+        return {
+            "success": True,
+            "message": f"已从 {backup_path.name} 恢复，共 {count} 条企业记录",
+            "backup_filename": auto_backup["filename"],
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"恢复失败：{e}",
+            "message": None,
+        }
+
+
 def cleanup_old_backups(keep_count: int = 7):
     """清理旧备份，保留指定数量"""
     backups = list_backups()

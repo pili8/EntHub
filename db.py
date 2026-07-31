@@ -223,12 +223,11 @@ def init_db():
 
     # 插入默认电话标记（仅首次创建时）
     default_phone_tags = [
-        ("主电话", "#3b82f6", 1),
-        ("有效", "#22c55e", 2),
-        ("无效", "#ef4444", 3),
-        ("推销电话", "#f97316", 4),
-        ("中介", "#eab308", 5),
-        ("代理记账", "#8b5cf6", 6),
+        ("有效", "#22c55e", 1),
+        ("无效", "#ef4444", 2),
+        ("推销电话", "#f97316", 3),
+        ("中介", "#eab308", 4),
+        ("代理记账", "#8b5cf6", 5),
     ]
     for name, color, order in default_phone_tags:
         conn.execute(
@@ -271,6 +270,94 @@ def init_db():
         
         FROM companies c;
     """)
+
+    # ── FTS5 全文搜索索引 ──────────────────────────────────────────────
+    # trigram 分词器支持中文，3字以上查询走 FTS5（0.002s），2字回退 LIKE。
+    conn.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS companies_fts USING fts5(
+            content, tokenize='trigram'
+        )
+    """)
+
+    # 触发器：companies 表变更时同步 FTS
+    _fts_content_expr = (
+        "COALESCE(new.normalized_name, '') || ' ' || "
+        "COALESCE(new.former_name, '') || ' ' || "
+        "COALESCE(new.address, '') || ' ' || "
+        "COALESCE(new.legal_person, '') || ' ' || "
+        "COALESCE(new.shareholders, '') || ' ' || "
+        "COALESCE(new.website, '') || ' ' || "
+        "COALESCE((SELECT group_concat(email, ' ') "
+        "         FROM company_emails WHERE company_id = new.id), '')"
+    )
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS companies_fts_ai AFTER INSERT ON companies BEGIN
+            INSERT INTO companies_fts(rowid, content) VALUES (new.id, {_fts_content_expr});
+        END
+    """)
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS companies_fts_ad AFTER DELETE ON companies BEGIN
+            DELETE FROM companies_fts WHERE rowid = old.id;
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS companies_fts_au AFTER UPDATE ON companies BEGIN
+            DELETE FROM companies_fts WHERE rowid = old.id;
+            INSERT INTO companies_fts(rowid, content) VALUES (new.id, {_fts_content_expr});
+        END
+    """)
+
+    # 触发器：company_emails 变更时重建对应公司的 FTS 行
+    # 注意：INSERT/UPDATE 用 new.company_id，DELETE 用 old.company_id
+    def _build_email_trigger(action, ref):
+        return (
+            f"UPDATE companies_fts SET content = ("
+            f"  SELECT COALESCE(c.normalized_name, '') || ' ' || "
+            f"         COALESCE(c.former_name, '') || ' ' || "
+            f"         COALESCE(c.address, '') || ' ' || "
+            f"         COALESCE(c.legal_person, '') || ' ' || "
+            f"         COALESCE(c.shareholders, '') || ' ' || "
+            f"         COALESCE(c.website, '') || ' ' || "
+            f"         COALESCE((SELECT group_concat(email, ' ') "
+            f"                  FROM company_emails WHERE company_id = c.id), '') "
+            f"  FROM companies c WHERE c.id = {ref}.company_id"
+            f") WHERE rowid = {ref}.company_id"
+        )
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS emails_fts_ai AFTER INSERT ON company_emails BEGIN
+            {_build_email_trigger('INSERT', 'new')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS emails_fts_ad AFTER DELETE ON company_emails BEGIN
+            {_build_email_trigger('DELETE', 'old')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS emails_fts_au AFTER UPDATE ON company_emails BEGIN
+            {_build_email_trigger('UPDATE', 'new')};
+        END
+    """)
+
+    # 如果 FTS 表为空但 companies 有数据，执行一次性填充
+    fts_count = conn.execute("SELECT COUNT(*) FROM companies_fts").fetchone()[0]
+    comp_count = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+    if fts_count == 0 and comp_count > 0:
+        print(f"[FTS5] 首次构建全文索引，共 {comp_count} 条记录…")
+        conn.execute("""
+            INSERT INTO companies_fts(rowid, content)
+            SELECT c.id,
+                   COALESCE(c.normalized_name, '') || ' ' ||
+                   COALESCE(c.former_name, '') || ' ' ||
+                   COALESCE(c.address, '') || ' ' ||
+                   COALESCE(c.legal_person, '') || ' ' ||
+                   COALESCE(c.shareholders, '') || ' ' ||
+                   COALESCE(c.website, '') || ' ' ||
+                   COALESCE((SELECT group_concat(email, ' ')
+                             FROM company_emails WHERE company_id = c.id), '')
+            FROM companies c
+        """)
+        print(f"[FTS5] 全文索引构建完成")
 
     conn.commit()
     conn.close()

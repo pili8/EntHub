@@ -11,35 +11,71 @@ from utils import normalize_phone, normalize_person_name, normalize_email, valid
 def split_phones(phone_str):
     """拆分电话字段，返回 [(raw_phone, normalized_phone), ...]，第一条为主号。
 
-    多号码按 ; ； , ， 、 / 分隔。
-    去重按 normalized_phone。
-    无效号码（归一化后校验不通过）自动跳过。
+    支持分隔符：; ； , ， 。 、 / 空格 换行
+    智能识别：139 8485 2931（去掉空格后是合法号码）→ 作为一个号码
     """
-    SEPS = [';', '；', ',', '，', '、', '/']
+    SEPS = [';', '；', ',', '，', '。', '、', '/']
 
-    def _split(s):
+    def _looks_like_single_with_spaces(s):
+        """检查去掉所有空格后是否是一个合法号码（如 '139 8485 2931'）。"""
+        no_space = re.sub(r'\s+', '', s)
+        if not no_space:
+            return False
+        norm = normalize_phone(no_space)
+        if not norm:
+            return False
+        valid, _, _ = validate_phone(norm)
+        return valid
+
+    def _split_line(s):
         if not s:
             return []
-        result = [str(s)]
+        s = str(s).strip()
+        if not s:
+            return []
+
+        # 先按标点分隔符拆分
+        result = [s]
         for sep in SEPS:
             new_result = []
             for part in result:
                 new_result.extend(part.split(sep))
             result = new_result
-        return [p.strip() for p in result if p.strip()]
+        result = [p.strip() for p in result if p.strip()]
+
+        # 再处理空格：如果去掉空格是合法号码则保留，否则按空格拆分
+        final = []
+        for part in result:
+            if ' ' in part or '\t' in part:
+                if _looks_like_single_with_spaces(part):
+                    final.append(part)
+                else:
+                    for sub in part.split():
+                        sub = sub.strip()
+                        if sub:
+                            final.append(sub)
+            else:
+                final.append(part)
+        return final
+
+    if not phone_str:
+        return []
+
+    # 先按换行拆分
+    lines = str(phone_str).split('\n')
 
     result = []
     seen = set()
-    for raw in _split(phone_str):
-        norm = normalize_phone(raw)
-        if not norm or norm in seen:
-            continue
-        # 校验：无效号码跳过
-        is_valid, _, _ = validate_phone(norm)
-        if not is_valid:
-            continue
-        result.append((raw, norm))
-        seen.add(norm)
+    for line in lines:
+        for raw in _split_line(line):
+            norm = normalize_phone(raw)
+            if not norm or norm in seen:
+                continue
+            is_valid, _, _ = validate_phone(norm)
+            if not is_valid:
+                continue
+            result.append((raw, norm))
+            seen.add(norm)
     return result
 
 
@@ -47,7 +83,7 @@ def _split_recommended(recommended_str):
     """拆分推荐电话字段。"""
     if not recommended_str or not str(recommended_str).strip():
         return []
-    SEPS = [';', '；', ',', '，', '、', '/']
+    SEPS = [';', '；', ',', '，', '。', '、', '/']
     result = [str(recommended_str)]
     for sep in SEPS:
         new_result = []
@@ -67,38 +103,28 @@ def _split_recommended(recommended_str):
     return out
 
 
-def _auto_set_primary_tag(db, normalized_phone):
-    """如果号码还没有任何标签，自动给它设上"主电话"标签。
-
-    仅在号码没有标签时设置，不覆盖已有标签。
-    """
-    if not normalized_phone:
-        return
-    existing = db.execute(
-        "SELECT 1 FROM phone_tag_map WHERE normalized_phone = ?",
-        [normalized_phone]
-    ).fetchone()
-    if existing:
-        return  # 已有标签，不覆盖
-    tag = db.execute(
-        "SELECT id FROM phone_tags WHERE name = '主电话'"
-    ).fetchone()
-    if tag:
-        db.execute(
-            "INSERT OR REPLACE INTO phone_tag_map (normalized_phone, tag_id) VALUES (?, ?)",
-            [normalized_phone, tag["id"]]
-        )
-
-
-def sync_phones(db, company_id, phone_str, recommended_str=""):
+def sync_phones(db, company_id, phone_str, recommended_str="",
+                keep_recommended=False):
     """全量重建：先删除该公司所有电话，再插入。
 
     用于新增/编辑/导入新公司。
+
+    参数 keep_recommended:
+        True  — 仅删除非推荐电话（is_recommended=0），保留推荐电话。
+                用于编辑场景，避免用户修改号码时丢失推荐标记。
+        False — 删除所有电话（含推荐）。默认行为，用于新增/导入。
     """
-    db.execute(
-        "DELETE FROM company_phones WHERE company_id = ?",
-        [company_id]
-    )
+    if keep_recommended:
+        db.execute(
+            "DELETE FROM company_phones "
+            "WHERE company_id = ? AND is_recommended = 0",
+            [company_id]
+        )
+    else:
+        db.execute(
+            "DELETE FROM company_phones WHERE company_id = ?",
+            [company_id]
+        )
     phones = split_phones(phone_str)
     for i, (raw, norm) in enumerate(phones):
         is_primary = 1 if i == 0 else 0
@@ -108,8 +134,6 @@ def sync_phones(db, company_id, phone_str, recommended_str=""):
             "VALUES (?, ?, ?, ?)",
             [company_id, raw, norm, is_primary]
         )
-        if is_primary:
-            _auto_set_primary_tag(db, norm)
 
     # 推荐电话：单独标记，展示时排主号之后
     for raw, norm in _split_recommended(recommended_str):
@@ -153,7 +177,6 @@ def merge_phones(db, company_id, phone_str, recommended_str=""):
             existing_norms.add(norm)
             if is_primary:
                 has_primary = True
-                _auto_set_primary_tag(db, norm)
 
     # 追加推荐电话
     for raw, norm in _split_recommended(recommended_str):
@@ -172,10 +195,10 @@ def merge_phones(db, company_id, phone_str, recommended_str=""):
 def split_emails(email_str):
     """拆分邮箱字段，返回 [(raw_email, normalized_email), ...]，第一条为主邮箱。
 
-    多邮箱按 ; ； , ， 、 / 分隔。
+    多邮箱按 ; ； , ， 。 、 / 分隔。
     去重按 normalized_email。
     """
-    SEPS = [';', '；', ',', '，', '、', '/']
+    SEPS = [';', '；', ',', '，', '。', '、', '/']
 
     def _split(s):
         if not s:

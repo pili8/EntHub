@@ -76,13 +76,13 @@
 <section class="detail-section">
     <h2 class="detail-section-title">联系方式</h2>
     <div class="detail-grid">
-        <div class="detail-field">
-            <div class="detail-label">电话 <small style="color: #999;">多个用 ; 分隔</small></div>
+        <div class="detail-field" style="grid-column: 1 / -1;">
+            <div class="detail-label">电话</div>
             <input type="text" name="phone" class="form-input" value="{{ company.phone or '' }}">
             <div id="phone-check-hint" style="margin-top: 4px;"></div>
         </div>
         <div class="detail-field">
-            <div class="detail-label">邮箱 <small style="color: #999;">多个用 ; 分隔</small></div>
+            <div class="detail-label">邮箱</div>
             <input type="text" name="email" class="form-input" value="{{ company.email or '' }}">
         </div>
         <div class="detail-field">
@@ -164,7 +164,7 @@
     if (!hint) return;
     if (!val) { hint.innerHTML = ''; return; }
 
-    const seps = [';', '；', ',', '，', '、', '/'];
+    const seps = [';', '；', ',', '，', '。', '、', '/'];
     let parts = [val];
     for (const sep of seps) {
       const np = [];

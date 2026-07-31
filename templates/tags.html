@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}标记管理 · EntHub{% endblock %}
+{% block title %}标记管理{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -52,17 +52,17 @@
         <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">企业标签列表</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             {% for tag in tags %}
-            <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+            <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;" onmouseover="this.querySelector('.tag-actions').style.opacity='1'" onmouseout="this.querySelector('.tag-actions').style.opacity='0'">
+                <a href="/relation-group?dup_type=tag&val={{ tag.name }}&from=tags" style="display: flex; align-items: center; gap: 12px; flex: 1; text-decoration: none; color: inherit;">
                     <span style="display: inline-block; width: 20px; height: 20px; border-radius: 5px; background: {{ tag.color }}; flex-shrink: 0;"></span>
                     <div style="flex: 1; min-width: 0;">
                         <div style="font-weight: 500; margin-bottom: 2px;">{{ tag.name }}</div>
                         <div style="font-size: 12px; color: var(--text-muted);">{{ tag.company_count }} 家企业</div>
                     </div>
-                </div>
-                <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                    <button onclick="editTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px;">编辑</button>
-                    <button onclick="deleteTag({{ tag.id }}, '{{ tag.name }}')" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-size: 12px;">删除</button>
+                </a>
+                <div class="tag-actions" style="display: flex; gap: 6px; flex-shrink: 0; opacity: 0; transition: opacity 0.2s;">
+                    <button onclick="editTag({{ tag.id }}, '{{ tag.name }}', '{{ tag.color }}')" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 12px;" title="编辑">✎</button>
+                    <button onclick="deleteTag({{ tag.id }}, '{{ tag.name }}')" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 12px;" title="删除">✕</button>
                 </div>
             </div>
             {% endfor %}
@@ -112,17 +112,17 @@
         <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">电话标记列表</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
             {% for pt in phone_tags %}
-            <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;">
-                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+            <div class="tag-item" style="padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;" onmouseover="this.querySelector('.tag-actions').style.opacity='1'" onmouseout="this.querySelector('.tag-actions').style.opacity='0'">
+                <a href="/relation-group?dup_type=phone_tag&val={{ pt.name }}&from=tags" style="display: flex; align-items: center; gap: 12px; flex: 1; text-decoration: none; color: inherit;">
                     <span style="display: inline-block; width: 20px; height: 20px; border-radius: 5px; background: {{ pt.color }}; flex-shrink: 0;"></span>
                     <div style="flex: 1; min-width: 0;">
                         <div style="font-weight: 500; margin-bottom: 2px;">{{ pt.name }}</div>
                         <div style="font-size: 12px; color: var(--text-muted);">{{ pt.phone_count }} 个号码</div>
                     </div>
-                </div>
-                <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                    <button onclick="editPhoneTag({{ pt.id }}, '{{ pt.name }}', '{{ pt.color }}')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px;">编辑</button>
-                    <button onclick="deletePhoneTag({{ pt.id }}, '{{ pt.name }}')" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-size: 12px;">删除</button>
+                </a>
+                <div class="tag-actions" style="display: flex; gap: 6px; flex-shrink: 0; opacity: 0; transition: opacity 0.2s;">
+                    <button onclick="editPhoneTag({{ pt.id }}, '{{ pt.name }}', '{{ pt.color }}')" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 12px;" title="编辑">✎</button>
+                    <button onclick="deletePhoneTag({{ pt.id }}, '{{ pt.name }}')" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 12px;" title="删除">✕</button>
                 </div>
             </div>
             {% endfor %}

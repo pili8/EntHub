@@ -6,6 +6,11 @@ from datetime import datetime
 # Sentinel value used by Tianyancha exports for empty fields
 NULL_MARKERS = {"-", "——", "--", "无", "N/A", "n/a", "null", "NULL", "nan", "NaN", "NAN", ""}
 
+# 应该是整数的字段（Excel 中常被 pandas 读成 float，如 50 → 50.0）
+_INTEGER_FIELDS = {
+    "insured_count",
+}
+
 
 def is_null_value(val):
     """Check if a value should be treated as empty."""
@@ -14,13 +19,31 @@ def is_null_value(val):
     return str(val).strip() in NULL_MARKERS
 
 
-def clean_val(val):
-    """Convert NaN/None/'-' to empty string."""
+def _strip_decimal_zero(s):
+    """将 '50.0' → '50'，'0.0' → '0'。只处理 .0 结尾的浮点整数字符串。
+
+    '0.000005万人民币' 这种保留原样（注册资本等金额字段不在 _INTEGER_FIELDS 中）。
+    """
+    if not s:
+        return s
+    m = re.match(r'^(-?\d+)\.0+$', s)
+    if m:
+        return m.group(1)
+    return s
+
+
+def clean_val(val, field=None):
+    """Convert NaN/None/'-' to empty string.
+
+    对 _INTEGER_FIELDS 中的字段，额外去掉 '.0' 后缀（Excel float → int）。
+    """
     if val is None:
         return ""
     s = str(val).strip()
     if s in NULL_MARKERS:
         return ""
+    if field and field in _INTEGER_FIELDS:
+        s = _strip_decimal_zero(s)
     return s
 
 
@@ -58,7 +81,7 @@ def normalize_phone(phone):
 
     s = str(phone).strip()
     # 含分隔符的输入直接拒绝（应该在外层拆分）
-    if any(ch in s for ch in [';', '；', ',', '，']):
+    if any(ch in s for ch in [';', '；', ',', '，', '。', '、', '/']):
         return ""
     
     # Detect extension: XXXXXXX-XXX or XXXXXXXX-XXX format

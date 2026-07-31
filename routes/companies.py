@@ -14,7 +14,7 @@ from data_helpers import (
     merge_phones, merge_emails, merge_shareholders,
     split_phones, split_shareholders,
 )
-from config import is_provider_ready
+from config import is_provider_ready, get_webhook_url
 import enthub_api
 
 bp = Blueprint('companies_bp', __name__)
@@ -52,7 +52,7 @@ def company_detail(company_id):
                 WHERE cp2.normalized_phone = cp.normalized_phone) AS dup_count
            FROM company_phones cp
            WHERE cp.company_id = ?
-           ORDER BY cp.is_primary DESC, cp.is_recommended DESC""",
+           ORDER BY dup_count ASC, cp.is_primary DESC, cp.is_recommended DESC""",
         [company_id]
     ).fetchall()
 
@@ -70,6 +70,14 @@ def company_detail(company_id):
         cp_dict["phone_type"] = phone_type
         cp_dict["phone_invalid_reason"] = reason if not is_valid else ""
         company_phones_enriched.append(cp_dict)
+
+    # 排序：手机在前、座机在后；同类中重复少的在前
+    _type_order = {"mobile": 0, "mobile_ext": 1, "toll_free": 2, "toll_free_ext": 3,
+                   "landline": 4, "landline_ext": 5, "invalid": 6}
+    company_phones_enriched.sort(
+        key=lambda c: (_type_order.get(c["phone_type"], 9), c["dup_count"],
+                       not c["is_recommended"], not c["is_primary"])
+    )
 
     # 同电话关联企业
     phone_norms = [r["normalized_phone"] for r in company_phones] if company_phones else []
@@ -123,7 +131,7 @@ def company_detail(company_id):
                 WHERE ce2.normalized_email = ce.normalized_email) AS dup_count
            FROM company_emails ce
            WHERE ce.company_id = ?
-           ORDER BY ce.is_primary DESC""",
+           ORDER BY dup_count ASC, ce.is_primary DESC""",
         [company_id]
     ).fetchall()
 
@@ -194,7 +202,8 @@ def company_detail(company_id):
                            company_phones=company_phones_enriched,
                            company_emails=company_emails,
                            shareholders=shareholders,
-                           field_counts=field_counts)
+                           field_counts=field_counts,
+                           webhook_url=get_webhook_url())
 
 
 # ── 编辑 ────────────────────────────────────────────────────────────────────
@@ -216,7 +225,8 @@ def edit_company(company_id):
         if fields.get("credit_code"):
             fields["credit_code"] = normalize_credit_code(fields["credit_code"])
 
-        # 电话/邮箱/股东字段仅存入关联表，不在 companies 表中
+        # 电话/邮箱/股东：全量重建（以表单为准，先删后插）
+        # 编辑场景语义：用户提交的就是该企业的完整数据
         phone_val = fields.pop("phone", "")
         email_val = fields.pop("email", "")
         shareholders_val = fields.pop("shareholders", "")
@@ -225,7 +235,7 @@ def edit_company(company_id):
         g.db.execute(f"UPDATE companies SET {set_clause} WHERE id = ?",
                      list(fields.values()) + [company_id])
 
-        sync_phones(g.db, company_id, phone_val)
+        sync_phones(g.db, company_id, phone_val, keep_recommended=True)
         sync_emails(g.db, company_id, email_val)
         sync_shareholders(g.db, company_id, shareholders_val)
         g.db.commit()
@@ -341,10 +351,13 @@ def add_company():
                     list(updates.values()) + [eid]
                 )
 
-            # 电话 & 邮箱 & 股东：增量合并（只追加新号码/新邮箱/新股东）
-            merge_phones(g.db, eid, phone_val)
-            merge_emails(g.db, eid, email_val)
-            merge_shareholders(g.db, eid, shareholders_val)
+            # 电话 & 邮箱 & 股东：非空时全量重建（覆盖），空值不动（保留已有）
+            if phone_val:
+                sync_phones(g.db, eid, phone_val, keep_recommended=True)
+            if email_val:
+                sync_emails(g.db, eid, email_val)
+            if shareholders_val:
+                sync_shareholders(g.db, eid, shareholders_val)
             g.db.commit()
 
             msg = f"已更新：{fields.get('name', row['name'])}"
@@ -930,3 +943,73 @@ def apply_refresh_api(company_id):
         "message": f"已更新 {len(updated_fields)} 个字段",
         "data": {"updated_fields": updated_fields},
     })
+
+
+# ── 金山多维表 Webhook 发送 ────────────────────────────────────────────────
+
+@bp.route("/company/<int:company_id>/send-to-kinboard", methods=["POST"])
+def send_to_kinboard(company_id):
+    """将企业数据发送到金山多维表 Webhook。"""
+    import requests
+
+    webhook_url = get_webhook_url()
+    if not webhook_url:
+        flash("⚠️ 请先在设置页配置金山多维表 Webhook URL", "warning")
+        return redirect(url_for("companies_bp.company_detail", company_id=company_id))
+
+    row = g.db.execute("SELECT * FROM companies WHERE id = ?", [company_id]).fetchone()
+    if not row:
+        abort(404)
+
+    # 公司名
+    name = row["name"] or ""
+
+    # 地址：优先年报地址，没有才传注册地址
+    address = row["annual_report_address"] or row["address"] or ""
+
+    # 法人：张三（法人）
+    legal_person_raw = row["legal_person"] or ""
+    legal_person = f"{legal_person_raw}（法人）" if legal_person_raw else ""
+
+    # 电话号码：一个号码一行
+    phones = g.db.execute(
+        "SELECT phone FROM company_phones WHERE company_id = ? ORDER BY is_primary DESC",
+        [company_id]
+    ).fetchall()
+    phone_str = "\n".join(p["phone"] for p in phones if p["phone"])
+
+    # 备注：注册日期 + 注册资本（去除"人民币"，简略格式）
+    notes_parts = []
+    if row["established_date"]:
+        notes_parts.append(f"注册日期：{row['established_date']}")
+    if row["registered_capital"]:
+        # 去除"人民币"字样，简化格式
+        cap = row["registered_capital"].replace("人民币", "").replace(" ", "").strip()
+        if row["paid_capital"]:
+            paid = row["paid_capital"].replace("人民币", "").replace(" ", "").strip()
+            notes_parts.append(f"资本：{cap}（实缴{paid}）")
+        else:
+            notes_parts.append(f"资本：{cap}")
+    elif row["paid_capital"]:
+        paid = row["paid_capital"].replace("人民币", "").replace(" ", "").strip()
+        notes_parts.append(f"实缴：{paid}")
+    notes = "；".join(notes_parts)
+
+    payload = {
+        "公司名": name,
+        "地址": address,
+        "法人": legal_person,
+        "电话号码": phone_str,
+        "备注": notes,
+    }
+
+    try:
+        resp = requests.post(webhook_url, json=payload, timeout=15)
+        resp.raise_for_status()
+        flash("✅ 已成功发送到金山多维表", "success")
+    except requests.exceptions.Timeout:
+        flash("⏰ 发送超时，请检查 Webhook 地址是否正确", "error")
+    except requests.exceptions.RequestException as e:
+        flash(f"❌ 发送失败：{e}", "error")
+
+    return redirect(url_for("companies_bp.company_detail", company_id=company_id))

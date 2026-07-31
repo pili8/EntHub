@@ -510,3 +510,2080 @@ INFO:     Waiting for application shutdown.
                              shutting down                                      
 INFO:     Application shutdown complete.
 INFO:     Finished server process [12661]
+INFO:     Started server process [8170]
+INFO:     Waiting for application startup.
+[07/30/26 11:12:33] INFO     StreamableHTTP       streamable_http_manager.py:131
+                             session manager                                    
+                             started                                            
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+[07/30/26 18:02:04] INFO     StreamableHTTP       streamable_http_manager.py:135
+                             session manager                                    
+                             shutting down                                      
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8170]
+INFO:     Started server process [2783]
+INFO:     Waiting for application startup.
+[07/31/26 09:15:24] INFO     StreamableHTTP       streamable_http_manager.py:131
+                             session manager                                    
+                             started                                            
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+[07/31/26 16:12:30] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             5fbe80cc961949ac9581                               
+                             eba72e28c735                                       
+🚀 EntHub MCP Server 启动中（HTTP 模式）...
+📡 监听地址：http://localhost:8000/mcp
+🔧 可用工具：
+   - search_companies: 搜索企业
+   - get_company_detail: 企业详情
+   - find_relations: 关联企业查询
+   - get_companies_list: 企业列表
+   - get_stats: 统计查询
+   - extract_and_import: 智能提取录入
+   - check_phone_count: 查询号码重复数
+   - check_phones_batch: 批量号码重复数
+   - annotate_phones: 文本号码标注
+   - search_by_address: 按地址查询企业，返回详情页链接
+
+在 AI 工具中配置 MCP Server 地址后，可以用自然语言查询：
+  "帮我找所有叫科技的公司"
+  "查一下 ID 为 2 的企业详情"
+  "找和张三有关联的企业"
+  "统计出现 5 次以上的法人"
+  "从这段文本提取企业信息并录入"
+INFO:     127.0.0.1:56015 - "GET /mcp HTTP/1.1" 406 Not Acceptable
+[07/31/26 16:12:38] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             2b3cc796336c433e969f                               
+                             449d9193256a                                       
+INFO:     127.0.0.1:56024 - "POST /mcp HTTP/1.1" 406 Not Acceptable
+                    INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             64e54fc03af244fc84f5                               
+                             7ee2d7e7c2d6                                       
+INFO:     127.0.0.1:56026 - "POST /mcp HTTP/1.1" 406 Not Acceptable
+[07/31/26 16:12:43] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             73dcb2d05a5e4b259731                               
+                             c3e195bfe33b                                       
+INFO:     127.0.0.1:56031 - "POST /mcp HTTP/1.1" 200 OK
+                    INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             c8bfc4644bfd46f889b6                               
+                             88a12db9e8f5                                       
+INFO:     127.0.0.1:56033 - "POST /mcp HTTP/1.1" 400 Bad Request
+                    INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             ad149450a3af4b57a554                               
+                             ec02b94b22c9                                       
+INFO:     127.0.0.1:56035 - "POST /mcp HTTP/1.1" 400 Bad Request
+[07/31/26 16:12:48] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             6987d025979748d98953                               
+                             ac578829925f                                       
+INFO:     127.0.0.1:56038 - "POST /mcp HTTP/1.1" 200 OK
+                    INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             b55943dac3874b1fb0bf                               
+                             5081e39c8068                                       
+INFO:     127.0.0.1:56038 - "POST /mcp HTTP/1.1" 400 Bad Request
+                    INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             74b09202734d498eabb5                               
+                             992b4841c0bc                                       
+INFO:     127.0.0.1:56038 - "POST /mcp HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:56050 - "POST /mcp HTTP/1.1" 202 Accepted
+[07/31/26 16:13:03] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+INFO:     127.0.0.1:56052 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:13:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56059 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:13:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56063 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:13:20] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56069 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:13:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56074 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56084 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56086 - "GET /company/6261 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56088 - "GET /companies/6261 HTTP/1.1" 404 Not Found
+[07/31/26 16:13:35] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             35a9bc890e004981ba64                               
+                             77ab445a537a                                       
+INFO:     127.0.0.1:56090 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56092 - "POST /mcp HTTP/1.1" 202 Accepted
+[07/31/26 16:13:36] INFO     Processing request of type            server.py:733
+                             ListResourcesRequest                               
+INFO:     127.0.0.1:56094 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:13:49] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             6c4ca54aa8eb45458fa2                               
+                             158abdb04511                                       
+INFO:     127.0.0.1:56120 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56123 - "POST /mcp HTTP/1.1" 202 Accepted
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+INFO:     127.0.0.1:56125 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:13:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56129 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:13:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56133 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:14:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56141 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:14:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56146 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:17:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56460 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:17:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56468 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:17:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:18:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56493 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56504 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56507 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56511 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56516 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56523 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56537 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56541 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56548 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56551 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56554 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56558 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:18:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56560 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56563 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56573 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56581 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56584 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56587 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56589 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56592 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56595 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56598 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56600 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56604 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56609 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56616 - "POST /mcp HTTP/1.1" 200 OK
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56618 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:19:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56643 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56649 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:56] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56656 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:19:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56659 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56663 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56672 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56675 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56684 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56692 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56699 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56704 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56709 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56712 - "POST /mcp HTTP/1.1" 200 OK
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56714 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56728 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56732 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56736 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56739 - "POST /mcp HTTP/1.1" 200 OK
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56741 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56743 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56747 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56751 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56753 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56756 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56758 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:20:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56764 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56768 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56773 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56776 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56780 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56784 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56788 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56792 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56796 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56798 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56802 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56806 - "POST /mcp HTTP/1.1" 200 OK
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56808 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56811 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56813 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56816 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56819 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56822 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56827 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56832 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56837 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56840 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56843 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56846 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56849 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:21:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56851 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56855 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56865 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56876 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56878 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56882 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56885 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56887 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56891 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56894 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56896 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56899 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56902 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56924 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56928 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56930 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56937 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56940 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56944 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56947 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:22:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56949 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56953 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56956 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56960 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56963 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56967 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56970 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56972 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56975 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:23:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56984 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56997 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:56999 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57003 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57008 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57012 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57019 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:23:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57022 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57029 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57038 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57041 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57045 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57050 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57057 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57063 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57074 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57077 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57090 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57092 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:24:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57097 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57101 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57105 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57114 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57119 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57123 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57126 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57130 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57132 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57135 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57143 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57151 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57155 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57158 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57161 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57164 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57167 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57170 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57173 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:25:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57186 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57194 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57200 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57202 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57206 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57210 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57213 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57216 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:26:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:26:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57241 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57246 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:26:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57253 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57260 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57271 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57275 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57290 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57292 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57296 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57299 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57301 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57303 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57306 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57311 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57315 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57321 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57325 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57329 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57331 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57334 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57338 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57342 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57344 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57347 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57350 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57352 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57376 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57379 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57382 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57385 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57388 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:56] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57390 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57394 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:27:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57396 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57399 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57402 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57407 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57409 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57415 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57418 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57421 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57423 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57426 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57428 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57431 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57434 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57437 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57439 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57442 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57444 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57448 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57450 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57453 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57455 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57458 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57462 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57467 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57469 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57474 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57476 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57479 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57482 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57485 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57500 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57506 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57509 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:28:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57512 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57514 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57518 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57525 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57528 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57533 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57537 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57540 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57546 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57550 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57553 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57571 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57575 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57577 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57581 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57583 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57587 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57593 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:29:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57596 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57598 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57601 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57606 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57612 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57615 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57620 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57623 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57626 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57629 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57635 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57642 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57644 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57648 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57651 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57654 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57662 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57666 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57669 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57672 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57675 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57678 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57681 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:56] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57684 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:30:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57687 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57689 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57693 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57698 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57700 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57704 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57709 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57712 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57715 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57718 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57721 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:20] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57724 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57727 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57729 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57733 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57737 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57739 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57742 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57747 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57749 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57752 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57755 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57760 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57764 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57767 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57769 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57772 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57776 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:31:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57778 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57784 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57788 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57792 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57795 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57798 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57802 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57807 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57809 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57812 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57815 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57818 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57821 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57824 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57827 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57831 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57835 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57838 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57840 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57844 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57846 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57849 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57852 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57854 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57860 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:32:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:33:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:33:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:33:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:33:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:33:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:34:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:34:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57962 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57965 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57968 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57970 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57973 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57978 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57981 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57988 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57991 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57993 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57996 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:57999 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58002 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:34:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58008 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:18] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             11a2b932417943daac87                               
+                             bc36ce78f197                                       
+INFO:     127.0.0.1:58805 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58807 - "POST /mcp HTTP/1.1" 202 Accepted
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58809 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58816 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58821 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58825 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58829 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58832 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58836 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58838 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58841 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:50:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:58844 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:32] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             36979d68b794484a9d00                               
+                             2867ca4fc62b                                       
+INFO:     127.0.0.1:59077 - "POST /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59079 - "POST /mcp HTTP/1.1" 202 Accepted
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:59090 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:54:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:59089 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:59088 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:59087 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:59086 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:59093 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:59094 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 16:54:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:54:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:54:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:54:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:20] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:55:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:20] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:56:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:20] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:57:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:58:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:20] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 16:59:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:20] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:00:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:01:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:56] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:02:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:56] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:03:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:10] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:48] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:56] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             70794a9baf8841719760                               
+                             79c81122abb9                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:04:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:06] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:08] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:09] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:13] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             42bde052b8f14b028a8c                               
+                             a3500f986344                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:60389 - "POST /mcp HTTP/1.1" 400 Bad Request
+[07/31/26 17:05:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:18] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:25] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:27] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:33] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             155f5087ba394efba209                               
+                             b5d10b90be8e                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:42] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:05:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:09] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             abecf7dc44df4d84938e                               
+                             ca924e29116f                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:11] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:13] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:14] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:16] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:18] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             470f40f7983e45a89abb                               
+                             aca4a42e9af7                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:60447 - "GET /mcp HTTP/1.1" 406 Not Acceptable
+[07/31/26 17:06:19] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:21] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:22] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:28] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             1727fbc081f84a99a838                               
+                             6385c2abc317                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:60453 - "GET /mcp HTTP/1.1" 406 Not Acceptable
+[07/31/26 17:06:29] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:31] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:35] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             885b546752834821950d                               
+                             72937a13b847                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:60460 - "GET /mcp HTTP/1.1" 406 Not Acceptable
+[07/31/26 17:06:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:43] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:45] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             4dd56ad9e9e4451ab126                               
+                             8244c4bda1a4                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:46] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:50] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:56] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:06:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:00] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:05] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:17] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:21] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             cc1b39858df54f458bf7                               
+                             6a17f1a0d447                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:23] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:26] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:28] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:31] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             f2475bfea7614cb1bd2c                               
+                             5cd4f3775628                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:33] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+INFO:     127.0.0.1:60514 - "POST /mcp HTTP/1.1" 200 OK
+[07/31/26 17:07:37] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:38] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:07:51] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:15] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:18] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             faa68564002b4d43a16d                               
+                             e5ad94a18282                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:24] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:39] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:08:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:09:09] INFO     Created new          streamable_http_manager.py:281
+                             transport with                                     
+                             session ID:                                        
+                             e5f32fa8f9e74f11a5e6                               
+                             e97d553c3c1b                                       
+                    INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+[07/31/26 17:09:12] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    

@@ -32,7 +32,7 @@ import backup
 import tasks
 from queries import invalidate_cache
 from data_helpers import (
-    split_phones, _split_recommended, split_shareholders, _auto_set_primary_tag,
+    split_phones, _split_recommended, split_shareholders,
     split_emails, sync_emails, merge_emails,
 )
 from utils import (
@@ -78,7 +78,7 @@ COMMIT_EVERY = 1000        # 每 N 行提交一次
 HEADER_KEYS = {"公司名称", "企业名称", "统一社会信用代码", "法定代表人",
                "登记状态", "经营状态", "联系电话", "注册资本"}
 
-PHONE_SEP_RE = re.compile(r'[;；,，、/]')
+PHONE_SEP_RE = re.compile(r'[;；,，。、/]')
 
 
 # ── 入口 ────────────────────────────────────────────────────────────────────
@@ -395,7 +395,7 @@ def _row_to_record(row, col_map, col_index, sec_phones, rec_phones, source_name)
     for orig_col, field in col_map.items():
         idx = col_index[orig_col]
         val = row[idx] if idx < len(row) else None
-        record[field] = clean_val(val)
+        record[field] = clean_val(val, field)
 
     # 副电话列（启信宝：联系电话2~10）合并到 phone
     sec_parts = []
@@ -668,7 +668,7 @@ def _count_raw_phones(phone_str):
     """Count total phone parts in input string before validation."""
     if not phone_str:
         return 0
-    SEPS = [';', '；', ',', '，', '、', '/']
+    SEPS = [';', '；', ',', '，', '。', '、', '/']
     result = [str(phone_str)]
     for sep in SEPS:
         new_result = []
@@ -707,7 +707,6 @@ def _merge_phones_cached(db, company_id, phone_str,
             sset.add(norm)
             if is_primary:
                 has_primary.add(company_id)
-                _auto_set_primary_tag(db, norm)
             added += 1
 
     for raw, norm in _split_recommended(recommended_str):
@@ -977,8 +976,6 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                             "VALUES (?, ?, ?, ?)",
                             [new_id, raw, norm, 1 if i == 0 else 0]
                         )
-                        if i == 0:
-                            _auto_set_primary_tag(db, norm)
                         if norm:
                             pset.add(norm)
                     phone_sets[new_id] = pset

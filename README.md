@@ -145,7 +145,7 @@ pip install "mcp[cli]>=1.27,<2"
 python mcp_server.py
 ```
 
-服务监听 `http://localhost:8000/mcp`
+服务监听 `http://localhost:5310/mcp`
 
 **可用工具**：
 

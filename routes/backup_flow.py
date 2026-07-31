@@ -1,9 +1,13 @@
-"""数据备份：页面、创建、下载、删除。"""
+"""数据备份：页面、创建、恢复、下载、删除。"""
 import subprocess
+import sqlite3
+import shutil
+import tempfile
+from pathlib import Path
 from flask import Blueprint, g, render_template, redirect, url_for, flash, \
                    abort, send_file
 
-from db import DB_PATH
+from db import DB_PATH, init_db
 import backup
 
 bp = Blueprint('backup_flow_bp', __name__)
@@ -45,6 +49,70 @@ def backup_create():
         flash(f"备份成功：{result['filename']}", "success")
     else:
         flash(f"备份失败：{result.get('error', '未知错误')}", "error")
+    return redirect(url_for("backup_flow_bp.backup_page"))
+
+
+@bp.route("/backup/restore/<filename>", methods=["POST"])
+def backup_restore(filename):
+    """从备份文件恢复数据库。"""
+    result = backup.restore_backup(filename, DB_PATH)
+    if result["success"]:
+        # 恢复后重新初始化数据库（确保表结构、FTS 索引等完整）
+        init_db()
+        flash(f"✅ 恢复成功！{result['message']}", "success")
+        if result.get("backup_filename"):
+            flash(f"💡 当前数据已自动备份为 {result['backup_filename']}，如需回退可恢复此备份", "info")
+    else:
+        flash(f"❌ 恢复失败：{result.get('error', '未知错误')}", "error")
+    return redirect(url_for("backup_flow_bp.backup_page"))
+
+
+@bp.route("/backup/restore-select", methods=["POST"])
+def backup_restore_select():
+    """从下拉菜单选择备份文件并恢复。"""
+    filename = request.form.get("filename", "").strip()
+    if not filename:
+        flash("请选择要恢复的备份文件", "error")
+        return redirect(url_for("backup_flow_bp.backup_page"))
+    return redirect(url_for("backup_flow_bp.backup_restore", filename=filename))
+
+
+@bp.route("/backup/restore-upload", methods=["POST"])
+def backup_restore_upload():
+    """上传备份文件并恢复。"""
+    import tempfile
+    file = request.files.get("file")
+    if not file or not file.filename:
+        flash("请选择要恢复的备份文件", "error")
+        return redirect(url_for("backup_flow_bp.backup_page"))
+
+    # 保存到临时目录
+    tmp_dir = Path(tempfile.mkdtemp(prefix="enthub_restore_"))
+    tmp_path = tmp_dir / file.filename
+    file.save(str(tmp_path))
+
+    # 校验是否为合法 SQLite 数据库
+    try:
+        test_conn = sqlite3.connect(str(tmp_path))
+        test_conn.execute("SELECT COUNT(*) FROM companies").fetchone()
+        test_conn.close()
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        flash("所选文件不是有效的数据库备份文件", "error")
+        return redirect(url_for("backup_flow_bp.backup_page"))
+
+    # 执行恢复
+    from db import DB_PATH as target_db
+    result = backup.restore_backup_from_file(tmp_path, target_db)
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    if result["success"]:
+        init_db()
+        flash(f"✅ 恢复成功！{result['message']}", "success")
+        if result.get("backup_filename"):
+            flash(f"💡 当前数据已自动备份为 {result['backup_filename']}，如需回退可恢复此备份", "info")
+    else:
+        flash(f"❌ 恢复失败：{result.get('error', '未知错误')}", "error")
     return redirect(url_for("backup_flow_bp.backup_page"))
 
 

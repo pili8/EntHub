@@ -145,14 +145,12 @@ class EntHubMenuBar(rumps.App):
             rumps.MenuItem("备份管理", callback=self.on_open_backup),
             config_submenu,
             None,
-            rumps.MenuItem("重启服务", callback=self.on_restart),
-            rumps.MenuItem("停止服务", callback=self.on_stop),
+            rumps.MenuItem("退出服务", callback=self.on_stop),
         ]
 
     # ── 菜单回调 ─────────────────────────────────────────────
     def on_open_console(self, _):  _open("/")
     def on_open_backup(self, _):   _open("/backup")
-    def on_restart(self, _):       _open("/restart")
 
     def on_toggle_auto_open(self, _):
         """切换启动时是否自动打开浏览器"""
@@ -375,7 +373,7 @@ class EntHubMenuBar(rumps.App):
             try: PID_FILE.unlink()
             except OSError: pass
 
-        rumps.notification("EntHub", "服务已停止", "已停止 Flask 进程，状态栏菜单退出。")
+        rumps.notification("EntHub", "服务已退出", "已停止 Flask 进程，状态栏菜单退出。")
         rumps.quit_application()
 
 

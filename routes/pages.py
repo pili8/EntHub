@@ -60,16 +60,16 @@ def index():
     return render_template("index.html", stats=stats, recents=recents)
 
 
-# ── 重启 ────────────────────────────────────────────────────────────────────
+# ── 退出 ────────────────────────────────────────────────────────────────────
 
-@bp.route("/restart")
-def restart_server():
-    """触发服务器重启（通过修改监控文件）"""
-    from pathlib import Path
-    import time
-    trigger_file = Path(__file__).parent.parent / ".restart_trigger"
-    trigger_file.write_text(str(time.time()))
-    return render_template("restarting.html")
+@bp.route("/exit")
+def exit_server():
+    """退出 EntHub 服务。"""
+    import os
+    import signal
+    # 给本进程发 SIGTERM，让 Flask 优雅退出
+    os.kill(os.getpid(), signal.SIGTERM)
+    return render_template("restarting.html", exit_mode=True)
 
 
 # ── 数据浏览 ────────────────────────────────────────────────────────────────
@@ -664,11 +664,12 @@ def browse_relation_groups():
         """, [min_count, per_page, offset]).fetchall()
 
     elif dup_type == "tag":
-        # 标签关联：通过 company_tags 表反查同一标签下的多家公司
+        # 企业标签：按标签分组，列出每家公司数
         total = g.db.execute("""
             SELECT COUNT(*) FROM (
-                SELECT tag_id FROM company_tags
-                GROUP BY tag_id HAVING COUNT(*) >= ?
+                SELECT tg.name FROM company_tags ct
+                JOIN tags tg ON ct.tag_id = tg.id
+                GROUP BY tg.id HAVING COUNT(*) >= ?
             )
         """, [min_count]).fetchone()[0]
         rows = g.db.execute(f"""
@@ -677,16 +678,52 @@ def browse_relation_groups():
                        SELECT c.name AS cname
                        FROM company_tags ct2
                        JOIN companies c ON c.id = ct2.company_id
-                       WHERE ct2.tag_id = t.val LIMIT 10
+                       JOIN tags tg2 ON ct2.tag_id = tg2.id
+                       WHERE tg2.name = t.val LIMIT 10
                    )) AS company_names
             FROM (
-                SELECT ct.tag_id AS val,
-                       tg.name  AS display_val,
+                SELECT tg.name AS val,
+                       tg.name AS display_val,
                        tg.color AS tag_color,
                        COUNT(*) AS cnt
                 FROM company_tags ct
                 JOIN tags tg ON ct.tag_id = tg.id
-                GROUP BY ct.tag_id
+                GROUP BY tg.id
+                HAVING cnt >= ?
+                ORDER BY {order_sql}
+                LIMIT ? OFFSET ?
+            ) t
+        """, [min_count, per_page, offset]).fetchall()
+
+    elif dup_type == "phone_tag":
+        # 电话标记：按标记分组，列出每家公司数
+        total = g.db.execute("""
+            SELECT COUNT(*) FROM (
+                SELECT pt.id FROM phone_tags pt
+                JOIN phone_tag_map ptm ON ptm.tag_id = pt.id
+                JOIN company_phones cp ON cp.normalized_phone = ptm.normalized_phone
+                GROUP BY pt.id HAVING COUNT(DISTINCT cp.company_id) >= ?
+            )
+        """, [min_count]).fetchone()[0]
+        rows = g.db.execute(f"""
+            SELECT t.val, t.display_val, t.cnt, t.tag_color,
+                   (SELECT GROUP_CONCAT(cname, '; ') FROM (
+                       SELECT DISTINCT c.name AS cname
+                       FROM company_phones cp2
+                       JOIN phone_tag_map ptm2 ON ptm2.normalized_phone = cp2.normalized_phone
+                       JOIN phone_tags pt2 ON pt2.id = ptm2.tag_id
+                       JOIN companies c ON c.id = cp2.company_id
+                       WHERE pt2.name = t.val LIMIT 10
+                   )) AS company_names
+            FROM (
+                SELECT pt.name AS val,
+                       pt.name AS display_val,
+                       pt.color AS tag_color,
+                       COUNT(DISTINCT cp.company_id) AS cnt
+                FROM phone_tags pt
+                JOIN phone_tag_map ptm ON ptm.tag_id = pt.id
+                JOIN company_phones cp ON cp.normalized_phone = ptm.normalized_phone
+                GROUP BY pt.id
                 HAVING cnt >= ?
                 ORDER BY {order_sql}
                 LIMIT ? OFFSET ?
@@ -710,6 +747,7 @@ def relation_group_detail():
     """单个关联分组的详情：列出该分组下的所有企业"""
     dup_type = (request.args.get("dup_type") or "phone").strip()
     val = (request.args.get("val") or "").strip()
+    from_page = (request.args.get("from") or "").strip()
     page = sanitize_page(request.args)
     per_page = sanitize_per_page(request.args, default=PER_PAGE)
     offset = (page - 1) * per_page
@@ -719,7 +757,8 @@ def relation_group_detail():
         "phone": ("电话", "📞"),
         "email": ("邮箱", "📧"),
         "legal_person": ("法人", "👤"),
-        "tag": ("标签", "🏷️"),
+        "tag": ("企业标签", "🏷️"),
+        "phone_tag": ("电话标记", "🏷️"),
         "shareholder": ("股东", "💼"),
         "industry": ("行业", "🏭"),
     }
@@ -761,6 +800,46 @@ def relation_group_detail():
                 ORDER BY c.name LIMIT ? OFFSET ?
             """, [val, per_page, offset]).fetchall()
 
+        elif dup_type == "tag":
+            # 企业标签：按标签名查出所有打了该标签的企业
+            total = g.db.execute(
+                "SELECT COUNT(DISTINCT c.id) FROM companies c "
+                "JOIN company_tags ct ON ct.company_id = c.id "
+                "JOIN tags t ON t.id = ct.tag_id "
+                "WHERE t.name = ?",
+                [val]
+            ).fetchone()[0]
+            companies = g.db.execute(f"""
+                SELECT DISTINCT c.id, c.name, c.district, c.legal_person, c.business_status,
+                       {COMPANY_LIST_PHONE_SUBQUERY}
+                FROM companies c
+                JOIN company_tags ct ON ct.company_id = c.id
+                JOIN tags t ON t.id = ct.tag_id
+                WHERE t.name = ?
+                ORDER BY c.name LIMIT ? OFFSET ?
+            """, [val, per_page, offset]).fetchall()
+
+        elif dup_type == "phone_tag":
+            # 电话标记：查出所有号码带该标记的企业
+            total = g.db.execute(
+                "SELECT COUNT(DISTINCT c.id) FROM companies c "
+                "JOIN company_phones cp ON cp.company_id = c.id "
+                "JOIN phone_tag_map ptm ON ptm.normalized_phone = cp.normalized_phone "
+                "JOIN phone_tags pt ON pt.id = ptm.tag_id "
+                "WHERE pt.name = ?",
+                [val]
+            ).fetchone()[0]
+            companies = g.db.execute(f"""
+                SELECT DISTINCT c.id, c.name, c.district, c.legal_person, c.business_status,
+                       {COMPANY_LIST_PHONE_SUBQUERY}
+                FROM companies c
+                JOIN company_phones cp ON cp.company_id = c.id
+                JOIN phone_tag_map ptm ON ptm.normalized_phone = cp.normalized_phone
+                JOIN phone_tags pt ON pt.id = ptm.tag_id
+                WHERE pt.name = ?
+                ORDER BY c.name LIMIT ? OFFSET ?
+            """, [val, per_page, offset]).fetchall()
+
         elif dup_type == "legal_person":
             total = g.db.execute(
                 "SELECT COUNT(*) FROM companies WHERE normalized_legal_person = ?",
@@ -774,6 +853,34 @@ def relation_group_detail():
                 ORDER BY c.name LIMIT ? OFFSET ?
             """, [val, per_page, offset]).fetchall()
 
+        elif dup_type == "shareholder":
+            total = g.db.execute(
+                "SELECT COUNT(DISTINCT company_id) FROM company_shareholders "
+                "WHERE normalized_name = ?",
+                [val]
+            ).fetchone()[0]
+            companies = g.db.execute(f"""
+                SELECT DISTINCT c.id, c.name, c.district, c.legal_person, c.business_status,
+                       {COMPANY_LIST_PHONE_SUBQUERY}
+                FROM companies c
+                JOIN company_shareholders cs ON cs.company_id = c.id
+                WHERE cs.normalized_name = ?
+                ORDER BY c.name LIMIT ? OFFSET ?
+            """, [val, per_page, offset]).fetchall()
+
+        elif dup_type == "industry":
+            total = g.db.execute(
+                "SELECT COUNT(*) FROM companies WHERE industry = ?",
+                [val]
+            ).fetchone()[0]
+            companies = g.db.execute(f"""
+                SELECT c.id, c.name, c.district, c.legal_person, c.business_status,
+                       {COMPANY_LIST_PHONE_SUBQUERY}
+                FROM companies c
+                WHERE c.industry = ?
+                ORDER BY c.name LIMIT ? OFFSET ?
+            """, [val, per_page, offset]).fetchall()
+
         else:
             total = 0
             companies = []
@@ -782,7 +889,8 @@ def relation_group_detail():
 
     ctx = dict(dup_type=dup_type, val=val, companies=companies,
                total=total, page=page, pages=pages, per_page=per_page,
-               field_label=field_label, field_icon=field_icon)
+               field_label=field_label, field_icon=field_icon,
+               from_page=from_page)
 
     # HTMX 请求返回片段，整页请求返回完整页面
     if request.headers.get("HX-Request"):

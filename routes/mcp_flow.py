@@ -10,7 +10,7 @@ from flask import Blueprint, render_template, jsonify
 bp = Blueprint('mcp_flow_bp', __name__)
 
 MCP_HOST = "localhost"
-MCP_PORT = 8000
+MCP_PORT = 5310
 MCP_URL = f"http://{MCP_HOST}:{MCP_PORT}/mcp"
 MCP_PID_FILE = Path(__file__).parent.parent / ".mcp_pid"
 
@@ -58,6 +58,8 @@ def mcp_page():
     venv_python = str(Path(project_root) / "venv" / "bin" / "python")
     mcp_script = str(Path(project_root) / "mcp_server.py")
 
+    from config import is_password_enabled
+
     return render_template(
         "mcp.html",
         running=running,
@@ -67,6 +69,7 @@ def mcp_page():
         project_root=project_root,
         venv_python=venv_python,
         mcp_script=mcp_script,
+        password_enabled=is_password_enabled(),
     )
 
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ company.name }} · EntHub{% endblock %}
+{% block title %}{{ company.name }}{% endblock %}
 
 {% block content %}
 <div class="page page-detail">
@@ -28,21 +28,42 @@
               <i data-lucide="copy" aria-hidden="true"></i>
           </button>
       </h1>
-      <button type="button" class="detail-refresh-btn" onclick="refreshCompany({{ company.id }})" title="通过 API 获取最新工商信息和联系方式">
-        <i data-lucide="refresh-cw" aria-hidden="true" style="width: 14px; height: 14px;"></i>在线更新
-      </button>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <div class="copy-dropdown" style="position: relative;">
+          <button type="button" class="page-btn" onclick="toggleCopyMenu(this)" title="复制企业信息">
+            <i data-lucide="clipboard-copy" aria-hidden="true"></i>复制
+            <i data-lucide="chevron-down" aria-hidden="true" style="width: 12px; height: 12px;"></i>
+          </button>
+          <div id="copy-menu" style="display: none; position: absolute; top: calc(100% + 4px); right: 0; min-width: 140px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 1000; padding: 4px;">
+            <button type="button" onclick="copyCompanyName(); closeCopyMenu();" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left;">
+              <i data-lucide="building-2" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+              <span style="font-weight: 500;">公司名称</span>
+            </button>
+            <button type="button" onclick="copyKeyInfo(); closeCopyMenu();" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left;">
+              <i data-lucide="list" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+              <span style="font-weight: 500;">关键信息</span>
+            </button>
+            <button type="button" onclick="copyAllInfo(); closeCopyMenu();" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left;">
+              <i data-lucide="file-text" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+              <span style="font-weight: 500;">全部信息</span>
+            </button>
+          </div>
+        </div>
+        <button type="button" class="detail-refresh-btn" onclick="refreshCompany({{ company.id }})" title="通过 API 获取最新工商信息和联系方式">
+          <i data-lucide="refresh-cw" aria-hidden="true" style="width: 14px; height: 14px;"></i>在线更新
+        </button>
+        {% if webhook_url %}
+        <form action="{{ url_for('companies_bp.send_to_kinboard', company_id=company.id) }}" method="post" style="display: inline;">
+          <button type="submit" class="page-btn page-btn-primary" style="font-size: 13px; padding: 6px 12px;" title="发送到金山多维表">
+            <i data-lucide="table-2" aria-hidden="true" style="width: 14px; height: 14px;"></i>发送到多维表
+          </button>
+        </form>
+        {% endif %}
+      </div>
     </div>
     {% if company.former_name and company.former_name != '-' %}
       <p class="detail-former">曾用名 · {{ company.former_name }}</p>
     {% endif %}
-    <div class="detail-hero-meta">
-      {% if company.business_status %}
-        <span class="badge {{ 'badge-soft badge-success' if company.business_status == '存续' else 'badge-soft badge-warn' }}">
-          {{ company.business_status }}
-        </span>
-      {% endif %}
-      <span class="detail-id">#{{ '%08d' % company.id }}</span>
-    </div>
     
     <!-- 标签区域 -->
     <div id="companyTags" style="margin-top: 12px;">
@@ -101,7 +122,7 @@
         <div class="detail-label">所属行业</div>
         <div class="detail-value">
           {% if company.industry %}
-            <a href="{{ url_for('pages_bp.search', q=company.industry) }}">{{ company.industry }}</a>
+            <a href="{{ url_for('pages_bp.relation_group_detail', dup_type='industry', val=company.industry) }}">{{ company.industry }}</a>
             {% if field_counts.industry and field_counts.industry > 1 %}
               <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">共 {{ field_counts.industry }} 家</span>
             {% endif %}
@@ -147,6 +168,7 @@
     <h2 class="detail-section-title">联系方式</h2>
 
     {% if company_phones %}
+      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">电话</div>
       <div class="phone-list">
         {% for cp in company_phones %}
         <div class="phone-row" data-norm="{{ cp.normalized_phone }}">
@@ -154,8 +176,11 @@
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ cp.phone }}', this)" title="复制">
             <i data-lucide="copy" aria-hidden="true"></i>
           </button>
+          <a href="tel:{{ cp.normalized_phone }}" class="copy-btn" title="拨打电话" style="display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
+            <i data-lucide="phone" aria-hidden="true"></i>
+          </a>
           {% if cp.location %}
-          <span class="phone-location" title="归属地">{{ cp.location.province }}{% if cp.location.city and cp.location.city != cp.location.province %} {{ cp.location.city }}{% endif %} {{ cp.location.carrier }}</span>
+          <span class="phone-location" title="归属地">{{ cp.location.province }}{% if cp.location.city and cp.location.city != cp.location.province %} {{ cp.location.city }}{% endif %}</span>
           {% endif %}
           {% if not cp.phone_valid %}
           <span style="color: #f97316; font-size: 12px;" title="{{ cp.phone_invalid_reason }}">⚠ 格式异常</span>
@@ -181,12 +206,12 @@
         {% endfor %}
       </div>
     {% else %}
+      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">电话</div>
       <div class="muted">未登记电话</div>
     {% endif %}
 
-    <div class="contact-divider"></div>
-
     {% if company_emails %}
+      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px;">邮箱</div>
       <div class="phone-list">
         {% for ce in company_emails %}
         <div class="phone-row">
@@ -194,6 +219,9 @@
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ ce.email }}', this)" title="复制邮箱">
             <i data-lucide="copy" aria-hidden="true"></i>
           </button>
+          <a href="mailto:{{ ce.email }}" class="copy-btn" title="发送邮件" style="display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
+            <i data-lucide="mail" aria-hidden="true"></i>
+          </a>
           <div class="phone-tags">
             {% if ce.dup_count > 1 %}
               <span class="dup-count {{ 'dup-high' if ce.dup_count >= 5 else 'dup-mid' }}">共 {{ ce.dup_count }} 家</span>
@@ -205,21 +233,16 @@
         {% endfor %}
       </div>
     {% else %}
+      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px;">邮箱</div>
       <div class="muted">未登记邮箱</div>
     {% endif %}
 
-    <div class="contact-divider"></div>
-
-    <div class="detail-grid detail-grid-3">
-      <div class="detail-field">
-        <div class="detail-label">网址</div>
-        <div class="detail-value">
-          {% if company.website and company.website != '-' %}
-            <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>
-          {% else %}<span class="muted">—</span>{% endif %}
-        </div>
-      </div>
+    {% if company.website and company.website != '-' %}
+    <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px;">网址</div>
+    <div class="detail-value">
+      <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>
     </div>
+    {% endif %}
   </section>
 
   <!-- ─────────── 股东信息 ─────────── -->
@@ -382,6 +405,126 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+// ── 复制功能（三种模式） ──
+
+function toggleCopyMenu(btn) {
+  const menu = document.getElementById('copy-menu');
+  if (menu.style.display === 'none') {
+    menu.style.display = 'block';
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => {
+      document.addEventListener('click', _closeCopyOnOutside);
+    }, 0);
+  } else {
+    menu.style.display = 'none';
+    document.removeEventListener('click', _closeCopyOnOutside);
+  }
+}
+function closeCopyMenu() {
+  const menu = document.getElementById('copy-menu');
+  if (menu) menu.style.display = 'none';
+  document.removeEventListener('click', _closeCopyOnOutside);
+}
+function _closeCopyOnOutside(e) {
+  const menu = document.getElementById('copy-menu');
+  const dropdown = document.querySelector('.copy-dropdown');
+  if (menu && dropdown && !dropdown.contains(e.target)) {
+    menu.style.display = 'none';
+    document.removeEventListener('click', _closeCopyOnOutside);
+  }
+}
+
+function _doCopy(text) {
+  navigator.clipboard.writeText(text.trim()).then(() => {
+    const btn = document.querySelector('.copy-dropdown > .page-btn');
+    if (btn) {
+      const icon = btn.querySelector('i[data-lucide="clipboard-copy"]');
+      if (icon) { icon.setAttribute('data-lucide', 'check'); if (window.lucide) lucide.createIcons(); }
+      btn.style.color = 'var(--success)';
+      setTimeout(() => {
+        if (icon) { icon.setAttribute('data-lucide', 'clipboard-copy'); if (window.lucide) lucide.createIcons(); }
+        btn.style.color = '';
+      }, 1500);
+    }
+  }).catch(err => console.error('复制失败:', err));
+}
+
+// 电话号码列表（从 company_phones 模板变量生成）
+const _phoneList = [
+  {% for cp in company_phones %}
+  '{{ cp.phone }}',
+  {% endfor %}
+];
+
+// 1. 仅公司名称
+function copyCompanyName() {
+  _doCopy('{{ company.name }}');
+}
+
+// 2. 关键信息（名称、电话、法人、地址等）
+function copyKeyInfo() {
+  const fields = [
+    ['企业名称', '{{ company.name }}'],
+    ['法定代表人', '{{ company.legal_person or '' }}'],
+    ['电话', _phoneList.join('; ')],
+    ['邮箱', '{{ company.email or '' }}'],
+    ['所属行业', '{{ company.industry or '' }}'],
+    ['注册地址', '{{ company.address or '' }}'],
+    ['统一社会信用代码', '{{ company.credit_code or '' }}'],
+  ];
+  let text = '';
+  for (const [label, value] of fields) {
+    if (value && value !== '-') {
+      text += label + '：' + value + '\n';
+    }
+  }
+  _doCopy(text);
+}
+
+// 3. 全部工商信息
+function copyAllInfo() {
+  const fields = [
+    ['企业名称', '{{ company.name }}'],
+    ['曾用名', '{{ company.former_name or '' }}'],
+    ['法定代表人', '{{ company.legal_person or '' }}'],
+    ['注册资本', '{{ company.registered_capital or '' }}'],
+    ['实缴资本', '{{ company.paid_capital or '' }}'],
+    ['成立日期', '{{ company.established_date or '' }}'],
+    ['核准日期', '{{ company.approved_date or '' }}'],
+    ['营业期限', '{{ company.business_term or '' }}'],
+    ['公司类型', '{{ company.company_type or '' }}'],
+    ['所属行业', '{{ company.industry or '' }}'],
+    ['参保人数', '{{ company.insured_count or '' }}'],
+    ['企业规模', '{{ company.enterprise_scale or '' }}'],
+    ['经营状态', '{{ company.business_status or '' }}'],
+    ['电话', _phoneList.join('; ')],
+    ['邮箱', '{{ company.email or '' }}'],
+    ['网址', '{{ company.website or '' }}'],
+    ['省份', '{{ company.province or '' }}'],
+    ['城市', '{{ company.city or '' }}'],
+    ['区县', '{{ company.district or '' }}'],
+    ['注册地址', '{{ company.address or '' }}'],
+    ['最新年报地址', '{{ company.annual_report_address or '' }}'],
+    ['通信地址', '{{ company.mailing_address or '' }}'],
+    ['统一社会信用代码', '{{ company.credit_code or '' }}'],
+    ['纳税人识别号', '{{ company.taxpayer_id or '' }}'],
+    ['注册号', '{{ company.registration_no or '' }}'],
+    ['组织机构代码', '{{ company.org_code or '' }}'],
+    ['英文名', '{{ company.english_name or '' }}'],
+    ['股东', '{{ company.shareholders or '' }}'],
+    ['经营范围', '{{ company.business_scope or '' }}'],
+  ];
+  let text = '';
+  for (const [label, value] of fields) {
+    if (value && value !== '-') {
+      text += label + '：' + value + '\n';
+    }
+  }
+  _doCopy(text);
+}
+</script>
+
 <script>
 (function() {
 const companyId = {{ company.id }};
