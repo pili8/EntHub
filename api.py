@@ -12,6 +12,8 @@ from utils import (
     normalize_person_name, normalize_email,
     phone_location, phone_location_str,
     get_phone_tags, get_phone_tags_batch,
+    get_phone_wechat, get_phone_wechat_batch,
+    validate_phone,
 )
 from data_helpers import sync_phones, sync_emails, sync_shareholders
 from extract_service import extract_company_info
@@ -123,7 +125,7 @@ def companies():
                    (SELECT group_concat(phone, '; ')
                     FROM company_phones
                     WHERE company_id = companies.id
-                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                    ORDER BY is_primary DESC) AS phone
             FROM companies {where}
             ORDER BY {sort_col} {dir_sql}
             LIMIT ? OFFSET ?
@@ -157,17 +159,20 @@ def company_detail(company_id):
 
     # 关联电话
     company_phones = g.db.execute("""
-        SELECT cp.phone, cp.normalized_phone, cp.is_primary, cp.is_recommended,
+        SELECT cp.phone, cp.normalized_phone, cp.is_primary,
                (SELECT COUNT(DISTINCT company_id) FROM company_phones cp2
                 WHERE cp2.normalized_phone = cp.normalized_phone) AS dup_count
         FROM company_phones cp
         WHERE cp.company_id = ?
-        ORDER BY cp.is_primary DESC, cp.is_recommended DESC
+        ORDER BY cp.is_primary DESC
     """, [company_id]).fetchall()
 
-    # 附加归属地、电话标记和校验状态
-    from utils import phone_location, get_phone_tags_batch, validate_phone
+    # 附加归属地、电话标记、微信和校验状态
+    from utils import phone_location, get_phone_tags_batch, get_phone_wechat_batch, validate_phone
     phone_tag_map = get_phone_tags_batch(
+        g.db, [r['normalized_phone'] for r in company_phones]
+    ) if company_phones else {}
+    phone_wechat_map = get_phone_wechat_batch(
         g.db, [r['normalized_phone'] for r in company_phones]
     ) if company_phones else {}
     phone_list = []
@@ -175,6 +180,7 @@ def company_detail(company_id):
         cp_dict = dict(cp)
         cp_dict['location'] = phone_location(cp['phone'])
         cp_dict['tag'] = phone_tag_map.get(cp['normalized_phone'])
+        cp_dict['wechat'] = phone_wechat_map.get(cp['normalized_phone'])
         is_valid, phone_type, reason = validate_phone(cp['normalized_phone'])
         cp_dict['phone_valid'] = is_valid
         cp_dict['phone_type'] = phone_type
@@ -204,7 +210,7 @@ def company_detail(company_id):
                    (SELECT group_concat(cp2.phone, '; ')
                     FROM company_phones cp2
                     WHERE cp2.company_id = c.id
-                    ORDER BY cp2.is_primary DESC, cp2.is_recommended DESC) AS phone
+                    ORDER BY cp2.is_primary DESC) AS phone
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE c.id <> ? AND cp.normalized_phone IN ({placeholders})
@@ -224,7 +230,7 @@ def company_detail(company_id):
                        (SELECT group_concat(phone, '; ')
                         FROM company_phones
                         WHERE company_id = c.id
-                        ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                        ORDER BY is_primary DESC) AS phone
                 FROM companies c
                 WHERE c.id <> ? AND c.{field} = ? AND c.{field} <> ''
                 ORDER BY c.name LIMIT 10
@@ -244,7 +250,7 @@ def company_detail(company_id):
                    (SELECT group_concat(phone, '; ')
                     FROM company_phones
                     WHERE company_id = c.id
-                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                    ORDER BY is_primary DESC) AS phone
             FROM companies c
             JOIN company_emails ce ON ce.company_id = c.id
             WHERE c.id <> ? AND ce.normalized_email IN ({placeholders})
@@ -294,7 +300,7 @@ def relations():
                    (SELECT group_concat(phone, '; ')
                     FROM company_phones
                     WHERE company_id = c.id
-                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                    ORDER BY is_primary DESC) AS phone
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE cp.normalized_phone = ?
@@ -307,7 +313,7 @@ def relations():
                    (SELECT group_concat(phone, '; ')
                     FROM company_phones
                     WHERE company_id = c.id
-                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                    ORDER BY is_primary DESC) AS phone
             FROM companies c
             JOIN company_emails ce ON ce.company_id = c.id
             WHERE ce.normalized_email = ?
@@ -319,7 +325,7 @@ def relations():
                    (SELECT group_concat(phone, '; ')
                     FROM company_phones
                     WHERE company_id = c.id
-                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                    ORDER BY is_primary DESC) AS phone
             FROM companies c
             WHERE c.{rel_type} = ?
             ORDER BY c.name LIMIT ?
@@ -814,12 +820,15 @@ def phone_count():
         return _err(1001, "无效的电话号码")
 
     count = _phone_dup_count(g.db, norm)
+    is_valid, phone_type, _ = validate_phone(norm)
     return _ok({
         "phone": phone,
         "normalized": norm,
         "count": count,
         "location": phone_location(phone),
         "tag": get_phone_tags(g.db, norm),
+        "wechat": get_phone_wechat(g.db, norm),
+        "phone_type": phone_type,
     })
 
 
@@ -845,17 +854,21 @@ def phone_count_batch():
         if not norm:
             continue
         count = _phone_dup_count(g.db, norm)
+        _, ptype, _ = validate_phone(norm)
         results.append({
             "phone": raw,
             "normalized": norm,
             "count": count,
             "location": phone_location(raw),
+            "phone_type": ptype,
         })
 
-    # 批量查标签
+    # 批量查标签和微信
     tag_map = get_phone_tags_batch(g.db, [r["normalized"] for r in results])
+    wechat_map = get_phone_wechat_batch(g.db, [r["normalized"] for r in results])
     for r in results:
         r["tag"] = tag_map.get(r["normalized"])
+        r["wechat"] = wechat_map.get(r["normalized"])
 
     return _ok({"results": results})
 

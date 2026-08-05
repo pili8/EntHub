@@ -304,6 +304,8 @@ CONTAINS_ALIASES = [
     ("联系电话（工商信息", "phone"),
     ("联系电话", "phone"),
     # 地址类
+    ("地址（注册", "address"),
+    ("地址（通信", "mailing_address"),
     ("地址（最新地址）", "annual_report_address"),
     ("地址（工商信息）", "address"),
     ("最新年报地址", "annual_report_address"),
@@ -314,7 +316,7 @@ CONTAINS_ALIASES = [
 ]
 
 # ── Secondary phone columns (启信宝: 联系电话2~10) ────────────────────────────
-SECONDARY_PHONE_PATTERN = re.compile(r"^联系电话\d+$")
+SECONDARY_PHONE_PATTERN = re.compile(r"^(联系电话\d+|更多电话)$")
 
 # ── Recommended phone column ──────────────────────────────────────────────────
 RECOMMENDED_PHONE_KEYS = {"推荐电话"}
@@ -538,3 +540,46 @@ def get_phone_tags_batch(db, normalized_phones):
     """, unique_norms).fetchall()
 
     return {r["normalized_phone"]: {"id": r["id"], "name": r["name"], "color": r["color"]} for r in rows}
+
+
+# ── 电话微信信息查询辅助 ──────────────────────────────────────────────────────
+
+def get_phone_wechat(db, normalized_phone):
+    """查询某个号码的微信信息。
+
+    返回 {wechat_name, wechat_id, note} 或 None。
+    """
+    if not normalized_phone:
+        return None
+    row = db.execute(
+        "SELECT wechat_name, wechat_id, note FROM phone_wechat "
+        "WHERE normalized_phone = ?",
+        [normalized_phone]
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def get_phone_wechat_batch(db, normalized_phones):
+    """批量查询多个号码的微信信息。
+
+    返回 {normalized_phone: {wechat_name, wechat_id, note}, ...}
+    没有微信信息的号码不在 dict 中。
+    """
+    if not normalized_phones:
+        return {}
+    unique_norms = list(set(n for n in normalized_phones if n))
+    if not unique_norms:
+        return {}
+
+    placeholders = ",".join(["?"] * len(unique_norms))
+    rows = db.execute(f"""
+        SELECT normalized_phone, wechat_name, wechat_id, note
+        FROM phone_wechat
+        WHERE normalized_phone IN ({placeholders})
+    """, unique_norms).fetchall()
+
+    return {r["normalized_phone"]: {
+        "wechat_name": r["wechat_name"],
+        "wechat_id": r["wechat_id"],
+        "note": r["note"],
+    } for r in rows}

@@ -178,8 +178,8 @@ def run_cleanup(conn, company_id=None):
     if plan["to_insert"]:
         cur.executemany(
             "INSERT INTO company_phones "
-            "(company_id, phone, normalized_phone, is_primary, is_recommended) "
-            "VALUES (?, ?, ?, 0, 0)",
+            "(company_id, phone, normalized_phone, is_primary) "
+            "VALUES (?, ?, ?, 0)",
             plan["to_insert"])
 
     return {

@@ -2,10 +2,10 @@
 {% block title %}数据整理{% endblock %}
 
 {% block content %}
-<div style="max-width: 900px; margin: 0 auto;">
-    <div class="page-header">
-        <div class="page-title">✨ 数据整理</div>
-        <div class="page-subtitle">分析并清理重复和无效数据</div>
+<div class="page">
+    <div class="page-head">
+        <h1 class="page-title">数据整理</h1>
+        <p class="page-sub">分析并清理重复和无效数据</p>
     </div>
 
     <!-- 数据质量概览 -->
@@ -172,9 +172,7 @@
 </div>
 
 <style>
-.page-header { margin-bottom: 24px; }
-.page-title { font-size: 24px; font-weight: 600; margin: 0 0 4px 0; }
-.page-subtitle { color: var(--text-muted); font-size: 14px; }
+/* page-head/page-title/page-sub 样式统一使用全局 style.css 中的定义 */
 .quality-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

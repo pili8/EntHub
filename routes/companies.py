@@ -8,6 +8,7 @@ from utils import (
     normalize_name, normalize_credit_code,
     normalize_person_name, normalize_email, validate_phone,
     phone_location, get_phone_tags, get_phone_tags_batch,
+    get_phone_wechat, get_phone_wechat_batch,
 )
 from data_helpers import (
     sync_phones, sync_emails, sync_shareholders,
@@ -30,7 +31,7 @@ IMPORT_FIELDS = [
     "company_type", "industry", "former_name", "website",
     "email", "business_scope", "business_status",
     "enterprise_scale", "shareholders", "mailing_address",
-    "english_name", "tags", "source_file",
+    "english_name", "source_file",
 ]
 
 
@@ -44,20 +45,23 @@ def company_detail(company_id):
     if not row:
         abort(404)
 
-    # 该公司的所有电话（含重复数）
+    # 该公司的所有电话（含重复数），按主号优先 + id 排序
     company_phones = g.db.execute(
-        """SELECT cp.phone, cp.normalized_phone, cp.is_primary, cp.is_recommended,
+        """SELECT cp.phone, cp.normalized_phone, cp.is_primary,
                (SELECT COUNT(DISTINCT company_id)
                 FROM company_phones cp2
                 WHERE cp2.normalized_phone = cp.normalized_phone) AS dup_count
            FROM company_phones cp
            WHERE cp.company_id = ?
-           ORDER BY dup_count ASC, cp.is_primary DESC, cp.is_recommended DESC""",
+           ORDER BY cp.is_primary DESC, cp.id""",
         [company_id]
     ).fetchall()
 
-    # 为电话附加归属地、标签和校验状态（跟号码走，不跟企业走）
+    # 为电话附加归属地、标签、微信和校验状态（跟号码走，不跟企业走）
     phone_tag_map = get_phone_tags_batch(
+        g.db, [r["normalized_phone"] for r in company_phones]
+    ) if company_phones else {}
+    phone_wechat_map = get_phone_wechat_batch(
         g.db, [r["normalized_phone"] for r in company_phones]
     ) if company_phones else {}
     company_phones_enriched = []
@@ -65,19 +69,22 @@ def company_detail(company_id):
         cp_dict = dict(cp)
         cp_dict["location"] = phone_location(cp["phone"])
         cp_dict["tag"] = phone_tag_map.get(cp["normalized_phone"])
+        cp_dict["wechat"] = phone_wechat_map.get(cp["normalized_phone"])
         is_valid, phone_type, reason = validate_phone(cp["normalized_phone"])
         cp_dict["phone_valid"] = is_valid
         cp_dict["phone_type"] = phone_type
         cp_dict["phone_invalid_reason"] = reason if not is_valid else ""
         company_phones_enriched.append(cp_dict)
 
-    # 排序：手机在前、座机在后；同类中重复少的在前
+    # 排序：主号永远排第一，其余按类型+重复数自动排序
     _type_order = {"mobile": 0, "mobile_ext": 1, "toll_free": 2, "toll_free_ext": 3,
                    "landline": 4, "landline_ext": 5, "invalid": 6}
-    company_phones_enriched.sort(
-        key=lambda c: (_type_order.get(c["phone_type"], 9), c["dup_count"],
-                       not c["is_recommended"], not c["is_primary"])
+    primary = [c for c in company_phones_enriched if c["is_primary"]]
+    others = [c for c in company_phones_enriched if not c["is_primary"]]
+    others.sort(
+        key=lambda c: (_type_order.get(c["phone_type"], 9), c["dup_count"])
     )
+    company_phones_enriched = primary + others
 
     # 同电话关联企业
     phone_norms = [r["normalized_phone"] for r in company_phones] if company_phones else []
@@ -235,7 +242,7 @@ def edit_company(company_id):
         g.db.execute(f"UPDATE companies SET {set_clause} WHERE id = ?",
                      list(fields.values()) + [company_id])
 
-        sync_phones(g.db, company_id, phone_val, keep_recommended=True)
+        sync_phones(g.db, company_id, phone_val)
         sync_emails(g.db, company_id, email_val)
         sync_shareholders(g.db, company_id, shareholders_val)
         g.db.commit()
@@ -273,6 +280,7 @@ def delete_company(company_id):
     """删除企业记录"""
     g.db.execute("DELETE FROM company_phones WHERE company_id = ?", (company_id,))
     g.db.execute("DELETE FROM company_emails WHERE company_id = ?", (company_id,))
+    g.db.execute("DELETE FROM company_shareholders WHERE company_id = ?", (company_id,))
     g.db.execute("DELETE FROM companies WHERE id = ?", (company_id,))
     g.db.commit()
     flash("企业已删除", "success")
@@ -331,7 +339,7 @@ def add_company():
             updates = {}
             for f_name in IMPORT_FIELDS:
                 if f_name in ("phone", "email", "shareholders",
-                              "source_file", "tags"):
+                              "source_file"):
                     continue
                 inc_val = fields.get(f_name, "")
                 if inc_val and inc_val != (row[f_name] or ""):
@@ -353,7 +361,7 @@ def add_company():
 
             # 电话 & 邮箱 & 股东：非空时全量重建（覆盖），空值不动（保留已有）
             if phone_val:
-                sync_phones(g.db, eid, phone_val, keep_recommended=True)
+                sync_phones(g.db, eid, phone_val)
             if email_val:
                 sync_emails(g.db, eid, email_val)
             if shareholders_val:
@@ -579,7 +587,7 @@ def update_company_info_api(company_id):
     skipped_fields = []
 
     # 这些字段不入 companies 主表
-    SKIP_FIELDS = {"phone", "email", "shareholders", "tags", "source_file"}
+    SKIP_FIELDS = {"phone", "email", "shareholders", "source_file"}
 
     for field, value in mapped.items():
         if field in SKIP_FIELDS:
@@ -791,7 +799,7 @@ def refresh_company_api(company_id):
     mapped = dict(biz_result.get("mapped") or {})
 
     # 2. 逐字段对比现有数据库值
-    SKIP_FIELDS = {"tags", "source_file", "shareholders"}
+    SKIP_FIELDS = {"source_file", "shareholders"}
     diff = []
     same_count = 0
 
@@ -949,17 +957,16 @@ def apply_refresh_api(company_id):
 
 @bp.route("/company/<int:company_id>/send-to-kinboard", methods=["POST"])
 def send_to_kinboard(company_id):
-    """将企业数据发送到金山多维表 Webhook。"""
+    """将企业数据发送到金山多维表 Webhook（AJAX JSON 接口）。"""
     import requests
 
     webhook_url = get_webhook_url()
     if not webhook_url:
-        flash("⚠️ 请先在设置页配置金山多维表 Webhook URL", "warning")
-        return redirect(url_for("companies_bp.company_detail", company_id=company_id))
+        return jsonify({"code": 1, "message": "请先在设置页配置金山多维表 Webhook URL"})
 
     row = g.db.execute("SELECT * FROM companies WHERE id = ?", [company_id]).fetchone()
     if not row:
-        abort(404)
+        return jsonify({"code": 1, "message": "企业不存在"}), 404
 
     # 公司名
     name = row["name"] or ""
@@ -971,12 +978,23 @@ def send_to_kinboard(company_id):
     legal_person_raw = row["legal_person"] or ""
     legal_person = f"{legal_person_raw}（法人）" if legal_person_raw else ""
 
-    # 电话号码：一个号码一行
+    # 主电话：星标主号（is_primary=1）且必须为手机号，否则传空字符串
+    # 其他电话：所有号码（含主号），每号一行
     phones = g.db.execute(
-        "SELECT phone FROM company_phones WHERE company_id = ? ORDER BY is_primary DESC",
+        "SELECT phone, normalized_phone, is_primary FROM company_phones WHERE company_id = ? ORDER BY is_primary DESC, id",
         [company_id]
     ).fetchall()
-    phone_str = "\n".join(p["phone"] for p in phones if p["phone"])
+    primary_phone = ""
+    all_phones = []
+    for p in phones:
+        if p["phone"]:
+            all_phones.append(p["phone"])
+            if p["is_primary"] and not primary_phone:
+                # 校验主号是否为手机号（mobile），非手机号则不作为主电话
+                _valid, ptype, _ = validate_phone(p["normalized_phone"])
+                if ptype.startswith("mobile"):
+                    primary_phone = p["phone"]
+    other_phones_str = "\n".join(all_phones)
 
     # 备注：注册日期 + 注册资本（去除"人民币"，简略格式）
     notes_parts = []
@@ -995,21 +1013,62 @@ def send_to_kinboard(company_id):
         notes_parts.append(f"实缴：{paid}")
     notes = "；".join(notes_parts)
 
+    # 说明：从 AJAX 请求体中获取（用户在弹窗中输入，可选）
+    data = request.get_json(silent=True) or {}
+    remark = (data.get("remark") or "").strip()
+
     payload = {
         "公司名": name,
         "地址": address,
         "法人": legal_person,
-        "电话号码": phone_str,
+        "主电话": primary_phone,
+        "其他电话": other_phones_str,
         "备注": notes,
+        "说明": remark,
     }
 
     try:
         resp = requests.post(webhook_url, json=payload, timeout=15)
         resp.raise_for_status()
-        flash("✅ 已成功发送到金山多维表", "success")
+        return jsonify({"code": 0, "message": "已成功发送到金山多维表"})
     except requests.exceptions.Timeout:
-        flash("⏰ 发送超时，请检查 Webhook 地址是否正确", "error")
+        return jsonify({"code": 1, "message": "发送超时，请检查 Webhook 地址是否正确"})
     except requests.exceptions.RequestException as e:
-        flash(f"❌ 发送失败：{e}", "error")
+        return jsonify({"code": 1, "message": f"发送失败：{e}"})
 
-    return redirect(url_for("companies_bp.company_detail", company_id=company_id))
+
+# ── 电话主号设置 API ──────────────────────────────────────────────────────
+
+@bp.route("/api/company/<int:company_id>/phones/<path:normalized_phone>/is-primary", methods=["GET"])
+def check_primary_phone(company_id, normalized_phone):
+    """查询某号码是否是该公司的主号。"""
+    row = g.db.execute(
+        "SELECT is_primary FROM company_phones WHERE company_id = ? AND normalized_phone = ?",
+        [company_id, normalized_phone]
+    ).fetchone()
+    if not row:
+        return jsonify({"code": 1001, "message": "该号码不属于此企业"}), 404
+    return jsonify({"code": 0, "data": {"is_primary": bool(row["is_primary"])}})
+
+
+@bp.route("/api/company/<int:company_id>/phones/<path:normalized_phone>/set-primary", methods=["POST"])
+def set_primary_phone(company_id, normalized_phone):
+    """将指定号码设为该公司的主号（原主号自动取消）。"""
+    # 检查号码是否属于该公司
+    row = g.db.execute(
+        "SELECT id FROM company_phones WHERE company_id = ? AND normalized_phone = ?",
+        [company_id, normalized_phone]
+    ).fetchone()
+    if not row:
+        return jsonify({"code": 1001, "message": "该号码不属于此企业"}), 404
+
+    g.db.execute(
+        "UPDATE company_phones SET is_primary = 0 WHERE company_id = ?",
+        [company_id]
+    )
+    g.db.execute(
+        "UPDATE company_phones SET is_primary = 1 WHERE company_id = ? AND normalized_phone = ?",
+        [company_id, normalized_phone]
+    )
+    g.db.commit()
+    return jsonify({"code": 0, "message": "已设为主号"})

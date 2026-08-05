@@ -80,6 +80,27 @@ def delete_phone_tag(tag_id):
     return jsonify({"code": 0, "message": "标记删除成功", "data": None})
 
 
+@bp.route("/api/phone_tags/reorder", methods=["POST"])
+def reorder_phone_tags():
+    """拖拽排序电话标记定义。
+
+    请求体 JSON: { "tag_ids": [1, 3, 2, ...] }
+    按数组顺序写入 sort_order（1, 2, 3...）。
+    """
+    data = request.get_json(silent=True) or {}
+    tag_ids = data.get("tag_ids")
+    if not tag_ids or not isinstance(tag_ids, list):
+        return jsonify({"code": 1001, "message": "参数错误：缺少 tag_ids 数组", "data": None}), 400
+
+    for idx, tag_id in enumerate(tag_ids, start=1):
+        g.db.execute(
+            "UPDATE phone_tags SET sort_order = ? WHERE id = ?",
+            [idx, tag_id]
+        )
+    g.db.commit()
+    return jsonify({"code": 0, "message": "排序已保存", "data": None})
+
+
 # ── 号码-标记关联（单标签模式）──────────────────────────────────────────────
 
 @bp.route("/api/phone/<normalized>/tags", methods=["GET"])

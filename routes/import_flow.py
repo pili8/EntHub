@@ -18,6 +18,7 @@ import hashlib
 import sqlite3
 import tempfile
 import threading
+import random
 import queue as queue_module
 from datetime import datetime
 from urllib.parse import quote
@@ -55,7 +56,7 @@ IMPORT_FIELDS = [
     "company_type", "industry", "former_name", "website",
     "email", "business_scope", "business_status",
     "enterprise_scale", "shareholders", "mailing_address",
-    "english_name", "tags", "source_file",
+    "english_name", "source_file",
 ]
 
 # 参与字段级 diff（签名比对）的列。
@@ -69,7 +70,7 @@ HASH_COLS = [
     "province", "city", "district", "insured_count",
     "company_type", "industry", "former_name", "website",
     "business_scope", "business_status",
-    "enterprise_scale", "english_name", "tags",
+    "enterprise_scale", "english_name",
 ]
 
 PREVIEW_ROWS = 30          # 预览展示行数
@@ -237,7 +238,7 @@ def import_template():
         ("", False),
         ("去重规则：", True),
         ("- 优先按统一社会信用代码去重，无信用代码时按企业名称匹配。", False),
-        ("- 重复企业只追加新电话/股东，不覆盖已有主号和工商数据。", False),
+        ("- 重复企业只追加新电话，不覆盖已有主号和工商数据。", False),
         ("- 空字段不会清空已有数据，只更新非空且不同的字段。", False),
     ]
     for row_idx, (text, is_heading) in enumerate(instructions, 1):
@@ -326,8 +327,10 @@ def _analyze_file(path, filename):
         ws = wb[wb.sheetnames[0]]
 
         # 读前若干行用于表头探测（顺带取表头）
+        # 注意：必须显式指定 max_row，否则 iter_rows 默认用 ws.max_row，
+        # 而 read_only 模式下该值可能来自错误的 dimension 元素。
         head_rows = []
-        for i, r in enumerate(ws.iter_rows(values_only=True)):
+        for i, r in enumerate(ws.iter_rows(max_row=6, values_only=True)):
             head_rows.append(r)
             if i >= 4:
                 break
@@ -355,7 +358,15 @@ def _analyze_file(path, filename):
         if "name" not in col_map.values():
             raise ValueError("未找到企业名称列")
 
-        col_index = {orig: header.index(orig) for orig in col_map}
+        # col_index 必须包含 secondary / recommended 列，否则
+        # _row_to_record 里 if sc in col_index / if rc in col_index
+        # 永远为 False，更多电话和推荐电话的数据会被静默丢弃。
+        col_index = {}
+        for orig in list(col_map.keys()) + sec_phones + rec_phones:
+            try:
+                col_index[orig] = header.index(orig)
+            except ValueError:
+                pass  # 列名不在 header 中（不应发生，防御性处理）
 
         # 读前 N 行数据做预览
         preview = []
@@ -369,9 +380,17 @@ def _analyze_file(path, filename):
                 rec["row_num"] = data_start + i
                 preview.append(rec)
 
-        # 总行数：优先用 dimension 标签（瞬时），去掉表头及之前行
+        # 总行数：ws.max_row 在 read_only 模式下依赖 dimension 元素，
+        # 某些 xlsx 文件（天眼查、WPS、旧版 Excel）的 dimension 值是错的，
+        # 导致 max_row 返回 3 而实际有 5000+ 行。
+        # iter_rows 不带 max_row 时也默认用 ws.max_row，所以必须显式传大值。
+        EXCEL_MAX_ROWS = 1048576
         total = ws.max_row or 0
         total = max(0, total - (header_idx + 1))
+        if total < len(preview):
+            total = sum(1 for _ in ws.iter_rows(
+                min_row=header_idx + 2, max_row=EXCEL_MAX_ROWS,
+                values_only=True))
 
         return {
             "header_idx": header_idx,
@@ -635,7 +654,6 @@ def _incoming_values(rec):
         rec.get("business_status", ""),
         rec.get("enterprise_scale", ""),
         rec.get("english_name", ""),
-        rec.get("tags", ""),
     ]
 
 
@@ -683,7 +701,7 @@ def _merge_phones_cached(db, company_id, phone_str,
     """用预加载的号码集合做增量合并，返回新增号码条数。
 
     语义与 data_helpers.merge_phones 一致：只追加归一化后不重复的新号码，
-    不覆盖已有主号；仅当公司无主号时才把首个新号设为主号。
+    不覆盖已有主号；仅当公司无主号时才按优先级设主号（推荐>联系）。
     """
     sset = phone_sets.get(company_id)
     if sset is None:
@@ -692,12 +710,22 @@ def _merge_phones_cached(db, company_id, phone_str,
 
     raw_count = _count_raw_phones(phone_str)
     valid_phones = split_phones(phone_str)
+    recommended = _split_recommended(recommended_str)
     skipped_invalid = raw_count - len(valid_phones)
+
+    # 确定主号候选（仅当公司无主号时才需要）
+    needs_primary = company_id not in has_primary
+    primary_norm = None
+    if needs_primary:
+        if recommended:
+            primary_norm = recommended[0][1]
+        elif valid_phones:
+            primary_norm = valid_phones[0][1]
 
     added = 0
     for raw, norm in valid_phones:
         if norm and norm not in sset:
-            is_primary = 1 if company_id not in has_primary else 0
+            is_primary = 1 if (needs_primary and norm == primary_norm) else 0
             db.execute(
                 "INSERT INTO company_phones "
                 "(company_id, phone, normalized_phone, is_primary) "
@@ -707,17 +735,22 @@ def _merge_phones_cached(db, company_id, phone_str,
             sset.add(norm)
             if is_primary:
                 has_primary.add(company_id)
+                needs_primary = False
             added += 1
 
-    for raw, norm in _split_recommended(recommended_str):
+    for raw, norm in recommended:
         if norm and norm not in sset:
+            is_primary = 1 if (needs_primary and norm == primary_norm) else 0
             db.execute(
                 "INSERT INTO company_phones "
-                "(company_id, phone, normalized_phone, is_primary, is_recommended) "
-                "VALUES (?, ?, ?, 0, 1)",
-                [company_id, raw, norm]
+                "(company_id, phone, normalized_phone, is_primary) "
+                "VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, is_primary]
             )
             sset.add(norm)
+            if is_primary:
+                has_primary.add(company_id)
+                needs_primary = False
             added += 1
 
     return added, skipped_invalid
@@ -796,10 +829,17 @@ def _stream_records(meta_file):
             return
 
         col_map, sec_phones, rec_phones, _ = map_columns(header)
-        col_index = {orig: header.index(orig) for orig in col_map}
+        # 同 _analyze_file：col_index 必须包含 secondary / recommended 列
+        col_index = {}
+        for orig in list(col_map.keys()) + sec_phones + rec_phones:
+            try:
+                col_index[orig] = header.index(orig)
+            except ValueError:
+                pass
 
         data_start = header_idx + 2
-        for row in ws.iter_rows(min_row=data_start, values_only=True):
+        for row in ws.iter_rows(min_row=data_start, max_row=1048576,
+                                values_only=True):
             rec = _row_to_record(row, col_map, col_index, sec_phones, rec_phones,
                                  source_name)
             if rec:
@@ -817,8 +857,47 @@ def _stats(processed, total, inserted, updated, phones_merged, skipped, phones_i
     }
 
 
+# 预设色板（自动创建标签时随机选色）
+_TAG_COLORS = [
+    "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4",
+    "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280",
+]
+
+# 标签分隔符（中英文分号）
+_TAG_SEP_RE = re.compile(r'[;；]')
+
+
+def _sync_tags(db, company_id, tags_str):
+    """将分号分隔的标签文本转为结构化标签（tags + company_tags 表）。
+
+    - 按分号拆分标签名
+    - tags 表中不存在的标签自动创建（随机颜色）
+    - 通过 company_tags 关联（INSERT OR IGNORE 去重，不覆盖已有标签）
+    """
+    if not tags_str:
+        return
+    names = [n.strip() for n in _TAG_SEP_RE.split(tags_str) if n.strip()]
+    for name in names:
+        row = db.execute(
+            "SELECT id FROM tags WHERE name = ?", [name]
+        ).fetchone()
+        if row:
+            tag_id = row["id"]
+        else:
+            color = random.choice(_TAG_COLORS)
+            cursor = db.execute(
+                "INSERT INTO tags (name, color) VALUES (?, ?)",
+                [name, color]
+            )
+            tag_id = cursor.lastrowid
+        db.execute(
+            "INSERT OR IGNORE INTO company_tags (company_id, tag_id) VALUES (?, ?)",
+            [company_id, tag_id]
+        )
+
+
 def _do_insert(db, rec):
-    """构造并执行 INSERT，返回新 id。电话 / 股东由调用方单独写入。"""
+    """构造并执行 INSERT，返回新 id。电话 / 股东 / 标签由调用方单独写入。"""
     fields = {}
     for f_name in IMPORT_FIELDS:
         val = rec.get(f_name, "")
@@ -831,6 +910,7 @@ def _do_insert(db, rec):
     fields.pop("phone", None)
     fields.pop("email", None)
     fields.pop("shareholders", None)
+    fields.pop("tags", None)
     fields["status"] = "active"
     fields["source"] = "import"
     # created_at / updated_at 走 DB 默认值（now）
@@ -856,6 +936,7 @@ def _do_update(db, company_id, rec):
     fields.pop("phone", None)
     fields.pop("email", None)
     fields.pop("shareholders", None)
+    fields.pop("tags", None)
 
     fields["updated_at"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
@@ -968,30 +1049,42 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                     pset = set()
                     _raw = rec.get("phone", "")
                     _valid = split_phones(_raw)
+                    _recommended = _split_recommended(rec.get("_recommended_phone", ""))
                     phones_invalid += _count_raw_phones(_raw) - len(_valid)
-                    for i, (raw, norm) in enumerate(_valid):
+
+                    # 主号优先级：推荐电话 > 联系电话（第一号）
+                    primary_norm = None
+                    if _recommended:
+                        primary_norm = _recommended[0][1]
+                    elif _valid:
+                        primary_norm = _valid[0][1]
+
+                    for raw, norm in _valid:
+                        is_primary = 1 if norm == primary_norm else 0
                         db.execute(
                             "INSERT INTO company_phones "
                             "(company_id, phone, normalized_phone, is_primary) "
                             "VALUES (?, ?, ?, ?)",
-                            [new_id, raw, norm, 1 if i == 0 else 0]
+                            [new_id, raw, norm, is_primary]
                         )
                         if norm:
                             pset.add(norm)
-                    phone_sets[new_id] = pset
-                    if pset:
-                        has_primary.add(new_id)
-                    for raw, norm in _split_recommended(
-                            rec.get("_recommended_phone", "")):
+                            if is_primary:
+                                has_primary.add(new_id)
+                    for raw, norm in _recommended:
                         if norm and norm not in pset:
+                            is_primary = 1 if norm == primary_norm else 0
                             db.execute(
                                 "INSERT INTO company_phones "
                                 "(company_id, phone, normalized_phone, "
-                                "is_primary, is_recommended) "
-                                "VALUES (?, ?, ?, 0, 1)",
-                                [new_id, raw, norm]
+                                "is_primary) "
+                                "VALUES (?, ?, ?, ?)",
+                                [new_id, raw, norm, is_primary]
                             )
                             pset.add(norm)
+                            if is_primary:
+                                has_primary.add(new_id)
+                    phone_sets[new_id] = pset
                     # 同步写入邮箱
                     eset = set()
                     for i, (raw, norm) in enumerate(split_emails(rec.get("email", ""))):
@@ -1008,9 +1101,10 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                         has_email_primary.add(new_id)
                     _merge_shareholders_cached(db, new_id,
                                                rec.get("shareholders", ""), sh_sets)
+                    _sync_tags(db, new_id, rec.get("tags", ""))
                     inserted += 1
                 else:
-                    # ── 命中已有：先合并电话/股东（补全），再判断字段是否变化 ──
+                    # ── 命中已有：先合并电话（补全），再判断字段是否变化 ──
                     incoming_sig = _incoming_signature(rec)
                     sig_match = (sig_index.get(existing_id) == incoming_sig)
 
@@ -1020,11 +1114,7 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                         rec.get("_recommended_phone", ""),
                         phone_sets, has_primary)
                     phones_invalid += _skipped
-                    email_added = _merge_emails_cached(
-                        db, existing_id, rec.get("email", ""),
-                        email_sets, has_email_primary)
-                    sh_added = _merge_shareholders_cached(
-                        db, existing_id, rec.get("shareholders", ""), sh_sets)
+                    _sync_tags(db, existing_id, rec.get("tags", ""))
 
                     if sig_match:
                         real_change = False
@@ -1038,8 +1128,8 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                         _do_update(db, existing_id, rec)
                         sig_index[existing_id] = incoming_sig
                         updated += 1
-                    elif phone_added or email_added or sh_added:
-                        # 仅补了电话/股东 → 数据已变，刷新 updated_at
+                    elif phone_added:
+                        # 仅补了电话 → 数据已变，刷新 updated_at
                         if today_ts is None:
                             today_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         db.execute(

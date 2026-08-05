@@ -2587,3 +2587,10 @@ INFO:     127.0.0.1:60514 - "POST /mcp HTTP/1.1" 200 OK
                              CallToolRequest                                    
 [07/31/26 17:09:12] INFO     Processing request of type            server.py:733
                              CallToolRequest                                    
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+[07/31/26 23:23:01] INFO     StreamableHTTP       streamable_http_manager.py:135
+                             session manager                                    
+                             shutting down                                      
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2783]

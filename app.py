@@ -35,6 +35,8 @@ _PUBLIC_PATHS = {
     "/api/settings/check-password",
     "/api/settings/login",
     "/api/settings/qrcode",
+    "/api/phone_count_text",
+    "/api/quick-import/extract",
     "/favicon",
 }
 

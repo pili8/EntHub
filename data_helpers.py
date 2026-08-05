@@ -103,46 +103,64 @@ def _split_recommended(recommended_str):
     return out
 
 
-def sync_phones(db, company_id, phone_str, recommended_str="",
-                keep_recommended=False):
+def sync_phones(db, company_id, phone_str, recommended_str=""):
     """全量重建：先删除该公司所有电话，再插入。
 
-    用于新增/编辑/导入新公司。
-
-    参数 keep_recommended:
-        True  — 仅删除非推荐电话（is_recommended=0），保留推荐电话。
-                用于编辑场景，避免用户修改号码时丢失推荐标记。
-        False — 删除所有电话（含推荐）。默认行为，用于新增/导入。
+    用于新增/编辑/覆盖。
+    保留已有主号：如果旧主号仍在重建后的号码列表中，保持其主号地位；
+    旧主号不在列表中时，按优先级（推荐>联系）选主号。
     """
-    if keep_recommended:
-        db.execute(
-            "DELETE FROM company_phones "
-            "WHERE company_id = ? AND is_recommended = 0",
-            [company_id]
-        )
-    else:
-        db.execute(
-            "DELETE FROM company_phones WHERE company_id = ?",
-            [company_id]
-        )
+    # 记录当前主号（编辑/覆盖场景下需要保留）
+    old_primary = db.execute(
+        "SELECT normalized_phone FROM company_phones "
+        "WHERE company_id = ? AND is_primary = 1 LIMIT 1",
+        [company_id]
+    ).fetchone()
+    old_primary_norm = old_primary["normalized_phone"] if old_primary else None
+
+    db.execute(
+        "DELETE FROM company_phones WHERE company_id = ?",
+        [company_id]
+    )
     phones = split_phones(phone_str)
-    for i, (raw, norm) in enumerate(phones):
-        is_primary = 1 if i == 0 else 0
+    recommended = _split_recommended(recommended_str)
+
+    # 判断新列表中是否有旧主号
+    primary_norm = None
+    if old_primary_norm:
+        for _raw, norm in phones + recommended:
+            if norm == old_primary_norm:
+                primary_norm = norm
+                break
+    if not primary_norm:
+        # 无旧主号或旧主号已不在列表：按优先级选主号
+        if recommended:
+            primary_norm = recommended[0][1]
+        elif phones:
+            primary_norm = phones[0][1]
+
+    seen = set()
+    for raw, norm in phones:
+        is_primary = 1 if norm == primary_norm else 0
         db.execute(
             "INSERT INTO company_phones "
             "(company_id, phone, normalized_phone, is_primary) "
             "VALUES (?, ?, ?, ?)",
             [company_id, raw, norm, is_primary]
         )
+        seen.add(norm)
 
-    # 推荐电话：单独标记，展示时排主号之后
-    for raw, norm in _split_recommended(recommended_str):
-        db.execute(
-            "INSERT INTO company_phones "
-            "(company_id, phone, normalized_phone, is_primary, is_recommended) "
-            "VALUES (?, ?, ?, 0, 1)",
-            [company_id, raw, norm]
-        )
+    # 推荐电话：并入主电话列表（去重）
+    for raw, norm in recommended:
+        if norm not in seen:
+            is_primary = 1 if norm == primary_norm else 0
+            db.execute(
+                "INSERT INTO company_phones "
+                "(company_id, phone, normalized_phone, is_primary) "
+                "VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, is_primary]
+            )
+            seen.add(norm)
 
 
 def merge_phones(db, company_id, phone_str, recommended_str=""):
@@ -165,9 +183,17 @@ def merge_phones(db, company_id, phone_str, recommended_str=""):
     ).fetchone()["count"] > 0
 
     # 追加新号码
+    recommended = _split_recommended(recommended_str)
+    primary_norm = None
+    if not has_primary:
+        if recommended:
+            primary_norm = recommended[0][1]
+        elif split_phones(phone_str):
+            primary_norm = split_phones(phone_str)[0][1]
+
     for raw, norm in split_phones(phone_str):
         if norm and norm not in existing_norms:
-            is_primary = 1 if not has_primary else 0
+            is_primary = 1 if (not has_primary and norm == primary_norm) else 0
             db.execute(
                 "INSERT INTO company_phones "
                 "(company_id, phone, normalized_phone, is_primary) "
@@ -179,15 +205,18 @@ def merge_phones(db, company_id, phone_str, recommended_str=""):
                 has_primary = True
 
     # 追加推荐电话
-    for raw, norm in _split_recommended(recommended_str):
+    for raw, norm in recommended:
         if norm and norm not in existing_norms:
+            is_primary = 1 if (not has_primary and norm == primary_norm) else 0
             db.execute(
                 "INSERT INTO company_phones "
-                "(company_id, phone, normalized_phone, is_primary, is_recommended) "
-                "VALUES (?, ?, ?, 0, 1)",
-                [company_id, raw, norm]
+                "(company_id, phone, normalized_phone, is_primary) "
+                "VALUES (?, ?, ?, ?)",
+                [company_id, raw, norm, is_primary]
             )
             existing_norms.add(norm)
+            if is_primary:
+                has_primary = True
 
 
 # ── 邮箱 ────────────────────────────────────────────────────────────────────

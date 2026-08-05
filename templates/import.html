@@ -2,15 +2,13 @@
 {% block title %}导入数据{% endblock %}
 
 {% block content %}
-<div class="import-page" style="max-width: 900px; margin: 0 auto;">
-    <div class="page-header" style="text-align: center; margin-bottom: 40px;">
-        <div class="page-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">
-            <i data-lucide="upload-cloud" style="width: 40px; height: 40px; vertical-align: middle; color: var(--accent);"></i>
+<div class="page">
+    <div class="page-head" style="text-align: center; margin-bottom: 32px;">
+        <h1 class="page-title">
+            <i data-lucide="upload-cloud" style="width: 28px; height: 28px; vertical-align: middle; color: var(--accent);"></i>
             导入工商数据
-        </div>
-        <div class="page-subtitle" style="font-size: 16px; color: var(--text-muted);">
-            智能识别 30+ 字段 · 自动去重 · 多文件批量导入
-        </div>
+        </h1>
+        <p class="page-sub">智能识别 30+ 字段 · 自动去重 · 多文件批量导入</p>
     </div>
 
     <form id="upload-form" action="{{ url_for('import_flow_bp.import_upload') }}" method="post" enctype="multipart/form-data">

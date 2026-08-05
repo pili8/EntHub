@@ -53,7 +53,7 @@ COMPANY_LIST_PHONE_SUBQUERY = (
     "(SELECT group_concat(phone, '; ') "
     "FROM company_phones "
     "WHERE company_id = c.id "
-    "ORDER BY is_primary DESC, is_recommended DESC) AS phone"
+    "ORDER BY is_primary DESC) AS phone"
 )
 
 COMPANY_LIST_EMAIL_SUBQUERY = (

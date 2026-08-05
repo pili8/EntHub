@@ -320,7 +320,7 @@ def browse_export():
     selected_ids = [int(x) for x in ids_raw.split(",") if x.strip().isdigit()]
 
     # 全字段列表（排除 normalized_* 和 status）
-    _all_cols = [c[0] for c in _EXPORT_COLUMNS if c[0] not in ("phone", "email")]
+    _all_cols = [c[0] for c in _EXPORT_COLUMNS if c[0] not in ("phone", "email", "tags")]
     _select_cols = ", ".join(f"c.{c}" for c in _all_cols)
 
     if selected_ids:
@@ -328,10 +328,14 @@ def browse_export():
         rows = g.db.execute(f"""
             SELECT {_select_cols},
                    (SELECT GROUP_CONCAT(p.normalized_phone, ';')
-                      FROM company_phones p WHERE p.company_id = c.id) AS phone,
+                      FROM company_phones p WHERE p.company_id = c.id
+                      ORDER BY p.is_primary DESC, p.id) AS phone,
                    (SELECT GROUP_CONCAT(e.email, '; ')
                       FROM company_emails e WHERE e.company_id = c.id
-                      ORDER BY e.is_primary DESC) AS email
+                      ORDER BY e.is_primary DESC) AS email,
+                   (SELECT GROUP_CONCAT(t.name, '; ')
+                      FROM company_tags ct JOIN tags t ON ct.tag_id = t.id
+                      WHERE ct.company_id = c.id) AS tags
               FROM companies c
              WHERE c.id IN ({placeholders})
              ORDER BY c.id
@@ -342,10 +346,14 @@ def browse_export():
         rows = g.db.execute(f"""
             SELECT {_select_cols},
                    (SELECT GROUP_CONCAT(p.normalized_phone, ';')
-                      FROM company_phones p WHERE p.company_id = c.id) AS phone,
+                      FROM company_phones p WHERE p.company_id = c.id
+                      ORDER BY p.is_primary DESC, p.id) AS phone,
                    (SELECT GROUP_CONCAT(e.email, '; ')
                       FROM company_emails e WHERE e.company_id = c.id
-                      ORDER BY e.is_primary DESC) AS email
+                      ORDER BY e.is_primary DESC) AS email,
+                   (SELECT GROUP_CONCAT(t.name, '; ')
+                      FROM company_tags ct JOIN tags t ON ct.tag_id = t.id
+                      WHERE ct.company_id = c.id) AS tags
               FROM companies c
               {where_clause}
              ORDER BY c.id

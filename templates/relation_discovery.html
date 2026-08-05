@@ -4,15 +4,16 @@
 {% block content %}
 {% if val %}
 {# ── 详情模式：显示某个分组的企业列表 ── #}
-<div class="page-header">
+<div class="page">
+<div class="page-head">
     <div style="display: flex; align-items: center; gap: 12px;">
-        <a href="{{ '/tags' if from_page == 'tags' else '/relations?dup_type=' ~ dup_type }}" class="btn btn-secondary btn-sm">
+        <a href="{{ '/tags' if from_page == 'tags' else '/relations?dup_type=' ~ dup_type }}" class="page-btn">
             <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
             返回
         </a>
         <div>
-            <div class="page-title" style="margin-bottom: 4px;">{{ field_icon }} {{ field_label }}关联：{{ val }}</div>
-            <div class="page-subtitle">共 {{ total }} 家企业</div>
+            <h1 class="page-title">{{ field_icon }} {{ field_label }}关联：{{ val }}</h1>
+            <p class="page-sub">共 {{ total }} 家企业</p>
         </div>
     </div>
 </div>
@@ -20,12 +21,14 @@
 <div class="card" style="padding: 16px;">
     {% include "_relation_group_detail.html" %}
 </div>
+</div>
 
 {% else %}
 {# ── 正常模式：关联类型选择 + 分组列表 ── #}
-<div class="page-header">
-    <div class="page-title">🔗 关联发现</div>
-    <div class="page-subtitle">发现企业间的隐藏关系网络</div>
+<div class="page">
+<div class="page-head">
+    <h1 class="page-title">关联发现</h1>
+    <p class="page-sub">发现企业间的隐藏关系网络</p>
 </div>
 
 <div class="card" style="padding: 16px;">
@@ -107,6 +110,7 @@
             </p>
         </div>
     </div>
+</div>
 </div>
 
 <script>

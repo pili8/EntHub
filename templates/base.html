@@ -320,7 +320,7 @@
                 ov = document.createElement('div');
                 ov.id = 'spa-loading';
                 ov.style.cssText = 'position:fixed;inset:0;background:rgba(251,250,247,0.6);backdrop-filter:blur(2px);z-index:9999;display:flex;align-items:center;justify-content:center;pointer-events:none;';
-                ov.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:16px 28px;background:white;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.08);"><span style="display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;"></span><span style="font-size:14px;color:var(--text-secondary);font-weight:500;">搜索中…</span></div>';
+                ov.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:16px 28px;background:white;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.08);"><span style="display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite;"></span><span style="font-size:14px;color:var(--text-secondary);font-weight:500;">加载中…</span></div>';
                 document.body.appendChild(ov);
             }
             ov.style.display = 'flex';

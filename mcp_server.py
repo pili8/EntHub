@@ -296,12 +296,12 @@ def get_company_detail(company_id: int) -> dict:
     
     # 关联电话
     company_phones = db.execute("""
-        SELECT cp.phone, cp.normalized_phone, cp.is_primary, cp.is_recommended,
+        SELECT cp.phone, cp.normalized_phone, cp.is_primary,
                (SELECT COUNT(DISTINCT company_id) FROM company_phones cp2
                 WHERE cp2.normalized_phone = cp.normalized_phone) AS dup_count
         FROM company_phones cp
         WHERE cp.company_id = ?
-        ORDER BY cp.is_primary DESC, cp.is_recommended DESC
+        ORDER BY cp.is_primary DESC, cp.id
     """, [company_id]).fetchall()
     
     # 为电话附加校验状态
@@ -337,7 +337,7 @@ def get_company_detail(company_id: int) -> dict:
                    (SELECT group_concat(cp2.phone, '; ')
                     FROM company_phones cp2
                     WHERE cp2.company_id = c.id
-                    ORDER BY cp2.is_primary DESC, cp2.is_recommended DESC) AS phone
+                    ORDER BY cp2.is_primary DESC, cp2.id) AS phone
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE c.id <> ? AND cp.normalized_phone IN ({placeholders})
@@ -357,7 +357,7 @@ def get_company_detail(company_id: int) -> dict:
                        (SELECT group_concat(phone, '; ')
                         FROM company_phones
                         WHERE company_id = c.id
-                        ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                        ORDER BY is_primary DESC, id) AS phone
                 FROM companies c
                 WHERE c.id <> ? AND c.{field} = ? AND c.{field} <> ''
                 ORDER BY c.name LIMIT 10
@@ -377,7 +377,7 @@ def get_company_detail(company_id: int) -> dict:
                    (SELECT group_concat(phone, '; ')
                     FROM company_phones
                     WHERE company_id = c.id
-                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                    ORDER BY is_primary DESC, id) AS phone
             FROM companies c
             JOIN company_emails ce ON ce.company_id = c.id
             WHERE c.id <> ? AND ce.normalized_email IN ({placeholders})
@@ -433,7 +433,7 @@ def find_relations(rel_type: str, value: str, limit: int = 20) -> dict:
                    (SELECT group_concat(cp2.phone, '; ')
                     FROM company_phones cp2
                     WHERE cp2.company_id = c.id
-                    ORDER BY cp2.is_primary DESC, cp2.is_recommended DESC) AS phone
+                    ORDER BY cp2.is_primary DESC, cp2.id) AS phone
             FROM companies c
             JOIN company_phones cp ON cp.company_id = c.id
             WHERE cp.normalized_phone = ?
@@ -446,7 +446,7 @@ def find_relations(rel_type: str, value: str, limit: int = 20) -> dict:
                    (SELECT group_concat(cp2.phone, '; ')
                     FROM company_phones cp2
                     WHERE cp2.company_id = c.id
-                    ORDER BY cp2.is_primary DESC, cp2.is_recommended DESC) AS phone
+                    ORDER BY cp2.is_primary DESC, cp2.id) AS phone
             FROM companies c
             JOIN company_emails ce ON ce.company_id = c.id
             WHERE ce.normalized_email = ?
@@ -458,7 +458,7 @@ def find_relations(rel_type: str, value: str, limit: int = 20) -> dict:
                    (SELECT group_concat(phone, '; ')
                     FROM company_phones
                     WHERE company_id = c.id
-                    ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                    ORDER BY is_primary DESC, id) AS phone
             FROM companies c
             WHERE c.{rel_type} = ?
             ORDER BY c.name LIMIT ?
@@ -596,7 +596,7 @@ def get_companies_list(
                (SELECT group_concat(phone, '; ')
                 FROM company_phones
                 WHERE company_id = companies.id
-                ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                ORDER BY is_primary DESC, id) AS phone
         FROM companies {where}
         ORDER BY {sort_col} {dir_sql}
         LIMIT ? OFFSET ?
@@ -931,7 +931,7 @@ def search_by_address(address: str, limit: int = 20) -> dict:
                   (SELECT group_concat(phone, '; ')
                    FROM company_phones
                    WHERE company_id = c.id
-                   ORDER BY is_primary DESC, is_recommended DESC) AS phone
+                   ORDER BY is_primary DESC, id) AS phone
            FROM companies c
            WHERE c.address LIKE ? OR c.annual_report_address LIKE ?
               OR c.mailing_address LIKE ?

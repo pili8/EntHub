@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block title %}数据浏览{% endblock %}
 {% block content %}
-<div class="page-header">
-  <h1>数据浏览</h1>
+<div class="page">
+<div class="page-head">
+  <h1 class="page-title">数据浏览</h1>
+  <p class="page-sub">分页查看所有企业记录，支持排序筛选</p>
 </div>
 
 {# ===== 筛选条件 ===== #}
@@ -126,6 +128,7 @@
 
 {# ===== 数据区（JavaScript 动态渲染）===== #}
 <div id="browse-data"></div>
+</div>
 
 <style>
 @keyframes browse-spin { to { transform: rotate(360deg); } }

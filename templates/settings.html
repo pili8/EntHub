@@ -4,8 +4,9 @@
 
 {% block content %}
 <div class="page">
-  <div class="page-header" style="margin-bottom: 24px;">
-    <h1 class="page-title" style="font-size: 22px; font-weight: 600; margin: 0;">设置</h1>
+  <div class="page-head">
+    <h1 class="page-title">设置</h1>
+    <p class="page-sub">配置 EntHub 服务参数</p>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════
@@ -204,30 +205,40 @@
         </div>
       </form>
 
-      <div style="padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border);">
-        <p><strong>发送字段说明：</strong></p>
-        <ul style="margin: 4px 0 0 16px; line-height: 1.8;">
-          <li><code>公司名</code> — 企业名称</li>
-          <li><code>地址</code> — 优先最新年报地址，没有则传注册地址</li>
-          <li><code>法人</code> — 刘亚民（法人）</li>
-          <li><code>电话号码</code> — 每个号码一行</li>
-          <li><code>备注</code> — 注册日期 + 资本（实缴）</li>
-        </ul>
-        <p style="margin-top: 10px;"><strong>WPS 自动化流程配置：</strong></p>
-        <ol style="margin: 4px 0 0 16px; line-height: 1.8;">
-          <li>在 WPS 多维表 → 自动化流程 → 添加「Webhook 触发器」</li>
-          <li>请求头：留空（EntHub 会自动发送 <code>Content-Type: application/json</code>）</li>
-          <li>请求体（raw）填入以下示例，定义字段结构：</li>
-        </ol>
-        <pre style="background: var(--bg); padding: 10px; border-radius: 6px; margin: 8px 0; overflow-x: auto; font-size: 11px; line-height: 1.6;">{
+      <details style="padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border);">
+        <summary style="cursor: pointer; font-weight: 600; color: var(--text-secondary); user-select: none; list-style: none;">
+          <i data-lucide="chevron-right" style="width: 12px; height: 12px; display: inline-block; transition: transform 0.2s; margin-right: 4px;"></i>
+          发送字段说明 &amp; WPS 自动化流程配置
+        </summary>
+        <div style="margin-top: 10px;">
+          <p><strong>发送字段说明：</strong></p>
+          <ul style="margin: 4px 0 0 16px; line-height: 1.8;">
+            <li><code>公司名</code> — 企业名称</li>
+            <li><code>地址</code> — 优先最新年报地址，没有则传注册地址</li>
+            <li><code>法人</code> — 刘亚民（法人）</li>
+            <li><code>主电话</code> — 星标主号且为手机号（11位1[3-9]开头），非手机号或无主号时传空</li>
+            <li><code>其他电话</code> — 所有号码（含主号），每个号码一行</li>
+            <li><code>备注</code> — 注册日期 + 资本（实缴）</li>
+            <li><code>说明</code> — 发送前在弹窗中输入的内容（选填）</li>
+          </ul>
+          <p style="margin-top: 10px;"><strong>WPS 自动化流程配置：</strong></p>
+          <ol style="margin: 4px 0 0 16px; line-height: 1.8;">
+            <li>在 WPS 多维表 → 自动化流程 → 添加「Webhook 触发器」</li>
+            <li>请求头：留空（EntHub 会自动发送 <code>Content-Type: application/json</code>）</li>
+            <li>请求体（raw）填入以下示例，定义字段结构：</li>
+          </ol>
+          <pre style="background: var(--bg); padding: 10px; border-radius: 6px; margin: 8px 0; overflow-x: auto; font-size: 11px; line-height: 1.6;">{
   "公司名": "",
   "地址": "",
   "法人": "",
-  "电话号码": "",
-  "备注": ""
+  "主电话": "",
+  "其他电话": "",
+  "备注": "",
+  "说明": ""
 }</pre>
-        <p style="margin-top: 8px;">4. 后续添加「创建记录」动作，将上述字段映射到多维表对应列</p>
-      </div>
+          <p style="margin-top: 8px;">4. 后续添加「创建记录」动作，将上述字段映射到多维表对应列</p>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -600,5 +611,15 @@ function confirmDisablePassword(e) {
   }
 }
 window.confirmDisablePassword = confirmDisablePassword;
+
+// 金山多维表字段说明折叠 chevron 旋转
+document.querySelectorAll('details summary').forEach(summary => {
+  const details = summary.parentElement;
+  const chevron = summary.querySelector('i[data-lucide]');
+  if (!chevron) return;
+  details.addEventListener('toggle', () => {
+    chevron.style.transform = details.open ? 'rotate(90deg)' : '';
+  });
+});
 </script>
 {% endblock %}

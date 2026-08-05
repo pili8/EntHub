@@ -28,13 +28,36 @@
               <i data-lucide="copy" aria-hidden="true"></i>
           </button>
       </h1>
+    </div>
+    {% if company.former_name and company.former_name != '-' %}
+      <p class="detail-former">曾用名 · {{ company.former_name }}</p>
+    {% endif %}
+    
+    <!-- 标签 + 经营状态 -->
+    <div id="companyTags" style="margin-top: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        {% if company.business_status %}
+        <span class="badge badge-soft {{ 'badge-success' if company.business_status == '存续' else 'badge-warn' }}" style="font-size: 12px;">{{ company.business_status }}</span>
+        {% endif %}
+        <span style="font-size: 12px; color: var(--text-muted);">标签：</span>
+        <div id="tagsList" style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <!-- 标签将通过JS动态加载 -->
+        </div>
+        <button type="button" onclick="openTagSelector()" style="padding: 4px 8px; font-size: 12px; border: 1px dashed var(--border); background: transparent; color: var(--text-muted); border-radius: 4px; cursor: pointer;">
+          <i data-lucide="plus" style="width: 12px; height: 12px; vertical-align: middle;"></i> 添加标签
+        </button>
+      </div>
+    </div>
+
+    <!-- 操作按钮行：左复制+多维表，右企查查+在线更新 -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; flex-wrap: wrap; gap: 8px;">
       <div style="display: flex; gap: 8px; align-items: center;">
         <div class="copy-dropdown" style="position: relative;">
           <button type="button" class="page-btn" onclick="toggleCopyMenu(this)" title="复制企业信息">
             <i data-lucide="clipboard-copy" aria-hidden="true"></i>复制
             <i data-lucide="chevron-down" aria-hidden="true" style="width: 12px; height: 12px;"></i>
           </button>
-          <div id="copy-menu" style="display: none; position: absolute; top: calc(100% + 4px); right: 0; min-width: 140px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 1000; padding: 4px;">
+          <div id="copy-menu" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 140px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 1000; padding: 4px;">
             <button type="button" onclick="copyCompanyName(); closeCopyMenu();" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left;">
               <i data-lucide="building-2" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
               <span style="font-weight: 500;">公司名称</span>
@@ -49,31 +72,42 @@
             </button>
           </div>
         </div>
-        <button type="button" class="detail-refresh-btn" onclick="refreshCompany({{ company.id }})" title="通过 API 获取最新工商信息和联系方式">
-          <i data-lucide="refresh-cw" aria-hidden="true" style="width: 14px; height: 14px;"></i>在线更新
-        </button>
         {% if webhook_url %}
-        <form action="{{ url_for('companies_bp.send_to_kinboard', company_id=company.id) }}" method="post" style="display: inline;">
-          <button type="submit" class="page-btn page-btn-primary" style="font-size: 13px; padding: 6px 12px;" title="发送到金山多维表">
-            <i data-lucide="table-2" aria-hidden="true" style="width: 14px; height: 14px;"></i>发送到多维表
-          </button>
-        </form>
+        <button type="button" class="page-btn page-btn-primary" title="发送到金山多维表"
+                onclick="openKinboardModal({{ company.id }})">
+          <i data-lucide="table-2" aria-hidden="true" style="width: 14px; height: 14px;"></i>发送到多维表
+        </button>
         {% endif %}
       </div>
-    </div>
-    {% if company.former_name and company.former_name != '-' %}
-      <p class="detail-former">曾用名 · {{ company.former_name }}</p>
-    {% endif %}
-    
-    <!-- 标签区域 -->
-    <div id="companyTags" style="margin-top: 12px;">
-      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-        <span style="font-size: 12px; color: var(--text-muted);">标签：</span>
-        <div id="tagsList" style="display: flex; gap: 6px; flex-wrap: wrap;">
-          <!-- 标签将通过JS动态加载 -->
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <div class="copy-dropdown" style="position: relative;">
+          <button type="button" class="page-btn" onclick="togglePlatformMenu(this)" title="在工商查询平台中查看">
+            <i data-lucide="external-link" aria-hidden="true" style="width: 14px; height: 14px;"></i>工商查询
+            <i data-lucide="chevron-down" aria-hidden="true" style="width: 12px; height: 12px;"></i>
+          </button>
+          <div id="platform-menu" style="display: none; position: absolute; top: calc(100% + 4px); right: 0; min-width: 130px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 1000; padding: 4px;">
+            <a href="https://www.riskbird.com/search/company?keyword={{ company.name }}" target="_blank" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left; text-decoration: none;">
+              <span style="font-weight: 500;">风鸟</span>
+            </a>
+            <a href="https://www.qcc.com/search?key={{ company.name }}" target="_blank" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left; text-decoration: none;">
+              <span style="font-weight: 500;">企查查</span>
+            </a>
+            <a href="https://www.tianyancha.com/search?key={{ company.name }}" target="_blank" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left; text-decoration: none;">
+              <span style="font-weight: 500;">天眼查</span>
+            </a>
+            <a href="https://aiqicha.baidu.com/s?q={{ company.name }}" target="_blank" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left; text-decoration: none;">
+              <span style="font-weight: 500;">爱企查</span>
+            </a>
+            <a href="https://www.qixin.com/search?key={{ company.name }}" target="_blank" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left; text-decoration: none;">
+              <span style="font-weight: 500;">启信宝</span>
+            </a>
+            <a href="https://www.gsxt.gov.cn/corp-query-legacy showcases.html?keyword={{ company.name }}" target="_blank" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); border-radius: 6px; text-align: left; text-decoration: none;">
+              <span style="font-weight: 500;">国家公示系统</span>
+            </a>
+          </div>
         </div>
-        <button type="button" onclick="openTagSelector()" style="padding: 4px 8px; font-size: 12px; border: 1px dashed var(--border); background: transparent; color: var(--text-muted); border-radius: 4px; cursor: pointer;">
-          <i data-lucide="plus" style="width: 12px; height: 12px; vertical-align: middle;"></i> 添加标签
+        <button type="button" class="page-btn" onclick="refreshCompany({{ company.id }})" title="通过 API 获取最新工商信息和联系方式">
+          <i data-lucide="refresh-cw" aria-hidden="true" style="width: 14px; height: 14px;"></i>在线更新
         </button>
       </div>
     </div>
@@ -81,97 +115,177 @@
 
   <!-- ─────────── 基本信息 ─────────── -->
   <section class="detail-section">
-    <h2 class="detail-section-title">基本信息</h2>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <div class="detail-label">法定代表人</div>
-        <div class="detail-value">
-          {% if company.legal_person %}
-            <a href="{{ url_for('pages_bp.search', q=company.legal_person) }}">{{ company.legal_person }}</a>
-            {% if field_counts.legal_person and field_counts.legal_person > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">共 {{ field_counts.legal_person }} 家</span>
-            {% endif %}
-          {% else %}<span class="muted">—</span>{% endif %}
-        </div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">注册资本</div>
-        <div class="detail-value">{{ company.registered_capital or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">实缴资本</div>
-        <div class="detail-value">{{ company.paid_capital or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">成立日期</div>
-        <div class="detail-value">{{ company.established_date or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">核准日期</div>
-        <div class="detail-value">{{ company.approved_date or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">营业期限</div>
-        <div class="detail-value">{{ company.business_term or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">公司类型</div>
-        <div class="detail-value">{{ company.company_type or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">所属行业</div>
-        <div class="detail-value">
-          {% if company.industry %}
-            <a href="{{ url_for('pages_bp.relation_group_detail', dup_type='industry', val=company.industry) }}">{{ company.industry }}</a>
-            {% if field_counts.industry and field_counts.industry > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">共 {{ field_counts.industry }} 家</span>
-            {% endif %}
-          {% else %}<span class="muted">—</span>{% endif %}
-        </div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">参保人数</div>
-        <div class="detail-value">{{ company.insured_count or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">企业规模</div>
-        <div class="detail-value">{{ company.enterprise_scale or '—' }}</div>
-      </div>
-      {% if company.english_name %}
-        <div class="detail-field">
-          <div class="detail-label">英文名</div>
-          <div class="detail-value">{{ company.english_name }}</div>
-        </div>
-      {% endif %}
-      {% if company.tags %}
-        <div class="detail-field">
-          <div class="detail-label">标签</div>
-          <div class="detail-value">{{ company.tags }}</div>
-        </div>
-      {% endif %}
-      {% if company.shareholders %}
-        <div class="detail-field detail-field-wide">
-          <div class="detail-label">股东</div>
-          <div class="detail-value">
-            <a href="{{ url_for('pages_bp.search', q=company.shareholders) }}">{{ company.shareholders }}</a>
-            {% if field_counts.shareholders and field_counts.shareholders > 1 %}
-              <span class="dup-count {{ 'dup-high' if field_counts.shareholders >= 5 else 'dup-mid' }}">共 {{ field_counts.shareholders }} 家</span>
-            {% endif %}
+    <div class="detail-groups">
+      <!-- 工商主体（含行政区划） -->
+      <div class="detail-group dg-main">
+        <div class="dg-title">工商主体</div>
+        <div class="dg-body">
+          <div class="detail-field">
+            <div class="detail-label">法定代表人</div>
+            <div class="detail-value">
+              {% if company.legal_person %}
+                <a href="{{ url_for('pages_bp.search', q=company.legal_person) }}">{{ company.legal_person }}</a>
+                {% if field_counts.legal_person and field_counts.legal_person > 1 %}
+                  <span class="dup-count {{ 'dup-high' if field_counts.legal_person >= 5 else 'dup-mid' }}">共 {{ field_counts.legal_person }} 家</span>
+                {% endif %}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </div>
           </div>
+          {% if company.company_type %}
+          <div class="detail-field">
+            <div class="detail-label">公司类型</div>
+            <div class="detail-value">{{ company.company_type }}</div>
+          </div>
+          {% endif %}
+          <div class="detail-field">
+            <div class="detail-label">所属行业</div>
+            <div class="detail-value">
+              {% if company.industry %}
+                <a href="{{ url_for('pages_bp.relation_group_detail', dup_type='industry', val=company.industry) }}">{{ company.industry }}</a>
+                {% if field_counts.industry and field_counts.industry > 1 %}
+                  <span class="dup-count {{ 'dup-high' if field_counts.industry >= 5 else 'dup-mid' }}">共 {{ field_counts.industry }} 家</span>
+                {% endif %}
+              {% else %}<span class="muted">—</span>{% endif %}
+            </div>
+          </div>
+          {% if company.english_name %}
+          <div class="detail-field">
+            <div class="detail-label">英文名</div>
+            <div class="detail-value">{{ company.english_name }}</div>
+          </div>
+          {% endif %}
+          {% if shareholders %}
+          <div class="detail-field">
+            <div class="detail-label">股东</div>
+            <div class="detail-value">
+              {% for s in shareholders %}
+              <a href="{{ url_for('pages_bp.search', q=s.name) }}">{{ s.name }}</a>{% if s.position %}<span class="dup-count dup-mid" style="margin-left:4px">{{ s.position }}</span>{% endif %}{% if not loop.last %}<span style="color:var(--text-muted)">、</span>{% endif %}
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
         </div>
-      {% endif %}
+      </div>
+      <!-- 资本 -->
+      <div class="detail-group">
+        <div class="dg-title">资本</div>
+        <div class="dg-body">
+          {% if company.registered_capital %}
+          <div class="detail-field">
+            <div class="detail-label">注册资本</div>
+            <div class="detail-value">{{ company.registered_capital }}</div>
+          </div>
+          {% endif %}
+          {% if company.paid_capital %}
+          <div class="detail-field">
+            <div class="detail-label">实缴资本</div>
+            <div class="detail-value">{{ company.paid_capital }}</div>
+          </div>
+          {% endif %}
+          {% if company.insured_count is not none and company.insured_count != '' %}
+          <div class="detail-field">
+            <div class="detail-label">参保人数</div>
+            <div class="detail-value">{{ company.insured_count }}</div>
+          </div>
+          {% endif %}
+          {% if company.enterprise_scale %}
+          <div class="detail-field">
+            <div class="detail-label">企业规模</div>
+            <div class="detail-value">{{ company.enterprise_scale }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <!-- 日期 -->
+      <div class="detail-group">
+        <div class="dg-title">日期</div>
+        <div class="dg-body">
+          {% if company.established_date %}
+          <div class="detail-field">
+            <div class="detail-label">成立日期</div>
+            <div class="detail-value">{{ company.established_date }}</div>
+          </div>
+          {% endif %}
+          {% if company.approved_date %}
+          <div class="detail-field">
+            <div class="detail-label">核准日期</div>
+            <div class="detail-value">{{ company.approved_date }}</div>
+          </div>
+          {% endif %}
+          {% if company.business_term %}
+          <div class="detail-field">
+            <div class="detail-label">营业期限</div>
+            <div class="detail-value">{{ company.business_term }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <!-- 地址 -->
+    <div class="detail-groups dg-split dg-address">
+      <!-- 行政区划（左） -->
+      <div class="detail-group dg-regcodes">
+        <div class="dg-title">行政区划</div>
+        <div class="dg-body">
+          {% if company.province %}
+          <div class="detail-field">
+            <div class="detail-label">省</div>
+            <div class="detail-value">{{ company.province }}</div>
+          </div>
+          {% endif %}
+          {% if company.city %}
+          <div class="detail-field">
+            <div class="detail-label">市</div>
+            <div class="detail-value">{{ company.city }}</div>
+          </div>
+          {% endif %}
+          {% if company.district %}
+          <div class="detail-field">
+            <div class="detail-label">区/县</div>
+            <div class="detail-value">{{ company.district }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <!-- 地址信息（右） -->
+      <div class="detail-group dg-scope">
+        <div class="dg-title">地址信息</div>
+        <div class="dg-body">
+          {% if company.address %}
+          <div class="detail-field">
+            <div class="detail-label">注册地址</div>
+            <div class="detail-value">{{ company.address }}</div>
+          </div>
+          {% endif %}
+          {% if company.annual_report_address %}
+          <div class="detail-field">
+            <div class="detail-label">最新年报地址</div>
+            <div class="detail-value">{{ company.annual_report_address }}</div>
+          </div>
+          {% endif %}
+          {% if company.mailing_address %}
+          <div class="detail-field">
+            <div class="detail-label">通信地址</div>
+            <div class="detail-value">{{ company.mailing_address }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- ─────────── 联系方式 ─────────── -->
   <section class="detail-section">
-    <h2 class="detail-section-title">联系方式</h2>
-
-    {% if company_phones %}
-      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">电话</div>
-      <div class="phone-list">
+    <div class="detail-groups">
+      <div class="detail-group dg-main">
+        <div class="dg-title">联系方式</div>
+        <div class="dg-body">
+          {% if company_phones %}
+          <div class="contact-subhead">电话</div>
+      <div class="phone-list" id="phoneList">
         {% for cp in company_phones %}
         <div class="phone-row" data-norm="{{ cp.normalized_phone }}">
+          {% if cp.is_primary %}<span class="phone-primary-star" title="主号">★</span>{% endif %}
           <a href="{{ url_for('pages_bp.search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ cp.phone }}', this)" title="复制">
             <i data-lucide="copy" aria-hidden="true"></i>
@@ -182,13 +296,29 @@
           {% if cp.location %}
           <span class="phone-location" title="归属地">{{ cp.location.province }}{% if cp.location.city and cp.location.city != cp.location.province %} {{ cp.location.city }}{% endif %}</span>
           {% endif %}
+          {% if cp.phone_type in ['mobile', 'mobile_ext'] %}
+            {% if cp.wechat and cp.wechat.wechat_name != '无微信' %}
+            {% set wc_name = cp.wechat.wechat_name %}
+            {% set wc_class = 'wechat-female' if '[女]' in wc_name or '女' in wc_name else ('wechat-male' if '[男]' in wc_name or '男' in wc_name else 'has-wechat') %}
+            <button type="button" class="phone-wechat-btn {{ wc_class }}" onclick="openPhoneWechatSelector('{{ cp.normalized_phone }}')" title="点击编辑">
+              <i data-lucide="message-circle" style="width: 12px; height: 12px;"></i>
+              <span class="wechat-tip">{{ wc_name }}</span>
+            </button>
+          {% elif cp.wechat and cp.wechat.wechat_name == '无微信' %}
+          <button type="button" class="phone-wechat-btn no-wechat" onclick="openPhoneWechatSelector('{{ cp.normalized_phone }}')" title="点击编辑">
+            <i data-lucide="message-circle" style="width: 12px; height: 12px;"></i>
+            <span class="wechat-tip">无微信</span>
+          </button>
+          {% else %}
+          <button type="button" class="phone-wechat-btn" onclick="openPhoneWechatSelector('{{ cp.normalized_phone }}')" title="添加微信">
+            <i data-lucide="message-circle" style="width: 12px; height: 12px;"></i>
+          </button>
+          {% endif %}
+          {% endif %}
           {% if not cp.phone_valid %}
           <span style="color: #f97316; font-size: 12px;" title="{{ cp.phone_invalid_reason }}">⚠ 格式异常</span>
           {% endif %}
           <div class="phone-tags">
-            {% if cp.is_recommended %}
-              <span class="phone-tag phone-tag-secondary">推荐</span>
-            {% endif %}
             {% if cp.tag %}
               <span class="phone-tag phone-tag-clickable" style="background: {{ cp.tag.color }}20; color: {{ cp.tag.color }};" onclick="openPhoneTagSelector('{{ cp.normalized_phone }}')" title="点击修改标记">{{ cp.tag.name }}</span>
             {% else %}
@@ -206,12 +336,12 @@
         {% endfor %}
       </div>
     {% else %}
-      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">电话</div>
+      <div class="contact-subhead">电话</div>
       <div class="muted">未登记电话</div>
     {% endif %}
 
     {% if company_emails %}
-      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px;">邮箱</div>
+      <div class="contact-subhead">邮箱</div>
       <div class="phone-list">
         {% for ce in company_emails %}
         <div class="phone-row">
@@ -232,96 +362,63 @@
         </div>
         {% endfor %}
       </div>
-    {% else %}
-      <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px;">邮箱</div>
-      <div class="muted">未登记邮箱</div>
     {% endif %}
 
     {% if company.website and company.website != '-' %}
-    <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 8px;">网址</div>
+    <div class="contact-subhead">网址</div>
     <div class="detail-value">
       <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>
     </div>
     {% endif %}
-  </section>
-
-  <!-- ─────────── 股东信息 ─────────── -->
-  {% if shareholders %}
-  <section class="detail-section">
-    <h2 class="detail-section-title">💼 股东信息（{{ shareholders|length }}）</h2>
-    <div class="shareholder-tags">
-      {% for s in shareholders %}
-      <a href="{{ url_for('pages_bp.search', q=s.name) }}" class="shareholder-tag">{{ s.name }}{% if s.position %}<span class="shareholder-pos">{{ s.position }}</span>{% endif %}</a>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  <!-- ─────────── 地址信息 ─────────── -->
-  <section class="detail-section">
-    <h2 class="detail-section-title">地址信息</h2>
-    <div class="detail-grid detail-grid-3">
-      <div class="detail-field">
-        <div class="detail-label">省</div>
-        <div class="detail-value">{{ company.province or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">市</div>
-        <div class="detail-value">{{ company.city or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">区/县</div>
-        <div class="detail-value">{{ company.district or '—' }}</div>
+        </div>
       </div>
     </div>
-    <div class="detail-grid">
-      <div class="detail-field detail-field-wide">
-        <div class="detail-label">注册地址</div>
-        <div class="detail-value">{{ company.address or '—' }}</div>
+  </section>
+
+  <!-- ─────────── 工商注册信息 + 经营范围（并排） ─────────── -->
+  <section class="detail-section">
+    <div class="detail-groups dg-split">
+      <!-- 工商注册信息（左，纵向1列） -->
+      <div class="detail-group dg-regcodes">
+        <div class="dg-title">工商注册信息</div>
+        <div class="dg-body">
+          {% if company.credit_code %}
+          <div class="detail-field">
+            <div class="detail-label">统一社会信用代码</div>
+            <div class="detail-value mono">{{ company.credit_code }}</div>
+          </div>
+          {% endif %}
+          {% if company.taxpayer_id %}
+          <div class="detail-field">
+            <div class="detail-label">纳税人识别号</div>
+            <div class="detail-value mono">{{ company.taxpayer_id }}</div>
+          </div>
+          {% endif %}
+          {% if company.registration_no %}
+          <div class="detail-field">
+            <div class="detail-label">注册号</div>
+            <div class="detail-value mono">{{ company.registration_no }}</div>
+          </div>
+          {% endif %}
+          {% if company.org_code %}
+          <div class="detail-field">
+            <div class="detail-label">组织机构代码</div>
+            <div class="detail-value mono">{{ company.org_code }}</div>
+          </div>
+          {% endif %}
+        </div>
       </div>
-      <div class="detail-field detail-field-wide">
-        <div class="detail-label">最新年报地址</div>
-        <div class="detail-value">{{ company.annual_report_address or '—' }}</div>
-      </div>
-      {% if company.mailing_address %}
-      <div class="detail-field detail-field-wide">
-        <div class="detail-label">通信地址</div>
-        <div class="detail-value">{{ company.mailing_address }}</div>
+      <!-- 经营范围（右，文本段落） -->
+      {% if company.business_scope and company.business_scope != '-' %}
+      <div class="detail-group dg-scope">
+        <div class="dg-title">经营范围</div>
+        <div class="dg-body">
+          <p class="detail-scope">{{ company.business_scope }}</p>
+        </div>
       </div>
       {% endif %}
     </div>
   </section>
-
-  <!-- ─────────── 工商注册信息 ─────────── -->
-  <section class="detail-section">
-    <h2 class="detail-section-title">工商注册信息</h2>
-    <div class="detail-grid">
-      <div class="detail-field">
-        <div class="detail-label">统一社会信用代码</div>
-        <div class="detail-value mono">{{ company.credit_code or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">纳税人识别号</div>
-        <div class="detail-value mono">{{ company.taxpayer_id or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">注册号</div>
-        <div class="detail-value mono">{{ company.registration_no or '—' }}</div>
-      </div>
-      <div class="detail-field">
-        <div class="detail-label">组织机构代码</div>
-        <div class="detail-value mono">{{ company.org_code or '—' }}</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ─────────── 经营范围 ─────────── -->
-  {% if company.business_scope and company.business_scope != '-' %}
-  <section class="detail-section">
-    <h2 class="detail-section-title">经营范围</h2>
-    <p class="detail-scope">{{ company.business_scope }}</p>
-  </section>
-  {% endif %}
 
   <!-- ─────────── 元信息 ─────────── -->
   <footer class="detail-foot">
@@ -432,6 +529,28 @@ function _closeCopyOnOutside(e) {
   if (menu && dropdown && !dropdown.contains(e.target)) {
     menu.style.display = 'none';
     document.removeEventListener('click', _closeCopyOnOutside);
+  }
+}
+
+// ── 工商查询平台下拉菜单 ──
+function togglePlatformMenu(btn) {
+  const menu = document.getElementById('platform-menu');
+  if (menu.style.display === 'none') {
+    menu.style.display = 'block';
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => {
+      document.addEventListener('click', _closePlatformOnOutside);
+    }, 0);
+  } else {
+    menu.style.display = 'none';
+    document.removeEventListener('click', _closePlatformOnOutside);
+  }
+}
+function _closePlatformOnOutside(e) {
+  const menu = document.getElementById('platform-menu');
+  if (menu && !menu.parentElement.contains(e.target)) {
+    menu.style.display = 'none';
+    document.removeEventListener('click', _closePlatformOnOutside);
   }
 }
 
@@ -807,22 +926,39 @@ async function openPhoneTagSelector(normalizedPhone) {
     const currentTag = phoneTagResp.data && phoneTagResp.data.tag;
     const currentTagId = currentTag ? currentTag.id : null;
 
+    // 查询当前号码是否已是主号
+    const company_id = {{ company.id }};
+    let isPrimary = false;
+    try {
+        const primResp = await (await fetch(`/api/company/${company_id}/phones/${normalizedPhone}/is-primary`)).json();
+        isPrimary = primResp.data && primResp.data.is_primary;
+    } catch(e) {}
+
     let content = '<div style="margin-bottom: 14px;">';
-    content += '<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">选择标记（点击即切换）：</div>';
-    content += '<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">';
+    content += '<div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">选择标记（点击切换，长按拖动排序）：</div>';
+    content += '<div id="phoneTagList" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">';
 
     allTags.forEach(tag => {
         const isCurrent = tag.id === currentTagId;
         const border = isCurrent ? `2px solid ${tag.color}` : `1.5px solid ${tag.color}40`;
         const bg = isCurrent ? `${tag.color}30` : `${tag.color}15`;
         const checkIcon = isCurrent ? '<i data-lucide="check" style="width: 10px; height: 10px;"></i>' : '';
-        content += `<button onclick="setPhoneTag('${normalizedPhone}', ${tag.id})" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: ${bg}; color: ${tag.color}; border: ${border}; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s;"><span style="width: 8px; height: 8px; border-radius: 2px; background: ${tag.color};"></span>${tag.name}${checkIcon}</button>`;
+        content += `<button type="button" data-tag-id="${tag.id}" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: ${bg}; color: ${tag.color}; border: ${border}; border-radius: 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; user-select: none; -webkit-user-select: none; touch-action: none;"><span style="width: 8px; height: 8px; border-radius: 2px; background: ${tag.color};"></span>${tag.name}${checkIcon}</button>`;
     });
     content += '</div>';
 
     // 清除标记
     if (currentTag) {
         content += `<button onclick="clearPhoneTag('${normalizedPhone}')" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; border-radius: 14px; font-size: 12px; cursor: pointer;"><i data-lucide="x" style="width: 10px; height: 10px;"></i>清除标记</button>`;
+    }
+
+    // 设为主号 / 当前主号状态
+    content += '</div>';
+    content += '<div style="border-top: 1px solid var(--border); padding-top: 14px; margin-bottom: 14px;">';
+    if (isPrimary) {
+        content += `<div style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: #fffbeb; color: #f59e0b; border: 1.5px solid #f59e0b; border-radius: 14px; font-size: 12px; font-weight: 500;"><span style="font-size: 13px;">★</span>当前主号</div>`;
+    } else {
+        content += `<button onclick="setAsPrimaryPhone('${normalizedPhone}', ${company_id})" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; background: #fffbeb; color: #f59e0b; border: 1.5px solid #f59e0b40; border-radius: 14px; font-size: 12px; cursor: pointer; transition: border-color 0.15s;" onmouseover="this.style.borderColor='#f59e0b'" onmouseout="this.style.borderColor='#f59e0b40'"><span style="font-size: 13px;">☆</span>设为主号</button>`;
     }
 
     // 创建新标记
@@ -877,8 +1013,182 @@ async function openPhoneTagSelector(normalizedPhone) {
                 }
             });
         }
+        // 初始化标签拖拽排序
+        initPhoneTagDrag(normalizedPhone);
     }, 100);
     if (window.lucide) lucide.createIcons();
+}
+
+function initPhoneTagDrag(normalizedPhone) {
+    const list = document.getElementById('phoneTagList');
+    if (!list) return;
+
+    let dragSrc = null;
+    let longPressTimer = null;
+    let isDragging = false;
+    let startPos = { x: 0, y: 0 };
+    let dragOffset = { x: 0, y: 0 };
+    let origStyle = '';
+
+    // ── 长按 700ms 后进入拖拽模式 ──
+    function startPress(e) {
+        const btn = e.target.closest('[data-tag-id]');
+        if (!btn) return;
+
+        // 阻止默认行为（文本选择等）
+        e.preventDefault();
+
+        const point = e.touches ? e.touches[0] : e;
+        dragSrc = btn;
+        startPos = { x: point.clientX, y: point.clientY };
+        isDragging = false;
+
+        // 立即挂载 document 监听器，确保短按也能触发 endPress
+        document.addEventListener('mousemove', movePress);
+        document.addEventListener('mouseup', endPress);
+        document.addEventListener('touchmove', movePress, { passive: false });
+        document.addEventListener('touchend', endPress);
+
+        longPressTimer = setTimeout(() => {
+            if (!dragSrc) return;
+            isDragging = true;
+            const box = dragSrc.getBoundingClientRect();
+            origStyle = dragSrc.getAttribute('style') || '';
+            dragOffset = { x: point.clientX - box.left, y: point.clientY - box.top };
+            dragSrc.style.position = 'fixed';
+            dragSrc.style.zIndex = '1000';
+            dragSrc.style.pointerEvents = 'none';
+            dragSrc.style.width = box.width + 'px';
+            dragSrc.style.left = (point.clientX - dragOffset.x) + 'px';
+            dragSrc.style.top = (point.clientY - dragOffset.y) + 'px';
+            dragSrc.style.transform = 'scale(1.08)';
+            dragSrc.style.boxShadow = '0 6px 16px rgba(0,0,0,0.2)';
+            dragSrc.style.opacity = '0.9';
+            dragSrc.style.transition = 'transform 0.12s, box-shadow 0.12s';
+        }, 700);
+    }
+
+    function movePress(e) {
+        if (!dragSrc) return;
+        const point = e.touches ? e.touches[0] : e;
+
+        // 拖拽尚未开始：检测移动距离，超过阈值则取消长按
+        if (!isDragging && longPressTimer) {
+            const dx = Math.abs(point.clientX - startPos.x);
+            const dy = Math.abs(point.clientY - startPos.y);
+            if (dx > 5 || dy > 5) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+                // 移动超限 → 不是点击也不是拖拽，清理状态
+                document.removeEventListener('mousemove', movePress);
+                document.removeEventListener('mouseup', endPress);
+                document.removeEventListener('touchmove', movePress);
+                document.removeEventListener('touchend', endPress);
+                dragSrc = null;
+            }
+            return;
+        }
+
+        if (!isDragging) return;
+        e.preventDefault();
+
+        // 拖拽元素跟手
+        dragSrc.style.left = (point.clientX - dragOffset.x) + 'px';
+        dragSrc.style.top = (point.clientY - dragOffset.y) + 'px';
+
+        // 双轴命中检测：找最近的非拖拽元素
+        const target = getClosestElement(list, point.clientX, point.clientY);
+        if (target && target !== dragSrc) {
+            const tBox = target.getBoundingClientRect();
+            // 判断插入在目标的前面还是后面
+            const insertBefore = point.clientX < tBox.left + tBox.width / 2;
+            if (insertBefore && target.previousElementSibling !== dragSrc) {
+                list.insertBefore(dragSrc, target);
+            } else if (!insertBefore && target.nextElementSibling !== dragSrc) {
+                list.insertBefore(dragSrc, target.nextElementSibling);
+            }
+        }
+    }
+
+    function endPress(e) {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+        if (!dragSrc) return;
+
+        // 移除 document 事件监听
+        document.removeEventListener('mousemove', movePress);
+        document.removeEventListener('mouseup', endPress);
+        document.removeEventListener('touchmove', movePress);
+        document.removeEventListener('touchend', endPress);
+
+        if (isDragging) {
+            isDragging = false;
+            // 恢复原始样式
+            dragSrc.setAttribute('style', origStyle);
+
+            const tagIds = Array.from(list.querySelectorAll('[data-tag-id]')).map(b => b.dataset.tagId);
+            fetch('/api/phone_tags/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tag_ids: tagIds })
+            }).then(r => r.json()).then(res => {
+                if (res.code === 0) window._enthubToast('success', '标记排序已保存', '');
+            });
+            e.preventDefault();
+        } else {
+            // 短按 → 选择标记
+            const tagId = parseInt(dragSrc.dataset.tagId);
+            setPhoneTag(normalizedPhone, tagId);
+        }
+        dragSrc = null;
+    }
+
+    function cancelDrag() {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        // 移除 document 事件监听
+        document.removeEventListener('mousemove', movePress);
+        document.removeEventListener('mouseup', endPress);
+        document.removeEventListener('touchmove', movePress);
+        document.removeEventListener('touchend', endPress);
+        if (isDragging && dragSrc) {
+            isDragging = false;
+            dragSrc.setAttribute('style', origStyle);
+            const tagIds = Array.from(list.querySelectorAll('[data-tag-id]')).map(b => b.dataset.tagId);
+            fetch('/api/phone_tags/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tag_ids: tagIds })
+            }).then(r => r.json()).then(res => {
+                if (res.code === 0) window._enthubToast('success', '标记排序已保存', '');
+            });
+        }
+        dragSrc = null;
+    }
+
+    // flex-wrap 双轴命中：找距光标中心最近的元素
+    function getClosestElement(container, x, y) {
+        const els = Array.from(container.querySelectorAll('[data-tag-id]'));
+        let closest = null, closestDist = Infinity;
+        for (const el of els) {
+            if (el === dragSrc) continue;
+            const box = el.getBoundingClientRect();
+            const cx = box.left + box.width / 2;
+            const cy = box.top + box.height / 2;
+            const dist = Math.hypot(x - cx, y - cy);
+            if (dist < closestDist) {
+                closestDist = dist;
+                closest = el;
+            }
+        }
+        return closest;
+    }
+
+    // mousedown / touchstart 在 list 上监听
+    // mousemove / mouseup / touchmove / touchend 在 startPress 时立即挂到 document，endPress 时移除
+    list.addEventListener('mousedown', startPress);
+    list.addEventListener('touchstart', startPress, { passive: false });
 }
 
 async function setPhoneTag(normalizedPhone, tagId) {
@@ -916,13 +1226,9 @@ async function refreshPhoneTag(normalizedPhone) {
     const tagsContainer = row.querySelector('.phone-tags');
     if (!tagsContainer) return;
 
-    // 保留 is_recommended / dup_count 标签
-    const preserved = tagsContainer.querySelectorAll('.phone-tag-secondary, .dup-count, .phone-unique');
-    // 拆分：推荐在前，共N家/唯一在后
-    const recommended = tagsContainer.querySelectorAll('.phone-tag-secondary');
+    // 保留 dup_count 标签
     const badge = tagsContainer.querySelectorAll('.dup-count, .phone-unique');
     let html = '';
-    recommended.forEach(el => { html += el.outerHTML; });
 
     // 添加单标签或 + 按钮（在共N家之前）
     if (tag) {
@@ -941,6 +1247,168 @@ window.setPhoneTag = setPhoneTag;
 window.clearPhoneTag = clearPhoneTag;
 window.refreshPhoneTag = refreshPhoneTag;
 
+// ── 设为主号 ──
+async function setAsPrimaryPhone(normalizedPhone, companyId) {
+    const resp = await fetch(`/api/company/${companyId}/phones/${normalizedPhone}/set-primary`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }
+    });
+    const result = await resp.json();
+    if (result.code === 0) {
+        closeModal();
+        window._enthubToast('success', '已设为主号', '');
+        // 刷新页面以更新星标和排序
+        setTimeout(() => location.reload(), 600);
+    } else {
+        window._enthubToast('error', '设置失败', result.message || '');
+    }
+}
+window.setAsPrimaryPhone = setAsPrimaryPhone;
+
+// ── 微信信息编辑 ──
+async function openPhoneWechatSelector(normalizedPhone) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`);
+    const result = await resp.json();
+    const wechat = result.data && result.data.wechat;
+    const name = wechat ? wechat.wechat_name : '';
+
+    let content = `
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <div style="position: relative; flex: 1;">
+                    <input type="text" id="wechatName" class="form-input" value="${name}" placeholder="填写微信昵称或微信号" style="width: 100%; padding-right: 68px;">
+                    <button type="button" onclick="pasteToWechat()" style="position: absolute; right: 34px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="从剪贴板粘贴">
+                        <i data-lucide="clipboard" style="width: 15px; height: 15px;"></i>
+                    </button>
+                    <button type="button" onclick="clearWechatInput()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="清空输入框">
+                        <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+                    </button>
+                </div>
+                <button onclick="savePhoneWechat('${normalizedPhone}')" class="btn btn-primary" style="flex-shrink: 0; min-width: 80px;">保存</button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button onclick="setWechatGender('男','${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px; color: #3b82f6; border-color: #3b82f630; background: #3b82f610;">＋ 男</button>
+                <button onclick="setWechatGender('女','${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px; color: #ec4899; border-color: #ec489930; background: #ec489910;">＋ 女</button>
+                <div style="flex: 1;"></div>
+                <button onclick="markNoWechat('${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;">
+                    <i data-lucide="ban" style="width: 12px; height: 12px; margin-right: 4px;"></i>无微信
+                </button>
+            </div>
+        </div>
+    `;
+
+    showModal('微信信息', content, [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => { document.getElementById('wechatName')?.focus(); }, 100);
+}
+
+async function savePhoneWechat(normalizedPhone) {
+    const name = document.getElementById('wechatName').value.trim();
+    if (!name) { await clearPhoneWechat(normalizedPhone); return; }
+    await _doSaveWechat(normalizedPhone, name);
+}
+
+function setWechatGender(gender, normalizedPhone) {
+    const input = document.getElementById('wechatName');
+    if (!input) return;
+    const tag = '[' + gender + ']';
+    const other = gender === '男' ? '[女]' : '[男]';
+    let val = input.value.trim();
+    if (val.includes(other)) val = val.replace(other, '').trim();
+    if (val.includes(tag)) val = val.replace(tag, '').trim();
+    input.value = val + (val ? ' ' : '') + tag;
+    // 直接触发保存
+    savePhoneWechat(normalizedPhone);
+}
+
+async function pasteToWechat() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+            const input = document.getElementById('wechatName');
+            if (input) { input.value = text.trim(); input.focus(); }
+        }
+    } catch(e) { window._enthubToast('warning', '无法读取剪贴板', ''); }
+}
+
+function clearWechatInput() {
+    const input = document.getElementById('wechatName');
+    if (input) { input.value = ''; input.focus(); }
+}
+
+async function markNoWechat(normalizedPhone) {
+    await _doSaveWechat(normalizedPhone, '无微信');
+}
+
+async function _doSaveWechat(normalizedPhone, name) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wechat_name: name })
+    });
+    const result = await resp.json();
+    if (result.code === 0) {
+        closeModal();
+        await refreshPhoneWechat(normalizedPhone);
+        window._enthubToast('success', '已保存', '');
+    } else {
+        window._enthubToast('error', '保存失败', result.message || '');
+    }
+}
+
+async function clearPhoneWechat(normalizedPhone) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`, { method: 'DELETE' });
+    const result = await resp.json();
+
+    if (result.code === 0) {
+        closeModal();
+        await refreshPhoneWechat(normalizedPhone);
+        window._enthubToast('success', '微信信息已清除', '');
+    } else {
+        window._enthubToast('error', '清除失败', result.message || '');
+    }
+}
+
+async function refreshPhoneWechat(normalizedPhone) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`);
+    const result = await resp.json();
+    const wechat = result.data && result.data.wechat;
+
+    const row = document.querySelector(`.phone-row[data-norm="${normalizedPhone}"]`);
+    if (!row) return;
+
+    let wechatHtml = '';
+    if (wechat && wechat.wechat_name !== '无微信') {
+        // 颜色规则：含[女]→粉，含[男]→蓝，都不含→绿
+        const wc = wechat.wechat_name;
+        let wcClass = 'has-wechat';
+        if (wc.includes('[女]') || wc.includes('女')) wcClass = 'wechat-female';
+        else if (wc.includes('[男]') || wc.includes('男')) wcClass = 'wechat-male';
+        wechatHtml = `<button type="button" class="phone-wechat-btn ${wcClass}" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">${wc}</span></button>`;
+    } else if (wechat && wechat.wechat_name === '无微信') {
+        wechatHtml = `<button type="button" class="phone-wechat-btn no-wechat" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">无微信</span></button>`;
+    } else {
+        wechatHtml = `<button type="button" class="phone-wechat-btn" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="添加微信"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i></button>`;
+    }
+
+    const existingWechat = row.querySelector('.phone-wechat-btn');
+    if (existingWechat) {
+        existingWechat.outerHTML = wechatHtml;
+    } else {
+        const location = row.querySelector('.phone-location');
+        if (location) location.insertAdjacentHTML('afterend', wechatHtml);
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+window.openPhoneWechatSelector = openPhoneWechatSelector;
+window.savePhoneWechat = savePhoneWechat;
+window.markNoWechat = markNoWechat;
+window.clearPhoneWechat = clearPhoneWechat;
+window.refreshPhoneWechat = refreshPhoneWechat;
+window.setWechatGender = setWechatGender;
+window.pasteToWechat = pasteToWechat;
+window.clearWechatInput = clearWechatInput;
+
 // ── 来源文件展开/收起 ──
 function toggleSourceFiles(el) {
     const collapse = el.closest('.detail-foot').querySelector('.source-files-collapse');
@@ -951,6 +1419,57 @@ function toggleSourceFiles(el) {
     if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
 }
 window.toggleSourceFiles = toggleSourceFiles;
+
+// ── 发送到多维表弹窗 ──
+function openKinboardModal(companyId) {
+    const content = `
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary);">说明</label>
+        <textarea id="kinboard-remark" rows="3"
+                  style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; resize: none; box-sizing: border-box; line-height: 1.5;"></textarea>
+    `;
+    const buttons = [
+        { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' },
+        { text: '发送', class: 'btn btn-primary', action: '' }
+    ];
+
+    showModal('发送到多维表', content, buttons);
+
+    // 聚焦输入框
+    setTimeout(() => {
+        const ta = document.getElementById('kinboard-remark');
+        if (ta) ta.focus();
+    }, 100);
+
+    // 绑定发送按钮
+    const sendBtn = document.querySelector('#modal-footer .btn-primary');
+    sendBtn.onclick = async () => {
+        const remark = document.getElementById('kinboard-remark').value;
+        const originalText = sendBtn.textContent;
+        sendBtn.textContent = '发送中…';
+        sendBtn.disabled = true;
+
+        try {
+            const resp = await fetch(`/company/${companyId}/send-to-kinboard`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ remark: remark })
+            });
+            const data = await resp.json();
+            if (data.code === 0) {
+                _enthubToast('success', '✅ 发送成功', data.message);
+                closeModal();
+            } else {
+                _enthubToast('error', '❌ 发送失败', data.message);
+            }
+        } catch (e) {
+            _enthubToast('error', '❌ 发送失败', e.message);
+        } finally {
+            sendBtn.textContent = originalText;
+            sendBtn.disabled = false;
+        }
+    };
+}
+window.openKinboardModal = openKinboardModal;
 
 })();
 </script>

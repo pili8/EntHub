@@ -196,20 +196,13 @@ a:hover { text-decoration: underline; }
     padding: 24px;
 }
 
+/* 兼容旧用法：.page-header 作为 .page-head 的别名 */
 .page-header {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
-.page-title {
-    font-size: 20px;
-    font-weight: 700;
-}
-
-.page-subtitle {
-    color: var(--text-secondary);
-    font-size: 13px;
-    margin-top: 2px;
-}
+/* 旧 .page-title 和 .page-subtitle 已废弃，
+   统一使用下方的 .page-head / .page-title / .page-sub 体系 */
 
 /* ----------------------------------------------------------------------- */
 /*  Cards                                                                  */
@@ -659,9 +652,7 @@ tr:hover td { background: #f8fafc; }
 /*  Import                                                                 */
 /* ----------------------------------------------------------------------- */
 
-.import-page {
-    max-width: 600px;
-}
+/* .import-page 已废弃，统一使用 .page 容器 */
 
 /* ── Upload card (the whole card IS the drop zone) ── */
 
@@ -986,7 +977,7 @@ tr:hover td { background: #f8fafc; }
     .main { padding: 16px; }
     .page-detail { padding: 0; }
 
-    .page { padding: 24px 16px 40px; }
+    .page { padding: 20px 0 32px; }
 
     .phone-list { grid-template-columns: 1fr; }
 
@@ -1038,8 +1029,10 @@ tr:hover td { background: #f8fafc; }
 
     .main { padding: 10px; }
 
+    .page { padding: 16px 4px 24px; }
+    .launcher { padding: 16px 4px 24px !important; }
+
     .page-title { font-size: 18px; }
-    .page-subtitle { font-size: 12px; }
 
     .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .stat-card { padding: 14px; }
@@ -1097,6 +1090,25 @@ tr:hover td { background: #f8fafc; }
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+}
+
+/* 联系方式卡片内的 phone-row：透明背景，仅靠边框和左侧色条区分 */
+.dg-body .phone-row {
+background: transparent;
+border-radius: 8px;
+border: 1px solid var(--border);
+border-left: 3px solid var(--accent);
+padding: 10px 14px;
+margin-bottom: 8px;
+}
+.dg-body .phone-row:last-child { margin-bottom: 0; }
+
+/* 主号星标 */
+.phone-primary-star {
+color: #f59e0b;
+font-size: 14px;
+line-height: 1;
+flex-shrink: 0;
 }
 
 .phone-row {
@@ -1185,6 +1197,127 @@ tr:hover td { background: #f8fafc; }
     background: var(--bg-secondary);
     border-radius: 3px;
     white-space: nowrap;
+}
+
+/* Phone WeChat icon — 四种状态：灰虚线(未填写) / 绿(已填写无性别) / 蓝(含男) / 粉(含女) / 深灰带删除线(无微信) */
+.phone-wechat-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s;
+    position: relative;
+}
+
+/* 绿色：已填写但不含男女 */
+.phone-wechat-btn.has-wechat {
+    border: none;
+    background: #07c16020;
+    color: #07c160;
+}
+
+/* 蓝色：含“男” */
+.phone-wechat-btn.wechat-male {
+    border: none;
+    background: #3b82f620;
+    color: #3b82f6;
+}
+
+/* 粉色：含“女” */
+.phone-wechat-btn.wechat-female {
+    border: none;
+    background: #ec489920;
+    color: #ec4899;
+}
+
+/* 无微信：实线边框 + 斜线覆盖（SVG 不支持 text-decoration，用伪元素画线） */
+.phone-wechat-btn.no-wechat {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: #b0b0b0;
+    position: relative;
+}
+.phone-wechat-btn.no-wechat::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 15%;
+    width: 70%;
+    height: 1.5px;
+    background: #999;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+/* hover */
+.phone-wechat-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.phone-wechat-btn.has-wechat:hover {
+    background: #07c16030;
+    color: #07c160;
+}
+
+.phone-wechat-btn.wechat-male:hover {
+    background: #3b82f630;
+    color: #3b82f6;
+}
+
+.phone-wechat-btn.wechat-female:hover {
+    background: #ec489930;
+    color: #ec4899;
+}
+
+.phone-wechat-btn.no-wechat:hover {
+    color: var(--text-secondary);
+    border-color: var(--text-muted);
+}
+
+/* CSS tooltip 显示微信名 */
+.phone-wechat-btn .wechat-tip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background: #fff;
+    color: #374151;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border: 1px solid #e5e7eb;
+}
+
+/* 按状态着色 tooltip 文字 */
+.phone-wechat-btn.has-wechat:hover .wechat-tip {
+    color: #07c160;
+}
+.phone-wechat-btn.wechat-male:hover .wechat-tip {
+    color: #3b82f6;
+}
+.phone-wechat-btn.wechat-female:hover .wechat-tip {
+    color: #ec4899;
+}
+.phone-wechat-btn.no-wechat:hover .wechat-tip {
+    color: #9ca3af;
+}
+
+.phone-wechat-btn:hover .wechat-tip {
+    display: block;
 }
 
 /* Phone tag add button */
@@ -1281,9 +1414,9 @@ tr:hover td { background: #f8fafc; }
 
 /* ─────────── 容器 ─────────── */
 .launcher {
-    max-width: 880px;
-    margin: 0 auto;
-    padding: 48px 32px 64px;
+    max-width: none;
+    margin: 0;
+    padding: 32px 0 56px;
 }
 
 /* ─────────── Hero ─────────── */
@@ -1454,7 +1587,7 @@ tr:hover td { background: #f8fafc; }
 }
 @media (max-width: 720px) {
     .lh-grid { grid-template-columns: 1fr; }
-    .launcher { padding: 32px 20px 48px; }
+    .launcher { padding: 24px 0 40px; }
     .lh-title { font-size: 26px; }
 }
 
@@ -1580,9 +1713,9 @@ tr:hover td { background: #f8fafc; }
 /*  Page 容器                                                              */
 /* ======================================================================= */
 .page {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 40px 32px 64px;
+    max-width: none;
+    margin: 0;
+    padding: 24px 0 48px;
 }
 
 .page-head { margin-bottom: 24px; }
@@ -1810,7 +1943,7 @@ tr:hover td { background: #f8fafc; }
 /* ======================================================================= */
 /*  company_detail.html                                                     */
 /* ======================================================================= */
-.page-detail { max-width: 880px; }
+.page-detail { max-width: none; }
 
 .detail-hero {
     margin-bottom: 32px;
@@ -1872,12 +2005,34 @@ line-height: 1.25;
     color: var(--text-muted);
 }
 
+/* detail-section：轻量区块标题，只保留间距，不带卡片样式 */
 .detail-section {
     margin-bottom: 28px;
+}
+/* detail-section--card：需要保留大卡片样式的区块（如联系方式） */
+.detail-section--card {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 22px 24px;
+}
+.contact-subhead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+.contact-subhead:not(:first-child) { margin-top: 14px; }
+.contact-subhead::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: rgba(0,0,0,0.08);
+    border-radius: 2px;
+    flex-shrink: 0;
 }
 .detail-section-title {
     font-size: 11.5px;
@@ -1928,6 +2083,88 @@ line-height: 1.25;
     border-bottom-color: var(--accent);
 }
 .detail-value.mono { font-family: var(--mono); font-size: 13px; }
+
+/* ─────────── 分组卡片式布局（基本信息区域） ─────────── */
+.detail-groups {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+}
+.detail-group {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+.detail-group:hover { border-color: var(--border-strong); }
+.dg-main { flex: 2; }
+.dg-full { flex: 1 1 100%; margin-top: 12px; }
+.dg-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,0,0,0.02);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.dg-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.dg-inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 28px;
+    align-items: baseline;
+}
+/* 卡片内字段改横向排列：label : value */
+.detail-group .detail-field {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+}
+.detail-group .detail-label {
+    min-width: 64px;
+    flex-shrink: 0;
+}
+.detail-group .detail-value {
+    flex: 1;
+    min-width: 0;
+}
+.dg-full .detail-label { min-width: auto; }
+@media (max-width: 720px) {
+    .detail-groups { flex-direction: column; }
+    .detail-group .detail-field { flex-direction: column; gap: 4px; }
+    .detail-group .detail-label { min-width: 0; }
+    .dg-address { flex-direction: column; }
+    .dg-split { flex-direction: column; }
+}
+
+/* ─────────── 地址：左右并排（复用 dg-split 样式） ─────────── */
+.dg-address {
+    margin-top: 12px;
+    align-items: stretch;
+}
+
+/* ─────────── 工商注册信息 + 经营范围 并排 ─────────── */
+.dg-split {
+    align-items: stretch;
+}
+.dg-regcodes { flex: 0 0 38%; }
+.dg-scope { flex: 1; }
+.dg-scope .detail-scope {
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text);
+    margin: 0;
+    word-break: break-word;
+}
 
 /* 企业表单复用详情区块样式：label 对齐 detail-label 风格，仅在 detail-section 内生效 */
 .detail-section .form-group label {
@@ -2795,8 +3032,9 @@ th:has(.sort-link):hover::after {
 @media (max-width: 480px) {
     .main { padding: 12px 12px calc(76px + env(safe-area-inset-bottom)) !important; }
 
+    .page { padding: 16px 2px 24px; }
+
     .page-title { font-size: 19px; }
-    .page-subtitle { font-size: 12.5px; }
 
     .lh-launcher .lh-title,
     .lh-title { font-size: 22px !important; }
@@ -2806,7 +3044,7 @@ th:has(.sort-link):hover::after {
     .lh-search-input { font-size: 15.5px; }
     .lh-kbd { display: none; }   /* 小屏不显示 kbd，省空间 */
 
-    .launcher { padding: 24px 16px 32px !important; }
+    .launcher { padding: 20px 0 32px !important; }
     .lh-grid { gap: 10px; }
     .lh-card { padding: 14px; gap: 12px; }
     .lh-card-icon { width: 36px; height: 36px; }

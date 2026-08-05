@@ -25,7 +25,7 @@ IMPORT_FIELDS = [
     "company_type", "industry", "former_name", "website",
     "email", "business_scope", "business_status",
     "enterprise_scale", "shareholders", "mailing_address",
-    "english_name", "tags", "source_file",
+    "english_name", "source_file",
 ]
 
 
@@ -301,7 +301,11 @@ def _cleanup_worker(task_queue, stop_event, clean_nan, clean_header,
                 "DELETE FROM company_emails "
                 "WHERE company_id NOT IN (SELECT id FROM companies)"
             ).rowcount
-            n = n1 + n2
+            n3 = db.execute(
+                "DELETE FROM company_shareholders "
+                "WHERE company_id NOT IN (SELECT id FROM companies)"
+            ).rowcount
+            n = n1 + n2 + n3
             deleted_total += n
             send("progress", {"step": step, "deleted": n, "total_deleted": deleted_total})
 
@@ -388,7 +392,10 @@ def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
                    c.established_date, c.approved_date, c.business_term,
                    c.district, c.insured_count, c.company_type, c.former_name,
                    c.website, c.business_scope, c.enterprise_scale,
-                   c.shareholders, c.mailing_address, c.english_name, c.tags,
+                   c.shareholders, c.mailing_address, c.english_name,
+                   (SELECT GROUP_CONCAT(t.name, '; ')
+                      FROM company_tags ct JOIN tags t ON ct.tag_id = t.id
+                      WHERE ct.company_id = c.id) AS tags,
                    c.annual_report_address, c.taxpayer_id, c.registration_no, c.org_code,
                    c.source_file,
                    (SELECT COUNT(*) FROM company_phones WHERE company_id = c.id) AS phone_count,
@@ -456,7 +463,7 @@ def _dedup_by_field(db, field, task_queue=None, stop_event=None, send=None):
             # 其他字段：保留记录为空时，从被删记录补全
             for f in IMPORT_FIELDS:
                 if f in ("name", "phone", "email", "shareholders",
-                         "source_file", "tags"):
+                         "source_file"):
                     continue  # 这些字段特殊处理或不合并
                 kept_val = updates.get(f) or keep[f]
                 dup_val = r[f] if f in r.keys() else ""

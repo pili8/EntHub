@@ -3,10 +3,10 @@
 
 {% block content %}
 <div style="max-width: 600px; margin: 40px auto; text-align: center;">
-    <div class="page-header" style="text-align: center;">
-        <div class="page-title" id="progress-title">正在导入…</div>
+    <div class="page-head" style="text-align: center;">
+        <h1 class="page-title" id="progress-title">正在导入…</h1>
         {% if backup_msg %}
-        <div class="page-subtitle" style="font-size: 12px; color: var(--text-muted);">{{ backup_msg }}</div>
+        <p class="page-sub" style="font-size: 12px;">{{ backup_msg }}</p>
         {% endif %}
     </div>
 

@@ -64,10 +64,9 @@ def init_db():
             business_status       TEXT,
             enterprise_scale      TEXT,
             shareholders          TEXT,
-            mailing_address       TEXT,
-            english_name          TEXT,
-            tags                  TEXT,
-            source_file           TEXT,
+    mailing_address       TEXT,
+    english_name          TEXT,
+    source_file           TEXT,
             status                TEXT NOT NULL DEFAULT 'active',
             source                TEXT DEFAULT 'manual',
             created_at            TEXT DEFAULT (datetime('now', 'localtime')),
@@ -112,7 +111,6 @@ def init_db():
             phone            TEXT NOT NULL,
             normalized_phone TEXT NOT NULL,
             is_primary       INTEGER DEFAULT 0,
-            is_recommended   INTEGER DEFAULT 0,
             FOREIGN KEY (company_id) REFERENCES companies(id)
         );
 
@@ -187,6 +185,16 @@ def init_db():
             created_at       TEXT DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (tag_id) REFERENCES phone_tags(id) ON DELETE CASCADE
         );
+
+        -- 电话微信号关联表（每个号码一条微信信息，normalized_phone 为单主键）
+        CREATE TABLE IF NOT EXISTS phone_wechat (
+            normalized_phone TEXT PRIMARY KEY,
+            wechat_name      TEXT NOT NULL,
+            wechat_id        TEXT,
+            note             TEXT,
+            created_at       TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at       TEXT DEFAULT (datetime('now', 'localtime'))
+        );
     """)
 
     # Add columns for databases created before the new schema
@@ -194,12 +202,16 @@ def init_db():
     _migrate(conn, "companies", "shareholders", "TEXT")
     _migrate(conn, "companies", "mailing_address", "TEXT")
     _migrate(conn, "companies", "english_name", "TEXT")
-    _migrate(conn, "companies", "tags", "TEXT")
     _migrate(conn, "companies", "source_file", "TEXT")
-    _migrate(conn, "company_phones", "is_recommended", "INTEGER DEFAULT 0")
+    # is_recommended 已废弃，不再迁移。旧库中该列若存在不影响查询。
     _migrate(conn, "import_preview", "will_update", "INTEGER DEFAULT 0")
     _migrate(conn, "companies", "normalized_legal_person", "TEXT")
     _migrate(conn, "company_shareholders", "position", "TEXT")
+
+    # 清理已废弃的列（sort_order, is_recommended）
+    # SQLite 3.35+ 支持 DROP COLUMN，旧版本安全跳过（列存在不影响功能）
+    _try_drop_column(conn, "company_phones", "sort_order")
+    _try_drop_column(conn, "company_phones", "is_recommended")
 
     # 迁移：如果 phone_tag_map 还是旧的多标签 schema（复合主键），重建为单标签
     _pk_cols = [r for r in conn.execute("PRAGMA table_info(phone_tag_map)").fetchall() if r[5]]
@@ -257,7 +269,7 @@ def init_db():
             (SELECT group_concat(phone, '; ') 
              FROM company_phones p 
              WHERE p.company_id = c.id 
-             ORDER BY p.is_primary DESC, p.is_recommended DESC) AS phone_all,
+             ORDER BY p.is_primary DESC) AS phone_all,
             
             (SELECT group_concat(name, '; ') 
              FROM company_shareholders s 
@@ -368,3 +380,14 @@ def _migrate(conn, table, column, col_type):
     cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
     if column not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+
+
+def _try_drop_column(conn, table, column):
+    """安全删除列：SQLite 3.35+ 支持 DROP COLUMN，旧版本安全跳过。"""
+    cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        return
+    try:
+        conn.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+    except sqlite3.OperationalError:
+        pass  # 旧版 SQLite 不支持 DROP COLUMN，安全跳过

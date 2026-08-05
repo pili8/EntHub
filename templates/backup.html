@@ -4,8 +4,11 @@
 
 {% block content %}
 <div class="page">
-    <div class="page-header">
-        <h1 class="page-title">💾 数据备份</h1>
+    <div class="page-head" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1 class="page-title">数据备份</h1>
+            <p class="page-sub">备份数据库，下载历史备份文件</p>
+        </div>
         <form method="post" action="{{ url_for('backup_flow_bp.backup_create') }}" style="display:inline">
             <button type="submit" class="btn btn-primary">
                 <i data-lucide="shield-check" style="width:16px;height:16px"></i>
@@ -166,17 +169,7 @@
 </div>
 
 <style>
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-.page-title {
-    font-size: 24px;
-    font-weight: 600;
-    margin: 0;
-}
+/* page-head/page-title/page-sub 样式统一使用全局 style.css 中的定义 */
 .db-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

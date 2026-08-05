@@ -138,8 +138,8 @@ class EntHubMenuBar(rumps.App):
         self.menu = [
             self.status_item,
             None,
-            rumps.MenuItem("一键标注号码", callback=self.on_quick_annotate),
-            rumps.MenuItem("智能提取录入", callback=self.on_smart_extract),
+            rumps.MenuItem("一键标注", callback=self.on_quick_annotate),
+            rumps.MenuItem("智能录入", callback=self.on_smart_extract),
             None,
             rumps.MenuItem("打开控制台", callback=self.on_open_console),
             rumps.MenuItem("备份管理", callback=self.on_open_backup),
@@ -213,6 +213,10 @@ class EntHubMenuBar(rumps.App):
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            print(f"[EntHub] 提取 API 返回错误：{e.code}", flush=True)
+            self._notify_result(f"服务返回错误（{e.code}）", type="error")
+            return
         except urllib.error.URLError:
             print("[EntHub] 服务未运行", flush=True)
             self._notify_result("服务未运行，请先启动 EntHub", type="error")
@@ -275,6 +279,10 @@ class EntHubMenuBar(rumps.App):
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            print(f"[EntHub] API 返回错误：{e.code}", flush=True)
+            self._notify_result(f"服务返回错误（{e.code}）", type="error")
+            return
         except urllib.error.URLError:
             print("[EntHub] 服务未运行", flush=True)
             self._notify_result("服务未运行", type="error")

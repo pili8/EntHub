@@ -2,9 +2,10 @@
 {% block title %}电话查询{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div class="page-title"> 电话查询</div>
-    <div class="page-subtitle">查询电话号码的重复数，识别中介/代理记账号码</div>
+<div class="page">
+<div class="page-head">
+    <h1 class="page-title">电话查询</h1>
+    <p class="page-sub">查询电话号码的重复数，识别中介/代理记账号码</p>
 </div>
 
 <!-- Tab 切换 -->
@@ -91,6 +92,11 @@
 
                     <div style="color: var(--text-muted); font-weight: 500;">归属地</div>
                     <div id="single-location" style="font-size: 13px;"></div>
+
+                    <div id="single-wechat-row" style="display: none;">
+                        <div style="color: var(--text-muted); font-weight: 500;">微信</div>
+                        <div id="single-wechat" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;"></div>
+                    </div>
 
                     <div style="color: var(--text-muted); font-weight: 500;">标记</div>
                     <div id="single-tags" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;"></div>
@@ -276,6 +282,7 @@ for item in r.json()["data"]["results"]:
     </div>
     </div>
 </details>
+</div>
 
 {% endblock %}
 
@@ -396,9 +403,27 @@ async function querySinglePhone(evt) {
             locEl.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
         }
 
+        // 微信（仅手机号显示）
+        const wechatRow = document.getElementById('single-wechat-row');
+        const wechatEl = document.getElementById('single-wechat');
+        const norm = result.normalized;
+        const isMobile = result.phone_type === 'mobile' || result.phone_type === 'mobile_ext';
+        if (isMobile) {
+            wechatRow.style.display = '';
+            if (result.wechat && result.wechat.wechat_name !== '无微信') {
+                wechatEl.innerHTML = '<button type="button" class="phone-wechat-btn has-wechat" onclick="openPhoneWechatSelectorSingle(\'' + norm + '\')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">' + result.wechat.wechat_name + '</span></button>';
+            } else if (result.wechat && result.wechat.wechat_name === '无微信') {
+                wechatEl.innerHTML = '<button type="button" class="phone-wechat-btn no-wechat" onclick="openPhoneWechatSelectorSingle(\'' + norm + '\')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">无微信</span></button>';
+            } else {
+                wechatEl.innerHTML = '<button type="button" class="phone-wechat-btn" onclick="openPhoneWechatSelectorSingle(\'' + norm + '\')" title="添加微信"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i></button>';
+            }
+        } else {
+            wechatRow.style.display = 'none';
+        }
+        if (window.lucide) lucide.createIcons();
+
         // 电话标记（单标签模式：点击切换）
         const tagsEl = document.getElementById('single-tags');
-        const norm = result.normalized;
         if (result.tag) {
             tagsEl.innerHTML = '<span class="phone-tag phone-tag-clickable" style="display: inline-flex; align-items: center; padding: 3px 10px; background: ' + result.tag.color + '20; color: ' + result.tag.color + '; border-radius: 10px; font-size: 11px; font-weight: 500; cursor: pointer;" onclick="openPhoneTagSelectorSingle(\'' + norm + '\')" title="点击修改标记">' + result.tag.name + '</span>';
         } else {
@@ -722,6 +747,76 @@ async function clearPhoneTagSingle(normalizedPhone) {
             await querySinglePhone(null);
         }
         refreshBatchTag(normalizedPhone);
+    } else {
+        window._enthubToast('error', '清除失败', result.message || '');
+    }
+}
+
+// ── 微信信息编辑 ──
+async function openPhoneWechatSelectorSingle(normalizedPhone) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`);
+    const result = await resp.json();
+    const wechat = result.data && result.data.wechat;
+    const name = wechat ? wechat.wechat_name : '';
+
+    let content = `
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; gap: 6px;">
+                <input type="text" id="wechatNameSingle" class="form-input" value="${name}" placeholder="填写微信昵称或微信号" style="flex: 1;">
+                <button onclick="savePhoneWechatSingle('${normalizedPhone}')" class="btn btn-primary" style="flex-shrink: 0;">保存</button>
+            </div>
+            <div style="display: flex; gap: 6px;">
+                <button onclick="markNoWechatSingle('${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; flex: 1;">
+                    <i data-lucide="ban" style="width: 12px; height: 12px; margin-right: 4px;"></i>标记为无微信
+                </button>
+                ${wechat ? `<button onclick="clearPhoneWechatSingle('${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; flex: 1;">清除记录</button>` : ''}
+            </div>
+        </div>
+    `;
+
+    showModal('微信信息', content, [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => { document.getElementById('wechatNameSingle')?.focus(); }, 100);
+}
+
+async function savePhoneWechatSingle(normalizedPhone) {
+    const name = document.getElementById('wechatNameSingle').value.trim();
+    if (!name) { window._enthubToast('warning', '微信不能为空', ''); return; }
+    await _doSaveWechatSingle(normalizedPhone, name);
+}
+
+async function markNoWechatSingle(normalizedPhone) {
+    await _doSaveWechatSingle(normalizedPhone, '无微信');
+}
+
+async function _doSaveWechatSingle(normalizedPhone, name) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wechat_name: name })
+    });
+    const result = await resp.json();
+    if (result.code === 0) {
+        closeModal();
+        const phoneInput = document.getElementById('single-phone');
+        if (phoneInput && phoneInput.value.trim()) { await querySinglePhone(null); }
+        window._enthubToast('success', '已保存', '');
+    } else {
+        window._enthubToast('error', '保存失败', result.message || '');
+    }
+}
+
+async function clearPhoneWechatSingle(normalizedPhone) {
+    const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`, { method: 'DELETE' });
+    const result = await resp.json();
+
+    if (result.code === 0) {
+        closeModal();
+        const phoneInput = document.getElementById('single-phone');
+        if (phoneInput && phoneInput.value.trim()) {
+            await querySinglePhone(null);
+        }
+        window._enthubToast('success', '微信信息已清除', '');
     } else {
         window._enthubToast('error', '清除失败', result.message || '');
     }

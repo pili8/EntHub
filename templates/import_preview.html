@@ -2,10 +2,10 @@
 {% block title %}导入预览{% endblock %}
 
 {% block content %}
-<div style="max-width: 1200px; margin: 0 auto;">
-    <div class="page-header">
-        <div class="page-title">导入预览</div>
-        <div class="page-subtitle">检查数据无误后确认导入</div>
+<div class="page">
+    <div class="page-head">
+        <h1 class="page-title">导入预览</h1>
+        <p class="page-sub">检查数据无误后确认导入</p>
     </div>
 
     <div class="import-preview-summary">
@@ -35,7 +35,12 @@
             <input type="checkbox" id="skip-dup" checked style="width: 18px; height: 18px; cursor: pointer; margin-top: 2px;">
             <div>
                 <div>保留已有数据</div>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">库内已有值的字段不被覆盖，仅补充缺失字段与电话</div>
+                <div id="skip-dup-desc-checked" style="font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.6;">
+                    已有字段不覆盖，只补充空字段；电话/标签始终只追加
+                </div>
+                <div id="skip-dup-desc-unchecked" style="font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.6; display: none;">
+                    文件中有值的字段会覆盖库内已有值；电话/标签仍只追加不删除
+                </div>
             </div>
         </label>
         <div style="display: flex; gap: 12px;">
@@ -51,60 +56,64 @@
     <div class="card" style="margin-bottom: 24px;">
         <div class="section-title">字段匹配情况</div>
         {% for m in mappings %}
-        <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-            {% if not loop.last %}
+        {% set matched_count = m.matched|length + m.secondary|length + m.recommended|length %}
+        {% set unmatched_count = m.unmatched|length %}
+        <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
             <div style="font-weight: 600; margin-bottom: 10px; color: var(--text-primary);">
                 📄 {{ m.file }}
                 <span style="font-weight: normal; color: var(--text-muted); margin-left: 8px;">共 {{ m.total_cols }} 列</span>
+            </div>
+
+            {% if unmatched_count == 0 %}
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #e8f5e9; border-radius: 8px; font-size: 13px; color: #2e7d32;">
+                <span style="font-size: 16px;">✓</span>
+                <span>全部 {{ m.total_cols }} 列已匹配</span>
+                <a href="javascript:void(0)" onclick="toggleMatchDetail(this)" style="margin-left: auto; font-size: 12px; color: var(--text-secondary); text-decoration: none;">查看详情</a>
             </div>
             {% else %}
-            <div style="font-weight: 600; margin-bottom: 10px; color: var(--text-primary);">
-                📄 {{ m.file }}
-                <span style="font-weight: normal; color: var(--text-muted); margin-left: 8px;">共 {{ m.total_cols }} 列</span>
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fff3e0; border-radius: 8px; font-size: 13px; color: #e65100;">
+                <span style="font-size: 16px;">⚠</span>
+                <span>{{ matched_count }}/{{ m.total_cols }} 列已匹配 · {{ unmatched_count }} 列未匹配</span>
+                <a href="javascript:void(0)" onclick="toggleMatchDetail(this)" style="margin-left: auto; font-size: 12px; color: var(--text-secondary); text-decoration: none;">查看详情</a>
+            </div>
+            <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px;">
+                {% for col in m.unmatched %}
+                <span style="background: #ffebee; color: #c62828; padding: 3px 8px; border-radius: 4px; font-size: 12px;">{{ col }} ✗</span>
+                {% endfor %}
             </div>
             {% endif %}
-            
-            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
-                {% for src, target in m.matched.items() %}
-                <span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-size: 12px;" title="{{ src }} → {{ target }}">
-                    {{ src }} ✓
-                </span>
-                {% endfor %}
-                
-                {% for col in m.secondary %}
-                <span style="background: #e3f2fd; color: #1565c0; padding: 4px 8px; border-radius: 4px; font-size: 12px;" title="合并到 phone">
-                    {{ col }} 📞
-                </span>
-                {% endfor %}
-                
-                {% for col in m.recommended %}
-                <span style="background: #fff3e0; color: #e65100; padding: 4px 8px; border-radius: 4px; font-size: 12px;" title="推荐电话，优先展示">
-                    {{ col }} ⭐
-                </span>
-                {% endfor %}
-                
-                {% for col in m.unmatched %}
-                <span style="background: #ffebee; color: #c62828; padding: 4px 8px; border-radius: 4px; font-size: 12px;" title="无法匹配，已忽略">
-                    {{ col }} ✗
-                </span>
-                {% endfor %}
-            </div>
-            
-            <div style="font-size: 11px; color: var(--text-muted);">
-                匹配 {{ m.matched|length }} 列
-                {% if m.secondary %} + {{ m.secondary|length }} 副电话{% endif %}
-                {% if m.recommended %} + {{ m.recommended|length }} 推荐{% endif %}
-                {% if m.unmatched %} · <span style="color: var(--danger);">{{ m.unmatched|length }} 未匹配</span>{% endif %}
+
+            <div class="match-detail" style="display: none; margin-top: 12px; padding: 12px; background: var(--bg-primary); border-radius: 8px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div>
+                        <div style="font-size: 12px; font-weight: 600; color: #2e7d32; margin-bottom: 6px;">已匹配 ({{ matched_count }})</div>
+                        <div style="display: flex; flex-direction: column; gap: 3px;">
+                            {% for src, target in m.matched.items() %}
+                            <span style="font-size: 12px; color: var(--text-secondary);">{{ src }} → {{ target }}</span>
+                            {% endfor %}
+                            {% for col in m.secondary %}
+                            <span style="font-size: 12px; color: var(--text-secondary);">{{ col }} → phone</span>
+                            {% endfor %}
+                            {% for col in m.recommended %}
+                            <span style="font-size: 12px; color: var(--text-secondary);">{{ col }} → phone</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; font-weight: 600; color: #c62828; margin-bottom: 6px;">未匹配 ({{ unmatched_count }})</div>
+                        <div style="display: flex; flex-direction: column; gap: 3px;">
+                            {% for col in m.unmatched %}
+                            <span style="font-size: 12px; color: #c62828;">{{ col }}</span>
+                            {% endfor %}
+                            {% if unmatched_count == 0 %}
+                            <span style="font-size: 12px; color: var(--text-muted);">无</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         {% endfor %}
-        
-        <div style="margin-top: 16px; padding: 12px 16px; background: var(--bg-primary); border-radius: 8px; font-size: 13px; color: var(--text-secondary);">
-            <div style="display: flex; gap: 24px;">
-                <div><span style="background: #e8f5e9; color: #2e7d32; padding: 2px 8px; border-radius: 4px; font-size: 12px;">✓ 已匹配</span> 成功识别并导入</div>
-                <div><span style="background: #ffebee; color: #c62828; padding: 2px 8px; border-radius: 4px; font-size: 12px;">✗ 未匹配</span> 无法识别，该列数据将被忽略</div>
-            </div>
-        </div>
     </div>
     {% endif %}
 
@@ -156,6 +165,41 @@ function doConfirm() {
 }
 function doCancel() {
     document.getElementById('cancel-form').submit();
+}
+// 勾选框动态切换说明文字
+(function() {
+    var cb = document.getElementById('skip-dup');
+    var descOn = document.getElementById('skip-dup-desc-checked');
+    var descOff = document.getElementById('skip-dup-desc-unchecked');
+    function updateDesc() {
+        if (cb.checked) {
+            descOn.style.display = '';
+            descOff.style.display = 'none';
+        } else {
+            descOn.style.display = 'none';
+            descOff.style.display = '';
+        }
+    }
+    cb.addEventListener('change', updateDesc);
+    updateDesc();
+})();
+// 展开/收起字段匹配详情
+function toggleMatchDetail(link) {
+    // 向上找到当前文件的容器，再向下找 detail
+    var container = link.parentElement;
+    while (container && !container.querySelector('.match-detail')) {
+        container = container.parentElement;
+    }
+    if (container) {
+        var detail = container.querySelector('.match-detail');
+        if (detail.style.display === 'none') {
+            detail.style.display = 'block';
+            link.textContent = '收起';
+        } else {
+            detail.style.display = 'none';
+            link.textContent = '查看详情';
+        }
+    }
 }
 </script>
 {% endblock %}
