@@ -221,57 +221,6 @@
         </div>
       </div>
     </div>
-    <!-- 地址 -->
-    <div class="detail-groups dg-split dg-address">
-      <!-- 行政区划（左） -->
-      <div class="detail-group dg-regcodes">
-        <div class="dg-title">行政区划</div>
-        <div class="dg-body">
-          {% if company.province %}
-          <div class="detail-field">
-            <div class="detail-label">省</div>
-            <div class="detail-value">{{ company.province }}</div>
-          </div>
-          {% endif %}
-          {% if company.city %}
-          <div class="detail-field">
-            <div class="detail-label">市</div>
-            <div class="detail-value">{{ company.city }}</div>
-          </div>
-          {% endif %}
-          {% if company.district %}
-          <div class="detail-field">
-            <div class="detail-label">区/县</div>
-            <div class="detail-value">{{ company.district }}</div>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-      <!-- 地址信息（右） -->
-      <div class="detail-group dg-scope">
-        <div class="dg-title">地址信息</div>
-        <div class="dg-body">
-          {% if company.address %}
-          <div class="detail-field">
-            <div class="detail-label">注册地址</div>
-            <div class="detail-value">{{ company.address }}</div>
-          </div>
-          {% endif %}
-          {% if company.annual_report_address %}
-          <div class="detail-field">
-            <div class="detail-label">最新年报地址</div>
-            <div class="detail-value">{{ company.annual_report_address }}</div>
-          </div>
-          {% endif %}
-          {% if company.mailing_address %}
-          <div class="detail-field">
-            <div class="detail-label">通信地址</div>
-            <div class="detail-value">{{ company.mailing_address }}</div>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
   </section>
 
   <!-- ─────────── 联系方式 ─────────── -->
@@ -370,6 +319,60 @@
       <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>
     </div>
     {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── 地址信息 ─────────── -->
+  <section class="detail-section">
+    <div class="detail-groups dg-split dg-address">
+      <!-- 行政区划（左） -->
+      <div class="detail-group dg-regcodes">
+        <div class="dg-title">行政区划</div>
+        <div class="dg-body">
+          {% if company.province %}
+          <div class="detail-field">
+            <div class="detail-label">省</div>
+            <div class="detail-value">{{ company.province }}</div>
+          </div>
+          {% endif %}
+          {% if company.city %}
+          <div class="detail-field">
+            <div class="detail-label">市</div>
+            <div class="detail-value">{{ company.city }}</div>
+          </div>
+          {% endif %}
+          {% if company.district %}
+          <div class="detail-field">
+            <div class="detail-label">区/县</div>
+            <div class="detail-value">{{ company.district }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <!-- 地址信息（右） -->
+      <div class="detail-group dg-scope">
+        <div class="dg-title">地址信息</div>
+        <div class="dg-body">
+          {% if company.address %}
+          <div class="detail-field">
+            <div class="detail-label">注册地址</div>
+            <div class="detail-value">{{ company.address }}</div>
+          </div>
+          {% endif %}
+          {% if company.annual_report_address %}
+          <div class="detail-field">
+            <div class="detail-label">最新年报地址</div>
+            <div class="detail-value">{{ company.annual_report_address }}</div>
+          </div>
+          {% endif %}
+          {% if company.mailing_address %}
+          <div class="detail-field">
+            <div class="detail-label">通信地址</div>
+            <div class="detail-value">{{ company.mailing_address }}</div>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -1430,9 +1433,58 @@ window.toggleSourceFiles = toggleSourceFiles;
 
 // ── 发送到多维表弹窗 ──
 function openKinboardModal(companyId) {
-    const content = `
+    // ── 预览数据（从模板变量生成）──
+    const _companyName = {{ company.name|tojson }};
+    const _address = {{ (company.annual_report_address or company.address or "")|tojson }};
+    const _legalPersonRaw = {{ (company.legal_person or "")|tojson }};
+    const _legalPerson = _legalPersonRaw ? _legalPersonRaw + '（法人）' : '';
+
+    // 电话列表
+    const _phones = [
+        {% for cp in company_phones %}
+        { n: {{ cp.phone|tojson }}, p: {{ cp.is_primary|tojson }}, t: {{ (cp.phone_type or '')|tojson }} },
+        {% endfor %}
+    ];
+    let _primaryPhone = '';
+    const _allPhones = [];
+    for (const ph of _phones) {
+        _allPhones.push(ph.n);
+        if (ph.p && !_primaryPhone && (ph.t === 'mobile' || ph.t === 'mobile_ext')) {
+            _primaryPhone = ph.n;
+        }
+    }
+    const _otherPhones = _allPhones.join('\n');
+
+    // 备注：注册日期 + 资本（实缴）
+    const _estDate = {{ (company.established_date or "")|tojson }};
+    const _regCap = {{ (company.registered_capital or "")|tojson }}.replace(/人民币/g, '').replace(/\s/g, '').trim();
+    const _paidCap = {{ (company.paid_capital or "")|tojson }}.replace(/人民币/g, '').replace(/\s/g, '').trim();
+    const _notesParts = [];
+    if (_estDate) _notesParts.push('注册日期：' + _estDate);
+    if (_regCap && _paidCap) _notesParts.push('资本：' + _regCap + '（实缴' + _paidCap + '）');
+    else if (_regCap) _notesParts.push('资本：' + _regCap);
+    else if (_paidCap) _notesParts.push('实缴：' + _paidCap);
+    const _notes = _notesParts.join('；');
+
+    // ── 弹窗内容 ──
+    const previewHtml = `
+        <div style="margin-bottom: 14px; padding: 12px; background: var(--bg-secondary, #f9fafb); border-radius: 8px; font-size: 12px; line-height: 1.8;">
+            <div style="font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">数据预览</div>
+            <div><span style="color: var(--text-muted); display: inline-block; min-width: 64px;">企业名称</span>${_companyName}</div>
+            <div><span style="color: var(--text-muted); display: inline-block; min-width: 64px;">地址</span>${_address}</div>
+            <div><span style="color: var(--text-muted); display: inline-block; min-width: 64px;">法人</span>${_legalPerson}</div>
+            <div><span style="color: var(--text-muted); display: inline-block; min-width: 64px;">主电话</span>${_primaryPhone || '—'}</div>
+            <div style="display: flex;"><span style="color: var(--text-muted); display: inline-block; min-width: 64px; flex-shrink: 0;">其他电话</span><pre style="margin: 0; white-space: pre-wrap; font-family: inherit; flex: 1;">${_otherPhones || '—'}</pre></div>
+            <div><span style="color: var(--text-muted); display: inline-block; min-width: 64px;">备注</span>${_notes || '—'}</div>
+        </div>
+    `;
+
+    const content = previewHtml + `
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary);">跟进记录</label>
+        <textarea id="kinboard-follow-up" rows="3" placeholder="记录本次跟进情况…"
+                  style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; resize: none; box-sizing: border-box; line-height: 1.5; margin-bottom: 12px;"></textarea>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary);">说明</label>
-        <textarea id="kinboard-remark" rows="3"
+        <textarea id="kinboard-remark" rows="2"
                   style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; resize: none; box-sizing: border-box; line-height: 1.5;"></textarea>
     `;
     const buttons = [
@@ -1442,15 +1494,16 @@ function openKinboardModal(companyId) {
 
     showModal('发送到多维表', content, buttons);
 
-    // 聚焦输入框
+    // 聚焦跟进记录输入框
     setTimeout(() => {
-        const ta = document.getElementById('kinboard-remark');
+        const ta = document.getElementById('kinboard-follow-up');
         if (ta) ta.focus();
     }, 100);
 
     // 绑定发送按钮
     const sendBtn = document.querySelector('#modal-footer .btn-primary');
     sendBtn.onclick = async () => {
+        const followUp = document.getElementById('kinboard-follow-up').value;
         const remark = document.getElementById('kinboard-remark').value;
         const originalText = sendBtn.textContent;
         sendBtn.textContent = '发送中…';
@@ -1460,7 +1513,7 @@ function openKinboardModal(companyId) {
             const resp = await fetch(`/company/${companyId}/send-to-kinboard`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ remark: remark })
+                body: JSON.stringify({ remark: remark, follow_up: followUp })
             });
             const data = await resp.json();
             if (data.code === 0) {
