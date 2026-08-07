@@ -86,15 +86,21 @@
 <div class="card" style="padding: 24px; margin-bottom: 24px;">
     <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
         <i data-lucide="wrench" style="width: 18px; height: 18px;"></i>
-        可用工具（5 个）
+        可用工具（11 个）
     </h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
         {% for tool in [
             {'name': 'search_companies', 'icon': 'search', 'color': '#3b82f6', 'desc': '搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）'},
+            {'name': 'batch_match_companies', 'icon': 'layers', 'color': '#06b6d4', 'desc': '批量匹配企业名称（一次最多 1000 个，秒级返回）'},
             {'name': 'get_company_detail', 'icon': 'file-text', 'color': '#22c55e', 'desc': '获取企业详情（含关联企业+标签）'},
             {'name': 'find_relations', 'icon': 'git-branch', 'color': '#f97316', 'desc': '查找关联企业（按电话/邮箱/法人/股东）'},
             {'name': 'get_companies_list', 'icon': 'list', 'color': '#8b5cf6', 'desc': '企业列表（支持筛选/排序/分页）'},
-            {'name': 'get_stats', 'icon': 'bar-chart-3', 'color': '#ec4899', 'desc': '统计查询（法人/股东/行业）'}
+            {'name': 'get_stats', 'icon': 'bar-chart-3', 'color': '#ec4899', 'desc': '统计查询（法人/股东/行业）'},
+            {'name': 'check_phone_count', 'icon': 'phone', 'color': '#14b8a6', 'desc': '查询单个电话号码的重复数（被多少家企业共用）'},
+            {'name': 'check_phones_batch', 'icon': 'smartphone', 'color': '#f59e0b', 'desc': '批量查询电话号码重复数（最多 200 个）'},
+            {'name': 'annotate_phones', 'icon': 'highlighter', 'color': '#6366f1', 'desc': '从文本提取电话号码并标注重复数'},
+            {'name': 'extract_and_import', 'icon': 'file-plus', 'color': '#ef4444', 'desc': '从文本提取企业信息并录入数据库'},
+            {'name': 'search_by_address', 'icon': 'map-pin', 'color': '#84cc16', 'desc': '按地址查询企业，返回详情页链接'}
         ] %}
         <div style="padding: 14px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);{% if not running %} opacity: 0.75;{% endif %}">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
@@ -129,6 +135,15 @@
         </div>
         <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #8b5cf6; font-size: 13px;">
             <span style="color: var(--text-muted);">📋 </span>"列出<span style="font-weight: 500;">杭州</span>地区的科技公司"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #06b6d4; font-size: 13px;">
+            <span style="color: var(--text-muted);">🗂️ </span>"批量匹配这些公司：<span style="font-weight: 500;">阿里巴巴、腾讯、字节跳动</span>"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #f59e0b; font-size: 13px;">
+            <span style="color: var(--text-muted);">📞 </span>"批量查询这些号码的重复数：<span style="font-weight: 500;">13800138000, 0571-88889999</span>"
+        </div>
+        <div style="padding: 10px 14px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #6366f1; font-size: 13px;">
+            <span style="color: var(--text-muted);">✏️ </span>"从这段文本<span style="font-weight: 500;">提取企业信息并录入</span>"
         </div>
     </div>
 </div>

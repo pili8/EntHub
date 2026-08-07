@@ -2204,10 +2204,9 @@ line-height: 1.25;
 .dup-high { background: var(--danger-light);  color: var(--danger);  }
 
 /* 关联企业 */
-.detail-rel-section {
-    background: var(--bg-secondary, #f8f9fa);
-    border: 1px dashed var(--border);
-    border-radius: 14px;
+/* 关联企业 section：复用 detail-section--card 样式（上方风格一致），加 margin-top 跟上方分隔 */
+.detail-section--rel {
+    margin-top: 40px;
 }
 .rel-section-header {
     display: flex;
@@ -2285,6 +2284,9 @@ line-height: 1.25;
     border-radius: 10px;
     overflow: hidden;
 }
+/* 关联企业卡片专属样式（不影响上方其他 detail-group） */
+.dg-title--rel { padding: 16px 20px; }
+.dg-body--rel  { padding: 24px 20px 16px; }
 .ent-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 96px 96px 64px;
@@ -2299,6 +2301,45 @@ line-height: 1.25;
 }
 .ent-row:last-child { border-bottom: 0; }
 .ent-row:hover { background: var(--bg); text-decoration: none; }
+
+/* ─────────── 关联企业行：6 列网格，所有字段在一行展示 ─────────── */
+.ent-row-rel {
+    grid-template-columns: minmax(0, 1.5fr) 80px 110px 80px 130px 64px;
+    gap: 12px;
+    font-size: 12.5px;
+    align-items: center;
+    padding: 14px 16px;
+}
+.ent-row-rel .ent-name { text-align: left; }
+.ent-row-rel .ent-district,
+.ent-row-rel .ent-capital,
+.ent-row-rel .ent-legal,
+.ent-row-rel .ent-phone { text-align: left; }
+.ent-row-rel .ent-status { justify-self: end; }
+
+/* 平板（< 768px）：隐藏法人 + 电话，保留 4 列 */
+@media (max-width: 768px) {
+    .ent-row-rel {
+        grid-template-columns: minmax(0, 1.4fr) 90px 120px 64px;
+        gap: 10px;
+        font-size: 12px;
+    }
+    .ent-row-rel .ent-legal,
+    .ent-row-rel .ent-phone { display: none; }
+}
+
+/* 手机（< 480px）：再隐藏资本 + 地区，仅保留名称 + 状态 */
+@media (max-width: 480px) {
+    .ent-row-rel {
+        grid-template-columns: minmax(0, 1fr) 60px;
+        gap: 8px;
+        font-size: 11.5px;
+        padding: 8px 10px;
+    }
+    .ent-row-rel .ent-district,
+    .ent-row-rel .ent-capital { display: none; }
+}
+
 .ent-name {
     min-width: 0;
     overflow: hidden;

@@ -103,7 +103,8 @@ def company_detail(company_id):
     related_legal_person = []
     if row["normalized_legal_person"]:
         related_legal_person = g.db.execute("""
-            SELECT id, name, district, legal_person, business_status
+            SELECT id, name, district, legal_person, business_status, registered_capital,
+                   (SELECT cp.phone FROM company_phones cp WHERE cp.company_id = companies.id ORDER BY cp.is_primary DESC LIMIT 1) AS phone
             FROM companies
             WHERE normalized_legal_person = ? AND id != ?
             ORDER BY normalized_legal_person
@@ -121,7 +122,8 @@ def company_detail(company_id):
         norm_names = [s["normalized_name"] for s in shareholders]
         placeholders = ",".join(["?"] * len(norm_names))
         related_shareholders = g.db.execute(f"""
-            SELECT DISTINCT c.id, c.name, c.district, c.legal_person, c.business_status
+            SELECT DISTINCT c.id, c.name, c.district, c.legal_person, c.business_status, c.registered_capital,
+                   (SELECT cp2.phone FROM company_phones cp2 WHERE cp2.company_id = c.id ORDER BY cp2.is_primary DESC LIMIT 1) AS phone
             FROM company_shareholders s2
             JOIN companies c ON s2.company_id = c.id
             WHERE s2.normalized_name IN ({placeholders})

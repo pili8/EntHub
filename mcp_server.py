@@ -963,6 +963,7 @@ if __name__ == "__main__":
         print("📡 监听地址：http://localhost:5310/mcp")
         print("🔧 可用工具：")
         print("   - search_companies: 搜索企业")
+        print("   - batch_match_companies: 批量匹配企业名称（最多 1000 个）")
         print("   - get_company_detail: 企业详情")
         print("   - find_relations: 关联企业查询")
         print("   - get_companies_list: 企业列表")

@@ -461,7 +461,7 @@
 
   <!-- ─────────── 关联企业（延伸信息） ─────────── -->
   {% if related_phones or related_legal_person or related_shareholders or related_industry or related_email %}
-  <section class="detail-section detail-rel-section">
+  <section class="detail-section">
     <div class="rel-section-header">
       <h2 class="detail-section-title">关联企业</h2>
       <span class="rel-section-hint">
@@ -469,33 +469,41 @@
         基于工商字段自动发现
       </span>
     </div>
+  </section>
 
-    {% macro rel_table(title, items, count) %}
-      <div class="rel-block">
-        <div class="rel-block-title">{{ title }} <span class="rel-count">{{ count or 0 }}</span></div>
-        <div class="ent-list">
-          {% for row in items %}
-          <a href="{{ url_for('companies_bp.company_detail', company_id=row.id) }}" class="ent-row">
-            <span class="ent-name">{{ row.name }}</span>
-            <span class="ent-district">{{ row.district or '—' }}</span>
-            <span class="ent-legal">{{ row.legal_person or '—' }}</span>
-            <span class="ent-status">
-              {% if row.business_status %}
-                <span class="badge badge-soft {{ 'badge-success' if row.business_status == '存续' else 'badge-warn' }}">{{ row.business_status }}</span>
-              {% else %}<span class="muted">—</span>{% endif %}
-            </span>
-          </a>
-          {% endfor %}
+  {% macro rel_card(title, items, count, is_first) %}
+  <section class="detail-section {{ 'detail-section--rel' if is_first else '' }}">
+    <div class="detail-groups">
+      <div class="detail-group dg-full">
+        <div class="dg-title dg-title--rel">{{ title }} <span class="rel-count">{{ count or 0 }}</span></div>
+        <div class="dg-body dg-body--rel">
+          <div class="ent-list">
+            {% for row in items %}
+            <a href="{{ url_for('companies_bp.company_detail', company_id=row.id) }}" class="ent-row ent-row-rel">
+              <span class="ent-name">{{ row.name }}</span>
+              <span class="ent-district">{{ row.district or '—' }}</span>
+              <span class="ent-capital">{{ row.registered_capital or '—' }}</span>
+              <span class="ent-legal">{{ row.legal_person or '—' }}</span>
+              <span class="ent-phone mono">{{ row.phone or '—' }}</span>
+              <span class="ent-status">
+                {% if row.business_status %}
+                  <span class="badge badge-soft {{ 'badge-success' if row.business_status == '存续' else 'badge-warn' }}">{{ row.business_status }}</span>
+                {% else %}<span class="muted">—</span>{% endif %}
+              </span>
+            </a>
+            {% endfor %}
+          </div>
         </div>
       </div>
-    {% endmacro %}
-
-    {% if related_legal_person  %}{{ rel_table('同法人',   related_legal_person,  field_counts.legal_person) }}{% endif %}
-    {% if related_shareholders  %}{{ rel_table('同股东',   related_shareholders,  field_counts.shareholders) }}{% endif %}
-    {% if related_phones        %}{{ rel_table('同电话',   related_phones,        related_phones|length) }}{% endif %}
-    {% if related_email         %}{{ rel_table('同邮箱',   related_email,         field_counts.email) }}{% endif %}
-    {% if related_industry      %}{{ rel_table('同行业',   related_industry,      field_counts.industry) }}{% endif %}
+    </div>
   </section>
+  {% endmacro %}
+
+  {% if related_legal_person  %}{{ rel_card('同法人', related_legal_person, field_counts.legal_person, true)  }}{% endif %}
+  {% if related_shareholders  %}{{ rel_card('同股东', related_shareholders, field_counts.shareholders, not related_legal_person) }}{% endif %}
+  {% if related_phones        %}{{ rel_card('同电话', related_phones,       related_phones|length,       not (related_legal_person or related_shareholders)) }}{% endif %}
+  {% if related_email         %}{{ rel_card('同邮箱', related_email,        field_counts.email,          not (related_legal_person or related_shareholders or related_phones)) }}{% endif %}
+  {% if related_industry      %}{{ rel_card('同行业', related_industry,     field_counts.industry,       not (related_legal_person or related_shareholders or related_phones or related_email)) }}{% endif %}
   {% endif %}
 
 </div>

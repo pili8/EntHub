@@ -14,7 +14,7 @@
   },
   "api_quota": {
     "total": 1000,
-    "used": 12
+    "used": 13
   },
   "access_password": "scrypt:32768:8:1$g5boXrDL300bfAED$e94b527443e1f6416018960a20cf048edda1d132d7e2236b0c587acbd6116b419f156c8176902214c107ff090016a5808128da1f325caa40fdb7122e8beba81d",
   "webhook_url": "https://www.kdocs.cn/chatflow/api/v2/func/webhook/3HFhySewwDfKezk07To48dsCURe"
