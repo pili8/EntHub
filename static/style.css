@@ -2116,6 +2116,7 @@ line-height: 1.25;
 .detail-group:hover { border-color: var(--border-strong); }
 .dg-main { flex: 2; }
 .dg-full { flex: 1 1 100%; margin-top: 12px; }
+.dg-full:only-child { margin-top: 0; }
 .dg-title {
     font-size: 11px;
     font-weight: 600;
@@ -2219,16 +2220,20 @@ line-height: 1.25;
 .dup-high { background: var(--danger-light);  color: var(--danger);  }
 
 /* 关联企业 */
-/* 关联企业 section：复用 detail-section--card 样式（上方风格一致），加 margin-top 跟上方分隔 */
-.detail-section--rel {
-    margin-top: 40px;
+/* 关联企业 section：复用上方 section 的标准间距，不额外加 margin-top */
+/* 标题-only section：缩小与下方卡片的间距 */
+.detail-section:has(> .rel-section-header) {
+    margin-bottom: 12px;
 }
 .rel-section-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 4px;
+    margin-bottom: 0;
+}
+.rel-section-header .detail-section-title {
+    margin-bottom: 0;
 }
 .rel-section-hint {
     font-size: 11px;
@@ -2248,11 +2253,14 @@ line-height: 1.25;
     margin-bottom: 8px;
 }
 .rel-count {
-    font-weight: 500;
-    color: var(--text-muted);
-    margin-left: 4px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-left: 6px;
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 11px;
+    background: var(--accent-light);
+    padding: 1px 7px;
+    border-radius: 8px;
 }
 .rel-list {
     border: 1px solid var(--border);
@@ -2299,9 +2307,15 @@ line-height: 1.25;
     border-radius: 10px;
     overflow: hidden;
 }
-/* 关联企业卡片专属样式（不影响上方其他 detail-group） */
-.dg-title--rel { padding: 16px 20px; }
-.dg-body--rel  { padding: 24px 20px 16px; }
+/* 关联企业卡片内的列表：去掉内层边框（避免卡中卡），让列表行直接填充卡片 */
+.detail-group .ent-list {
+    border: 0;
+    border-radius: 0;
+}
+/* 当 dg-body 内只有 ent-list 时，去掉 body padding 让列表占满卡片 */
+.dg-body:has(> .ent-list) {
+    padding: 0;
+}
 .ent-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 96px 96px 64px;
@@ -2321,9 +2335,9 @@ line-height: 1.25;
 .ent-row-rel {
     grid-template-columns: minmax(0, 1.5fr) 80px 110px 80px 130px 64px;
     gap: 12px;
-    font-size: 12.5px;
+    font-size: 13px;
     align-items: center;
-    padding: 14px 16px;
+    padding: 10px 14px;
 }
 .ent-row-rel .ent-name { text-align: left; }
 .ent-row-rel .ent-district,
@@ -2407,8 +2421,8 @@ font-weight: 500;
 
 /* 元信息（位于关联企业上方，跟随企业信息） */
 .detail-foot {
-    margin-top: 12px;
-    margin-bottom: 24px;
+margin-top: 0;
+margin-bottom: 12px;
     padding: 8px 0 14px;
     border-bottom: 1px dashed var(--border);
     font-size: 12px;

@@ -478,8 +478,8 @@
   <section class="detail-section {{ 'detail-section--rel' if is_first else '' }}">
     <div class="detail-groups">
       <div class="detail-group dg-full">
-        <div class="dg-title dg-title--rel">{{ title }} <span class="rel-count">{{ count or 0 }}</span></div>
-        <div class="dg-body dg-body--rel">
+        <div class="dg-title">{{ title }} <span class="rel-count">{{ count or 0 }}</span></div>
+        <div class="dg-body">
           <div class="ent-list">
             {% for row in items %}
             <a href="{{ url_for('companies_bp.company_detail', company_id=row.id) }}" class="ent-row ent-row-rel">
