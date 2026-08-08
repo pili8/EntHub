@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-08-08 — v0.6.5 代码恢复 + 详情页样式优化
+
+### 代码恢复（8/7 误操作 git restore 回退导致丢失的改动）
+
+> 详见 `docs/code_recovery.md`，以下为实际恢复的改动。
+
+**已恢复：**
+
+1. **`routes/companies.py`** — `send_to_kinboard` payload 字段名 `公司名` → `企业名称`；新增 `follow_up`（跟进记录）字段，从 AJAX 请求体读取
+2. **`templates/company_detail.html`** — `openKinboardModal` 弹窗新增「数据预览」区块（企业名称/地址/法人/主电话/其他电话/备注）和「跟进记录」textarea
+3. **`static/style.css`** — `.phone-list` 桌面端添加 `padding-right: 12px`（补偿上方三列布局间隙，使列边界对齐）；768px / 480px 移动端断点添加 `padding-right: 0` 重置
+4. **`static/style.css`** — 新增 `.imp-badge` CSS 类（橙色「重要」标签，用于联系方式标题）
+5. **`static/style.css`** — 修复 `.dg-body .phone-row` 的 `margin-bottom: 8px` + `:last-child` 覆盖导致 Grid 两列布局下同行卡片高度不一致的 bug
+6. **`templates/company_detail.html`** — 联系方式与地址位置交换：地址从基本信息 section 移出，作为独立 section 放在联系方式之后（基本信息 → 联系方式 → 地址信息 → 工商注册信息）
+
+**未恢复（用户决定跳过）：**
+- 电话号码拖拽排序功能（Session 7）— 与已存在的主号体系（`is_primary`）冲突
+
+### 详情页关联企业卡片样式优化
+
+1. **卡片样式统一** — 移除 `dg-title--rel` / `dg-body--rel` 专属类，关联企业卡片继承标准 `.dg-title` / `.dg-body` 样式（标题栏 `8px 16px`、内容区 `14px 16px`）
+2. **去除「卡中卡」** — `.detail-group .ent-list` 去掉内层边框和圆角，列表行直接填充卡片内容区
+3. **间距优化** — 删除 `.detail-section--rel { margin-top: 40px }`；标题 section 与卡片间距从 44px 缩小到 12px；元信息栏 `margin-bottom` 从 24px 缩小到 12px
+4. **列表行调整** — `ent-row-rel` padding 从 `14px 16px` 改为 `10px 14px`，字号从 `12.5px` 改为 `13px`（与标准 `.ent-row` 一致）
+5. **计数标签高亮** — `.rel-count` 从灰色纯文本改为主题色药丸式 badge（`--accent` 文字 + `--accent-light` 背景 + 圆角）
+6. **`.dg-full:only-child`** — 唯一子元素时去掉多余 `margin-top`
+
 ## 2026-08-05 — 发送到多维表改造 + 状态栏菜单修复
 
 ### 发送到多维表（send_to_kinboard）
