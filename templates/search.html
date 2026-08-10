@@ -11,10 +11,10 @@
         <span class="page-sub-num">{{ total }}</span> 条结果
         <span class="page-sub-sep">·</span>
         关键词 <code class="page-sub-q">{{ q }}</code>
-        {% set type_label = {'phone': '电话匹配', 'credit_code': '信用代码匹配'}.get(query_type, '多字段匹配') %}
+        {% set type_label = {'phone': '电话匹配', 'credit_code': '信用代码匹配', 'org_code': '组织代码匹配'}.get(query_type, '多字段匹配') %}
         <span class="badge badge-soft badge-warm">{{ type_label }}</span>
       {% else %}
-        输入企业名称、电话、地址、法人进行搜索
+        输入企业名称、电话、地址、法人、微信进行搜索
       {% endif %}
     </p>
   </header>
@@ -23,7 +23,7 @@
     <div class="lh-search-field">
       <i data-lucide="search" class="lh-search-icon" aria-hidden="true"></i>
       <input type="text" name="q" class="lh-search-input"
-             value="{{ q }}" placeholder="企业名称、电话、地址、法人…"
+             value="{{ q }}" placeholder="企业名称、电话、地址、法人、微信…"
              autocomplete="off" autofocus>
       <kbd class="lh-kbd">Enter</kbd>
     </div>

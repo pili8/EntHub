@@ -7,7 +7,7 @@
 2. HTTP 模式（手动启动，多端共享）：python mcp_server.py --http
 
 工具列表：
-- search_companies: 搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）
+- search_companies: 搜索企业（名称/电话/信用代码/组织代码/法人/股东/邮箱/网站/微信）
 - get_company_detail: 获取企业详情（含关联企业+标签）
 - find_relations: 查找关联企业（按电话/邮箱/法人/股东）
 - get_companies_list: 企业列表（支持筛选/排序/分页）
@@ -27,7 +27,7 @@ from api import (
     _phone_dup_count,
     _extract_and_annotate,
 )
-from queries import text_search, search_by_phone, search_by_credit_code
+from queries import text_search, search_by_phone, search_by_credit_code, search_by_org_code
 
 # 创建 MCP Server（host/port 仅 HTTP 模式生效）
 mcp = FastMCP("EntHub", json_response=True, host="0.0.0.0", port=5310)
@@ -95,7 +95,7 @@ class TokenAuthMiddleware:
 # ── 工具函数 ──────────────────────────────────────────────────
 
 def _detect_query_type(q: str) -> str:
-    """检测查询类型（电话/信用代码/文本）
+    """检测查询类型（电话/信用代码/组织代码/文本）
 
     注意：与 queries.detect_query_type 略有不同——
     要求号码长度 >= 7 才识别为电话，避免短数字（如"100"）被误判。
@@ -107,12 +107,16 @@ def _detect_query_type(q: str) -> str:
     norm_q = normalize_credit_code(q)
     if norm_q and len(norm_q) == 18 and not q.isdigit():
         return "credit_code"
+    # 组织机构代码：9 位字母数字（非纯数字）
+    stripped = q.replace(" ", "").replace("-", "").replace("+", "")
+    if len(stripped) == 9 and stripped.isalnum() and not stripped.isdigit():
+        return "org_code"
     return "text"
 
 
 @mcp.tool()
 def search_companies(q: str, limit: int = 20) -> dict:
-    """搜索企业（名称/电话/信用代码/法人/股东/邮箱/网站）
+    """搜索企业（名称/电话/信用代码/组织代码/法人/股东/邮箱/网站）
 
     每条结果包含 detail_url 字段，可直接访问企业详情页。
 
@@ -138,6 +142,9 @@ def search_companies(q: str, limit: int = 20) -> dict:
     elif query_type == "credit_code":
         norm_q = normalize_credit_code(q)
         total, rows = search_by_credit_code(db, norm_q, limit, 0)
+    elif query_type == "org_code":
+        stripped = q.replace(" ", "").replace("-", "").replace("+", "")
+        total, rows = search_by_org_code(db, stripped, limit, 0)
     else:
         total, rows = text_search(db, q, limit, 0)
 
@@ -479,6 +486,8 @@ def get_companies_list(
     district: str = None,
     business_status: str = None,
     industry: str = None,
+    enterprise_scale: str = None,
+    tag: str = None,
     year_from: str = None,
     year_to: str = None,
     cap_from: float = None,
@@ -493,11 +502,13 @@ def get_companies_list(
     """企业列表（支持筛选/排序/分页）
     
     Args:
-        q: 搜索关键词（名称/法人/信用代码/电话）
+        q: 搜索关键词（名称/曾用名/地址/法人/股东/邮箱/网站）
         city: 城市
         district: 区县
         business_status: 经营状态
         industry: 行业
+        enterprise_scale: 企业规模
+        tag: 标签名
         year_from/year_to: 成立年份区间（YYYY）
         cap_from/cap_to: 注册资本区间（万元）
         insured_from/insured_to: 社保人数区间
@@ -516,16 +527,22 @@ def get_companies_list(
     clauses = []
     params = []
     
-    # 文本搜索
+    # 文本搜索（与 Web text_search 对齐：名称/曾用名/地址/法人/股东/邮箱/网站/微信/备注）
     if q:
         like_q = f"%{q}%"
         norm_q = f"%{normalize_name(q)}%"
         clauses.append(
-            "(normalized_name LIKE ? OR legal_person LIKE ? "
-            "OR credit_code = ?)"
+            "(normalized_name LIKE ? OR former_name LIKE ? "
+            "OR address LIKE ? OR legal_person LIKE ? "
+            "OR shareholders LIKE ? OR website LIKE ? "
+            "OR id IN (SELECT company_id FROM company_emails WHERE email LIKE ?) "
+            "OR id IN (SELECT DISTINCT cp.company_id FROM phone_wechat pw "
+            "           JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone "
+            "           WHERE pw.wechat_name LIKE ? OR pw.note LIKE ?) "
+            "OR note LIKE ?)"
         )
-        params.extend([norm_q, like_q, q])
-    
+        params.extend([norm_q, like_q, like_q, like_q, like_q, like_q, like_q, like_q, like_q, like_q])
+
     # 精确筛选
     if city:
         clauses.append("city = ?")
@@ -539,6 +556,15 @@ def get_companies_list(
     if industry:
         clauses.append("industry = ?")
         params.append(industry)
+    if enterprise_scale:
+        clauses.append("enterprise_scale = ?")
+        params.append(enterprise_scale)
+    if tag:
+        clauses.append(
+            "id IN (SELECT ct.company_id FROM company_tags ct "
+            "JOIN tags t ON ct.tag_id = t.id WHERE t.name = ?)"
+        )
+        params.append(tag)
     
     # 年份区间
     if year_from:
@@ -572,7 +598,7 @@ def get_companies_list(
     
     # 排序
     allowed_sorts = {
-        "id": "id", "name": "normalized_name", "province": "province",
+        "id": "id", "name": "normalized_name", "district": "district",
         "city": "city", "established_date": "established_date",
         "business_status": "business_status", "created_at": "created_at",
         "legal_person": "legal_person",
@@ -592,7 +618,7 @@ def get_companies_list(
     rows = db.execute(f"""
         SELECT id, name, credit_code, legal_person, city, district,
                business_status, established_date, registered_capital,
-               industry, enterprise_scale,
+               industry, enterprise_scale, note,
                (SELECT group_concat(phone, '; ')
                 FROM company_phones
                 WHERE company_id = companies.id

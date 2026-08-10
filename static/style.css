@@ -1215,6 +1215,54 @@ flex-shrink: 0;
 }
 
 /* Phone WeChat icon — 四种状态：灰虚线(未填写) / 绿(已填写无性别) / 蓝(含男) / 粉(含女) / 深灰带删除线(无微信) */
+
+/* 企业备注按钮：比电话图标稍大，带横向 padding */
+.company-note-btn {
+width: auto !important;
+height: 26px !important;
+padding: 0 8px !important;
+gap: 3px;
+font-size: 11px;
+}
+
+/* 电话备注指示按钮（bookmark 图标 + 琥珀色，与微信图标区分） */
+.phone-wechat-btn.has-note {
+border: none;
+background: #f59e0b20;
+color: #f59e0b;
+}
+.phone-wechat-btn.has-note:hover {
+background: #f59e0b30;
+color: #d97706;
+}
+.phone-wechat-btn.has-note:hover .wechat-tip {
+color: var(--text-muted, #9ca3af);
+}
+/* 无备注时的空状态 */
+.phone-wechat-btn.empty-note {
+border: 1px dashed var(--border);
+background: transparent;
+color: var(--text-muted);
+}
+.phone-wechat-btn.empty-note:hover {
+border-color: #f59e0b50;
+color: #f59e0b;
+}
+.phone-wechat-btn.empty-note:hover .wechat-tip {
+color: var(--text-muted, #9ca3af);
+}
+
+/* 备注指示点已废弃（改用 has-note 类统一风格） */
+.wechat-note-dot {
+width: 5px;
+height: 5px;
+border-radius: 50%;
+background: #3b82f6;
+display: inline-block;
+margin-left: 2px;
+flex-shrink: 0;
+}
+
 .phone-wechat-btn {
     display: inline-flex;
     align-items: center;
@@ -1297,11 +1345,11 @@ flex-shrink: 0;
     border-color: var(--text-muted);
 }
 
-/* CSS tooltip 显示微信名 */
+/* CSS tooltip 显示微信名（灰色，因为昵称不会变） */
 .phone-wechat-btn .wechat-tip {
-    display: none;
-    position: absolute;
-    bottom: calc(100% + 6px);
+display: none;
+position: absolute;
+bottom: calc(100% + 6px);
     left: 50%;
     transform: translateX(-50%);
     white-space: nowrap;
@@ -1317,18 +1365,18 @@ flex-shrink: 0;
     border: 1px solid #e5e7eb;
 }
 
-/* 按状态着色 tooltip 文字 */
+/* tooltip 文字统一灰色（昵称不变，备注更动态） */
 .phone-wechat-btn.has-wechat:hover .wechat-tip {
-    color: #07c160;
+color: var(--text-muted, #9ca3af);
 }
 .phone-wechat-btn.wechat-male:hover .wechat-tip {
-    color: #3b82f6;
+color: var(--text-muted, #9ca3af);
 }
 .phone-wechat-btn.wechat-female:hover .wechat-tip {
-    color: #ec4899;
+color: var(--text-muted, #9ca3af);
 }
 .phone-wechat-btn.no-wechat:hover .wechat-tip {
-    color: #9ca3af;
+color: var(--text-muted, #9ca3af);
 }
 
 .phone-wechat-btn:hover .wechat-tip {

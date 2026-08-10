@@ -13,6 +13,7 @@ from queries import (
     build_filter_clause, build_sort_clause, where_sql,
     query_company_list, get_filter_options, get_year_bounds, build_year_ranges,
     detect_query_type, text_search, search_by_phone, search_by_credit_code,
+    search_by_org_code,
     sanitize_page, sanitize_per_page, sanitize_min_count, paginate,
     phone_stats_grouped,
 )
@@ -84,6 +85,7 @@ def browse():
     # 当前选中的筛选值（用于模板回填 + 透传给数据端点）
     filters = {}
     for key in ("city", "district", "business_status", "industry", "company_type",
+               "enterprise_scale", "tag",
                "year_from", "year_to", "cap_from", "cap_to",
                "insured_from", "insured_to", "created_at"):
        val = (request.args.get(key) or "").strip()
@@ -128,6 +130,7 @@ def browse_data():
 
     filters = {}
     for key in ("city", "district", "business_status", "industry", "company_type",
+               "enterprise_scale", "tag",
                "year_from", "year_to", "cap_from", "cap_to",
                "insured_from", "insured_to", "created_at"):
        val = (request.args.get(key) or "").strip()
@@ -455,6 +458,11 @@ def search():
         from utils import normalize_credit_code
         norm_q = normalize_credit_code(q)
         total, rows = search_by_credit_code(g.db, norm_q, PER_PAGE, offset)
+        pages, _ = paginate(total, page, PER_PAGE)
+
+    elif query_type == "org_code":
+        stripped = q.replace(" ", "").replace("-", "").replace("+", "")
+        total, rows = search_by_org_code(g.db, stripped, PER_PAGE, offset)
         pages, _ = paginate(total, page, PER_PAGE)
 
     else:

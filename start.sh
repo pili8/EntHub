@@ -11,6 +11,8 @@ cd "$DIR"
 BG_MODE=false
 if [ "$1" = "--bg" ] || [ "${ENTHUB_BG:-0}" = "1" ]; then
     BG_MODE=true
+    # 导出给 app.py 读取：后台模式关闭 reloader，避免双进程
+    export ENTHUB_BG=1
 fi
 
 # 读取 config.json 中的 auto_open_web（默认 false）
@@ -64,10 +66,23 @@ PORT=5210
 PIDS=$(lsof -ti :$PORT -sTCP:LISTEN 2>/dev/null)
 if [ -n "$PIDS" ]; then
     if [ "$BG_MODE" = true ]; then
-        # 后台模式：检查是否已经有 EntHub 在跑；如果是，直接打开浏览器即可
+        # 后台模式：检查是否已经有 EntHub 在跑
         PROCESS_INFO=$(ps -p $PIDS -o command= 2>/dev/null | head -1)
         if echo "$PROCESS_INFO" | grep -q "app.py"; then
-            # 已经在跑：根据配置决定是否打开浏览器
+            # Flask 已经在跑：启动 menubar（若尚未运行）+ 打开浏览器
+            MENUBAR_PID_FILE="$HOME/Library/Application Support/EntHub/enthub-menubar.pid"
+            MENUBAR_RUNNING=false
+            if [ -f "$MENUBAR_PID_FILE" ]; then
+                OLD_MB_PID=$(cat "$MENUBAR_PID_FILE" 2>/dev/null)
+                if [ -n "$OLD_MB_PID" ] && kill -0 "$OLD_MB_PID" 2>/dev/null; then
+                    MENUBAR_RUNNING=true
+                fi
+            fi
+            if [ "$MENUBAR_RUNNING" = false ] && [ "$(uname -s)" = "Darwin" ] && [ -f "$DIR/menubar.py" ]; then
+                nohup "$VENV_PY" "$DIR/menubar.py" >> "$HOME/Library/Logs/EntHub.log" 2>&1 &
+                echo "$!" > "$MENUBAR_PID_FILE"
+                echo "$(date '+%Y-%m-%d %H:%M:%S') menubar launched (pid=$!)" >> "$HOME/Library/Logs/EntHub.log"
+            fi
             if should_auto_open; then
                 open "http://127.0.0.1:$PORT" 2>/dev/null
             fi

@@ -21,7 +21,7 @@ DEFAULT_PER_PAGE = 25
 ALLOWED_SORTS = {
 "id": "id",
 "name": "normalized_name",
-"province": "province",
+"district": "district",
 "city": "city",
 "established_date": "established_date",
 "business_status": "business_status",
@@ -43,10 +43,11 @@ TEXT_SEARCH_FIELDS = [
     ("shareholders",    "股东",  5),
     ("email",           "邮箱",  6),  # 特殊：查 company_emails 表
     ("website",         "网站",  7),
+    ("wechat",          "微信",  8),  # 特殊：查 phone_wechat → company_phones
 ]
 
 # 精确筛选字段
-EXACT_FILTERS = ("city", "district", "business_status", "industry", "company_type")
+EXACT_FILTERS = ("city", "district", "business_status", "industry", "company_type", "enterprise_scale")
 
 # 列表查询的标准字段（含电话/邮箱聚合子查询）
 COMPANY_LIST_PHONE_SUBQUERY = (
@@ -67,7 +68,7 @@ COMPANY_LIST_COLUMNS = f"""
     c.id, c.name, c.address, c.credit_code,
     c.legal_person, c.business_status, c.province, c.city,
     c.district, c.established_date, c.registered_capital,
-    c.industry, c.enterprise_scale, c.created_at,
+    c.industry, c.enterprise_scale, c.created_at, c.note,
     {COMPANY_LIST_PHONE_SUBQUERY},
     {COMPANY_LIST_EMAIL_SUBQUERY}
 """
@@ -76,10 +77,11 @@ COMPANY_LIST_COLUMNS = f"""
 # ── 查询类型识别 ────────────────────────────────────────────────────────────
 
 def detect_query_type(q):
-    """自动识别查询类型：'phone' / 'credit_code' / 'text'。
+    """自动识别查询类型：'phone' / 'credit_code' / 'org_code' / 'text'。
 
     - 纯数字（允许 + - 空格）→ phone
     - 18 位字母数字 → credit_code
+    - 9 位字母数字（非纯数字）→ org_code
     - 其他 → text
     """
     stripped = q.replace(" ", "").replace("-", "").replace("+", "")
@@ -88,6 +90,9 @@ def detect_query_type(q):
     norm_cc = normalize_credit_code(q)
     if len(norm_cc) == 18 and norm_cc.isalnum():
         return "credit_code"
+    # 组织机构代码：9 位字母数字（非纯数字，纯数字已被 phone 捕获）
+    if len(stripped) == 9 and stripped.isalnum():
+        return "org_code"
     return "text"
 
 
@@ -110,7 +115,9 @@ def build_filter_clause(args):
     """从请求参数构造筛选 WHERE 子句。
 
     支持的参数：
-        city, district, business_status, industry  - 精确匹配
+        city, district, business_status, industry,
+        company_type, enterprise_scale             - 精确匹配
+        tag                                        - 标签名（子查询）
         year_from, year_to                         - 成立年份区间
         cap_from, cap_to                           - 注册资本区间（万元）
         insured_from, insured_to                   - 社保人数区间
@@ -126,6 +133,15 @@ def build_filter_clause(args):
         if val:
             clauses.append(f"{f} = ?")
             params.append(val)
+
+    # 标签筛选（子查询：企业标签名精确匹配）
+    tag_val = (args.get("tag") or "").strip()
+    if tag_val:
+        clauses.append(
+            "id IN (SELECT ct.company_id FROM company_tags ct "
+            "JOIN tags t ON ct.tag_id = t.id WHERE t.name = ?)"
+        )
+        params.append(tag_val)
 
     # 成立年份区间
     year_from = (args.get("year_from") or "").strip()
@@ -263,6 +279,17 @@ def get_filter_options(db, limit=50):
             ORDER BY {f} LIMIT ?
         """, [limit]).fetchall()
         options[f] = [r[f] for r in rows]
+
+    # 标签选项（从 tags 表查，带使用计数排序）
+    tag_rows = db.execute("""
+        SELECT t.name, COUNT(ct.company_id) AS cnt
+        FROM tags t
+        LEFT JOIN company_tags ct ON ct.tag_id = t.id
+        GROUP BY t.id
+        ORDER BY cnt DESC, t.name
+        LIMIT ?
+    """, [limit]).fetchall()
+    options['tag'] = [r['name'] for r in tag_rows]
 
     _cache_set("filter_options", options)
     return options
@@ -449,9 +476,11 @@ def email_stats_grouped(db, page, per_page, min_count):
 # ── 文本搜索（多字段带优先级） ──────────────────────────────────────────────
 
 def text_search(db, q, per_page, offset):
-    """7 字段文本搜索，按命中字段优先级排序。
+    """8 字段文本搜索，按命中字段优先级排序。
 
     返回 (total, rows)，rows 中含 matched_field 字段。
+
+    搜索字段（按优先级）：名称/曾用名/地址/法人/股东/邮箱/网站/微信昵称+备注
 
     优化策略：
     - 3字以上查询：走 FTS5 全文索引（~0.002s）
@@ -492,6 +521,11 @@ def _text_search_fts(db, q, like_q, like_name, per_page, offset):
                    WHEN c.shareholders LIKE ? THEN '股东'
                    WHEN c.website LIKE ? THEN '网站'
                    WHEN EXISTS (SELECT 1 FROM company_emails WHERE company_id = c.id AND email LIKE ?) THEN '邮箱'
+                   WHEN EXISTS (SELECT 1 FROM phone_wechat pw
+                                JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone
+                                WHERE cp.company_id = c.id
+                                AND (pw.wechat_name LIKE ? OR pw.note LIKE ?)) THEN '微信'
+                   WHEN c.note LIKE ? THEN '备注'
                END AS matched_field
         FROM companies_fts f
         JOIN companies c ON c.id = f.rowid
@@ -504,14 +538,17 @@ def _text_search_fts(db, q, like_q, like_name, per_page, offset):
                 WHEN c.legal_person LIKE ? THEN 4
                 WHEN c.shareholders LIKE ? THEN 5
                 WHEN c.website LIKE ? THEN 6
-                ELSE 7
+                WHEN EXISTS (SELECT 1 FROM company_emails WHERE company_id = c.id AND email LIKE ?) THEN 7
+                ELSE 8
             END,
             c.name
         LIMIT ? OFFSET ?
     """, [
-        like_name, like_q, like_q, like_q, like_q, like_q, like_q,  # CASE matched_field
+        like_name, like_q, like_q, like_q, like_q, like_q, like_q,  # CASE matched_field (7)
+        like_q, like_q,  # 微信 EXISTS (2)
+        like_q,  # 备注 LIKE (1)
         q,  # WHERE MATCH
-        like_name, like_q, like_q, like_q, like_q, like_q,  # ORDER BY priority
+        like_name, like_q, like_q, like_q, like_q, like_q, like_q,  # ORDER BY priority (7)
         per_page, offset,
     ]).fetchall()
 
@@ -523,14 +560,18 @@ def _text_search_like(db, q, like_q, like_name, per_page, offset):
 
     首页（offset=0）用渐进式（快），翻页用 CASE 单次扫描（正确）。
     """
-    # COUNT: OR 单次扫描
+    # COUNT: OR 单次扫描（含微信子查询）
     total = db.execute(
         "SELECT COUNT(*) FROM companies WHERE "
         " normalized_name LIKE ? OR former_name LIKE ?"
         " OR address LIKE ? OR legal_person LIKE ?"
         " OR shareholders LIKE ? OR website LIKE ?"
-        " OR id IN (SELECT company_id FROM company_emails WHERE email LIKE ?)",
-        [like_name] + [like_q] * 6,
+        " OR id IN (SELECT company_id FROM company_emails WHERE email LIKE ?)"
+        " OR id IN (SELECT DISTINCT cp.company_id FROM phone_wechat pw"
+        "           JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone"
+        "           WHERE pw.wechat_name LIKE ? OR pw.note LIKE ?)"
+        " OR note LIKE ?",
+        [like_name] + [like_q] * 9,
     ).fetchone()[0]
 
     if total == 0:
@@ -561,6 +602,14 @@ def _like_progressive(db, like_q, like_name, per_page):
                    f"WHERE ce.email LIKE ? "
                    f"ORDER BY c.name LIMIT ?")
             params = [like_param, needed]
+        elif field == "wechat":
+            sql = (f"SELECT {{}}, '{label}' AS matched_field "
+                   f"FROM companies c WHERE c.id IN ("
+                   f"  SELECT DISTINCT cp.company_id FROM phone_wechat pw "
+                   f"  JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone "
+                   f"  WHERE pw.wechat_name LIKE ? OR pw.note LIKE ?"
+                   f") ORDER BY c.name LIMIT ?")
+            params = [like_param, like_param, needed]
         else:
             sql = (f"SELECT {{}}, '{label}' AS matched_field "
                    f"FROM companies c WHERE c.{field} LIKE ? "
@@ -591,13 +640,23 @@ def _like_case_query(db, like_q, like_name, per_page, offset):
                    WHEN c.legal_person LIKE ? THEN '法人'
                    WHEN c.shareholders LIKE ? THEN '股东'
                    WHEN c.website LIKE ? THEN '网站'
-                   ELSE '邮箱'
+                   WHEN EXISTS (SELECT 1 FROM company_emails WHERE company_id = c.id AND email LIKE ?) THEN '邮箱'
+                   WHEN EXISTS (SELECT 1 FROM phone_wechat pw
+                               JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone
+                               WHERE cp.company_id = c.id
+                               AND (pw.wechat_name LIKE ? OR pw.note LIKE ?)) THEN '微信'
+                   WHEN c.note LIKE ? THEN '备注'
+                   ELSE '其他'
                END AS matched_field
         FROM companies c
         WHERE c.normalized_name LIKE ? OR c.former_name LIKE ?
            OR c.address LIKE ? OR c.legal_person LIKE ?
            OR c.shareholders LIKE ? OR c.website LIKE ?
            OR c.id IN (SELECT company_id FROM company_emails WHERE email LIKE ?)
+           OR c.id IN (SELECT DISTINCT cp.company_id FROM phone_wechat pw
+                       JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone
+                       WHERE pw.wechat_name LIKE ? OR pw.note LIKE ?)
+           OR c.note LIKE ?
         ORDER BY
             CASE
                 WHEN c.normalized_name LIKE ? THEN 1
@@ -606,14 +665,27 @@ def _like_case_query(db, like_q, like_name, per_page, offset):
                 WHEN c.legal_person LIKE ? THEN 4
                 WHEN c.shareholders LIKE ? THEN 5
                 WHEN c.website LIKE ? THEN 6
-                ELSE 7
+                WHEN EXISTS (SELECT 1 FROM company_emails WHERE company_id = c.id AND email LIKE ?) THEN 7
+                WHEN EXISTS (SELECT 1 FROM phone_wechat pw
+                            JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone
+                            WHERE cp.company_id = c.id
+                            AND (pw.wechat_name LIKE ? OR pw.note LIKE ?)) THEN 8
+                ELSE 9
             END,
             c.name
         LIMIT ? OFFSET ?
     """, [
-        like_name, like_q, like_q, like_q, like_q, like_q,  # CASE matched_field
-        like_name, like_q, like_q, like_q, like_q, like_q, like_q,  # WHERE
-        like_name, like_q, like_q, like_q, like_q, like_q,  # ORDER BY priority
+        like_name, like_q, like_q, like_q, like_q, like_q,  # CASE matched_field (6)
+        like_q,  # 邮箱 EXISTS (1)
+        like_q, like_q,  # 微信 EXISTS (2)
+        like_q,  # 备注 LIKE (1)
+        like_name, like_q, like_q, like_q, like_q, like_q,  # WHERE (6)
+        like_q,  # 邮箱 WHERE (1)
+        like_q, like_q,  # 微信 WHERE (2)
+        like_q,  # 备注 WHERE (1)
+        like_name, like_q, like_q, like_q, like_q, like_q,  # ORDER BY priority (6)
+        like_q,  # 邮箱 ORDER BY (1)
+        like_q, like_q,  # 微信 ORDER BY (2)
         per_page, offset,
     ]).fetchall()
     return rows
@@ -652,6 +724,25 @@ def search_by_credit_code(db, norm_code, per_page, offset,
         WHERE c.credit_code = ?
         LIMIT ? OFFSET ?
     """, [matched_label, norm_code, per_page, offset]).fetchall()
+    return total, rows
+
+
+# ── 组织机构代码精确搜索 ──────────────────────────────────────────────────────
+
+def search_by_org_code(db, code, per_page, offset,
+                       matched_label="组织代码"):
+    """按组织机构代码精确搜索。"""
+    total = db.execute(
+        "SELECT COUNT(*) FROM companies WHERE org_code = ?",
+        [code]
+    ).fetchone()[0]
+    rows = db.execute(f"""
+        SELECT {COMPANY_LIST_COLUMNS},
+               ? AS matched_field
+        FROM companies c
+        WHERE c.org_code = ?
+        LIMIT ? OFFSET ?
+    """, [matched_label, code, per_page, offset]).fetchall()
     return total, rows
 
 

@@ -43,7 +43,14 @@ def _open(path: str) -> None:
 
 
 def _install_launch_agent() -> None:
-    """创建 LaunchAgent plist，实现开机自启动"""
+    """创建 LaunchAgent plist，实现开机自启动
+
+    关键：通过 `open .app` 启动，而非直接跑 start.sh。
+    LaunchAgent 直接跑 shell 脚本时，子进程缺少 Aqua/WindowServer 上下文，
+    rumps 状态栏图标不显示。改用 `open EntHub.app` 后，LaunchServices 负责
+    启动 .app bundle，menubar 进程获得完整 GUI 上下文。
+    """
+    app_bundle = PROJECT_DIR / 'EntHub.app'
     plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -52,9 +59,8 @@ def _install_launch_agent() -> None:
     <string>com.enthub.startup</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>{PROJECT_DIR / 'start.sh'}</string>
-        <string>--bg</string>
+        <string>/usr/bin/open</string>
+        <string>{app_bundle}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -63,6 +69,11 @@ def _install_launch_agent() -> None:
 """
     LAUNCHD_PLIST.parent.mkdir(parents=True, exist_ok=True)
     LAUNCHD_PLIST.write_text(plist_content, encoding="utf-8")
+    # 立即加载当前会话（否则要等下次登录才生效）
+    subprocess.run(
+        ["launchctl", "load", str(LAUNCHD_PLIST)],
+        capture_output=True,
+    )
 
 
 def _uninstall_launch_agent() -> None:

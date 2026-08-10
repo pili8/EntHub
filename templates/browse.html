@@ -56,6 +56,20 @@
         <option value="{{ ct }}" {{ 'selected' if filters.company_type == ct }}>{{ ct }}</option>
       {% endfor %}
     </select>
+
+    <select name="enterprise_scale" class="form-select">
+      <option value="">企业规模</option>
+      {% for es in filter_options.enterprise_scale %}
+        <option value="{{ es }}" {{ 'selected' if filters.enterprise_scale == es }}>{{ es }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="tag" class="form-select">
+      <option value="">标签</option>
+      {% for t in filter_options.tag %}
+        <option value="{{ t }}" {{ 'selected' if filters.tag == t }}>{{ t }}</option>
+      {% endfor %}
+    </select>
   </div>
 
   {# 第二行：区间型筛选 #}
@@ -241,6 +255,18 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* 备注指示点（浏览页） */
+.browse-note-dot {
+display: inline-block;
+width: 6px;
+height: 6px;
+border-radius: 50%;
+background: #f59e0b;
+margin-right: 6px;
+vertical-align: middle;
+cursor: help;
+}
 </style>
 
 <script>
@@ -268,6 +294,7 @@
 const FILTER_LABELS = {
   city: '城市', district: '区县', business_status: '经营状态',
   industry: '行业', company_type: '公司类型',
+  enterprise_scale: '企业规模', tag: '标签',
   year_from: '成立年份', cap_from: '注册资本', insured_from: '社保人数',
   created_at: '录入时间'
 };
@@ -334,6 +361,7 @@ function updateActiveChips(params) {
   container.innerHTML = '';
 
   const chipKeys = ['city', 'district', 'business_status', 'industry', 'company_type',
+                    'enterprise_scale', 'tag',
                     'year_from', 'cap_from', 'insured_from', 'created_at'];
   let chipCount = 0;
 
@@ -414,6 +442,7 @@ function saveFiltersToStorage() {
   const search = window.location.search;
   const params = new URLSearchParams(search);
  const hasFilter = ['city','district','business_status','industry','company_type',
+                    'enterprise_scale','tag',
                     'year_from','year_to','cap_from','cap_to',
                      'insured_from','insured_to','created_at','sort','dir','per_page']
     .some(k => params.has(k));
@@ -509,12 +538,13 @@ function renderRow(r, isNew) {
   const cityDistrict = escapeHtml(r.city || '-') +
     (r.district && r.district !== '-' ? ' ' + escapeHtml(r.district) : '');
   const newClass = isNew ? ' row-new' : '';
+  const noteBadge = r.note ? `<span class="browse-note-dot" title="${escapeAttr(r.note)}" onclick="event.stopPropagation();event.preventDefault()"></span>` : '';
   return `
     <tr data-href="/company/${r.id}" class="browse-row${newClass}" onclick="handleBrowseRowClick(event, this)">
       <td onclick="event.stopPropagation()">
         <input type="checkbox" class="row-select" value="${r.id}" onchange="updateToolbar()">
       </td>
-      <td title="${escapeAttr(r.name)}">${escapeHtml(r.name)}</td>
+      <td title="${escapeAttr(r.name)}">${noteBadge}${escapeHtml(r.name)}</td>
       <td title="${escapeAttr(r.phone || '')}">${escapeHtml(r.phone || '-')}</td>
       <td title="${escapeAttr(r.legal_person || '')}">${escapeHtml(r.legal_person || '-')}</td>
       <td title="${escapeAttr((r.city || '') + ' ' + (r.district || ''))}">${cityDistrict}</td>
@@ -746,7 +776,8 @@ window.addEventListener('popstate', () => {
 function syncFormFromParams(params) {
   const form = document.getElementById('filter-form');
   if (!form) return;
-  ['city', 'district', 'business_status', 'industry', 'company_type'].forEach(name => {
+  ['city', 'district', 'business_status', 'industry', 'company_type',
+   'enterprise_scale', 'tag'].forEach(name => {
     const sel = form.querySelector(`[name="${name}"]`);
     if (sel) sel.value = params.get(name) || '';
   });
@@ -811,6 +842,7 @@ function exportCompanies() {
   const selected = getSelectedIds();
   const params = new URLSearchParams(window.location.search);
   const filterParts = ['city','district','business_status','industry','company_type',
+    'enterprise_scale','tag',
     'year_from','year_to','cap_from','cap_to','insured_from','insured_to','created_at']
     .filter(k => params.get(k))
     .map(k => `${k}=${encodeURIComponent(params.get(k))}`)

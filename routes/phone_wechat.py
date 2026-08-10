@@ -33,12 +33,16 @@ def set_phone_wechat(normalized):
     wechat_id = (data.get("wechat_id") or "").strip()
     note = (data.get("note") or "").strip()
 
-    if not wechat_name:
-        return jsonify({"code": 1001, "message": "微信昵称不能为空", "data": None}), 400
+    # 允许只保存备注（不填微信昵称）
+    # 如果全部为空则删除记录
+    if not wechat_name and not wechat_id and not note:
+        g.db.execute("DELETE FROM phone_wechat WHERE normalized_phone = ?", (normalized,))
+        g.db.commit()
+        return jsonify({"code": 0, "message": "已清除", "data": None})
 
     try:
         g.db.execute(
-            """INSERT OR REPLACE INTO phone_wechat 
+            """INSERT OR REPLACE INTO phone_wechat
                (normalized_phone, wechat_name, wechat_id, note, updated_at)
                VALUES (?, ?, ?, ?, datetime('now', 'localtime'))""",
             (normalized, wechat_name, wechat_id or None, note or None)

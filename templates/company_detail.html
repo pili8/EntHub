@@ -10,7 +10,7 @@
       <a href="{{ request.referrer or url_for('pages_bp.index') }}" class="page-btn">
         <i data-lucide="arrow-left" aria-hidden="true"></i>返回
       </a>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 8px; margin-left: auto;">
         <a href="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" class="page-btn page-btn-primary">
           <i data-lucide="pencil" aria-hidden="true"></i>编辑
         </a>
@@ -27,18 +27,25 @@
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ company.name }}', this)" title="复制公司名">
               <i data-lucide="copy" aria-hidden="true"></i>
           </button>
+          {% if company.business_status %}
+          <span class="badge badge-soft {{ 'badge-success' if company.business_status == '存续' else 'badge-warn' }}" style="font-size: 12px; vertical-align: middle; margin-left: 4px;">{{ company.business_status }}</span>
+          {% endif %}
       </h1>
     </div>
     {% if company.former_name and company.former_name != '-' %}
       <p class="detail-former">曾用名 · {{ company.former_name }}</p>
     {% endif %}
     
-    <!-- 标签 + 经营状态 -->
+    <!-- 标签 + 备注 -->
     <div id="companyTags" style="margin-top: 12px;">
       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-        {% if company.business_status %}
-        <span class="badge badge-soft {{ 'badge-success' if company.business_status == '存续' else 'badge-warn' }}" style="font-size: 12px;">{{ company.business_status }}</span>
-        {% endif %}
+        <!-- 企业备注图标（hover 显示内容，点击编辑） -->
+        <span id="companyNoteWrap">
+          <button type="button" id="companyNoteBtn" class="phone-wechat-btn company-note-btn has-note{% if not company.note %} empty-note{% endif %}" onclick="editCompanyNote()">
+            <i data-lucide="bookmark" style="width: 12px; height: 12px;"></i>
+            <span class="wechat-tip">{% if company.note %}{{ company.note }}{% else %}添加企业备注{% endif %}</span>
+          </button>
+        </span>
         <span style="font-size: 12px; color: var(--text-muted);">标签：</span>
         <div id="tagsList" style="display: flex; gap: 6px; flex-wrap: wrap;">
           <!-- 标签将通过JS动态加载 -->
@@ -246,6 +253,13 @@
           <span class="phone-location" title="归属地">{{ cp.location.province }}{% if cp.location.city and cp.location.city != cp.location.province %} {{ cp.location.city }}{% endif %}</span>
           {% endif %}
           {% if cp.phone_type in ['mobile', 'mobile_ext'] %}
+            {% set wc_has_note = cp.wechat and cp.wechat.note and cp.wechat.note.strip() %}
+            {% if wc_has_note %}
+            <button type="button" class="phone-wechat-btn has-note" onclick="openPhoneWechatSelector('{{ cp.normalized_phone }}')" title="备注：{{ cp.wechat.note }}">
+              <i data-lucide="bookmark" style="width: 12px; height: 12px;"></i>
+              <span class="wechat-tip">{{ cp.wechat.note }}</span>
+            </button>
+            {% endif %}
             {% if cp.wechat and cp.wechat.wechat_name != '无微信' %}
             {% set wc_name = cp.wechat.wechat_name %}
             {% set wc_class = 'wechat-female' if '[女]' in wc_name or '女' in wc_name else ('wechat-male' if '[男]' in wc_name or '男' in wc_name else 'has-wechat') %}
@@ -1281,41 +1295,43 @@ async function openPhoneWechatSelector(normalizedPhone) {
     const result = await resp.json();
     const wechat = result.data && result.data.wechat;
     const name = wechat ? wechat.wechat_name : '';
+    const note = wechat && wechat.note ? wechat.note : '';
 
     let content = `
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <div style="display: flex; gap: 8px; align-items: center;">
-                <div style="position: relative; flex: 1;">
-                    <input type="text" id="wechatName" class="form-input" value="${name}" placeholder="填写微信昵称或微信号" style="width: 100%; padding-right: 68px;">
-                    <button type="button" onclick="pasteToWechat()" style="position: absolute; right: 34px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="从剪贴板粘贴">
-                        <i data-lucide="clipboard" style="width: 15px; height: 15px;"></i>
-                    </button>
-                    <button type="button" onclick="clearWechatInput()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="清空输入框">
-                        <i data-lucide="x" style="width: 15px; height: 15px;"></i>
-                    </button>
-                </div>
-                <button onclick="savePhoneWechat('${normalizedPhone}')" class="btn btn-primary" style="flex-shrink: 0; min-width: 80px;">保存</button>
+                <input type="text" id="wechatNote" class="form-input" value="${note}" placeholder="备注" style="flex: 1; font-size: 13px; color: var(--text-secondary);">
+                <button onclick="savePhoneWechat('${normalizedPhone}')" class="btn btn-primary" style="flex-shrink: 0; min-width: 80px; font-size: 13px; padding: 6px 14px; font-weight: 600;">
+                    <i data-lucide="check" style="width: 14px; height: 14px; margin-right: 3px; vertical-align: middle;"></i>保存
+                </button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <button onclick="setWechatGender('男','${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px; color: #3b82f6; border-color: #3b82f630; background: #3b82f610;">＋ 男</button>
-                <button onclick="setWechatGender('女','${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px; color: #ec4899; border-color: #ec489930; background: #ec489910;">＋ 女</button>
-                <div style="flex: 1;"></div>
-                <button onclick="markNoWechat('${normalizedPhone}')" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;">
-                    <i data-lucide="ban" style="width: 12px; height: 12px; margin-right: 4px;"></i>无微信
-                </button>
+                <div style="position: relative; flex: 1;">
+                    <input type="text" id="wechatName" class="form-input" value="${name}" placeholder="微信昵称" style="width: 100%; padding-right: 60px; font-size: 13px; color: var(--text-secondary);">
+                    <button type="button" onclick="pasteToWechat()" style="position: absolute; right: 30px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="从剪贴板粘贴">
+                        <i data-lucide="clipboard" style="width: 14px; height: 14px;"></i>
+                    </button>
+                    <button type="button" onclick="clearWechatInput()" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="清空">
+                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </div>
+                <button onclick="setWechatGender('男','${normalizedPhone}')" style="font-size: 12px; padding: 5px 10px; color: #3b82f6; border: 1px solid #3b82f630; background: #3b82f610; border-radius: 4px; cursor: pointer; white-space: nowrap;">＋ 男</button>
+                <button onclick="setWechatGender('女','${normalizedPhone}')" style="font-size: 12px; padding: 5px 10px; color: #ec4899; border: 1px solid #ec489930; background: #ec489910; border-radius: 4px; cursor: pointer; white-space: nowrap;">＋ 女</button>
+                <button onclick="markNoWechat('${normalizedPhone}')" style="font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); background: transparent; border-radius: 4px; cursor: pointer; white-space: nowrap; color: var(--text-muted);">无微信</button>
             </div>
         </div>
     `;
 
-    showModal('微信信息', content, [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
+    showModal('备注', content, [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
     if (window.lucide) lucide.createIcons();
-    setTimeout(() => { document.getElementById('wechatName')?.focus(); }, 100);
+    setTimeout(() => { document.getElementById('wechatNote')?.focus(); }, 100);
 }
 
 async function savePhoneWechat(normalizedPhone) {
     const name = document.getElementById('wechatName').value.trim();
-    if (!name) { await clearPhoneWechat(normalizedPhone); return; }
-    await _doSaveWechat(normalizedPhone, name);
+    const noteEl = document.getElementById('wechatNote');
+    const note = noteEl ? noteEl.value.trim() : '';
+    await _doSaveWechat(normalizedPhone, name, note);
 }
 
 function setWechatGender(gender, normalizedPhone) {
@@ -1347,14 +1363,19 @@ function clearWechatInput() {
 }
 
 async function markNoWechat(normalizedPhone) {
-    await _doSaveWechat(normalizedPhone, '无微信');
+    const noteEl = document.getElementById('wechatNote');
+    const note = noteEl ? noteEl.value.trim() : '';
+    await _doSaveWechat(normalizedPhone, '无微信', note);
 }
 
-async function _doSaveWechat(normalizedPhone, name) {
+async function _doSaveWechat(normalizedPhone, name, note) {
+    const body = {};
+    if (name) body.wechat_name = name;
+    if (note) body.note = note;
     const resp = await fetch(`/api/phone/${normalizedPhone}/wechat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wechat_name: name })
+        body: JSON.stringify(body)
     });
     const result = await resp.json();
     if (result.code === 0) {
@@ -1387,27 +1408,38 @@ async function refreshPhoneWechat(normalizedPhone) {
     const row = document.querySelector(`.phone-row[data-norm="${normalizedPhone}"]`);
     if (!row) return;
 
-    let wechatHtml = '';
-    if (wechat && wechat.wechat_name !== '无微信') {
-        // 颜色规则：含[女]→粉，含[男]→蓝，都不含→绿
+    // 查找手机号区域内的所有按钮（备注 + 微信），重建
+    const phoneTypeArea = row;
+    // 移除旧的备注按钮和微信按钮
+    phoneTypeArea.querySelectorAll('.phone-wechat-btn').forEach(b => b.remove());
+
+    // 确定插入位置：在归属地之后，或电话号码之后
+    const insertAfter = row.querySelector('.phone-location') || row.querySelector('a[href^="tel:"]') || row.querySelector('.phone-number');
+    if (!insertAfter) return;
+
+    let html = '';
+    // 备注（有内容时显示）
+    const wcNote = wechat && wechat.note && wechat.note.trim();
+    if (wcNote) {
+        html += `<button type="button" class="phone-wechat-btn has-note" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="备注：${wcNote.replace(/"/g, '&quot;')}"><i data-lucide="bookmark" style="width: 12px; height: 12px;"></i><span class="wechat-tip">${wcNote}</span></button>`;
+    }
+    // 微信
+    if (wechat && wechat.wechat_name && wechat.wechat_name !== '无微信') {
         const wc = wechat.wechat_name;
         let wcClass = 'has-wechat';
         if (wc.includes('[女]') || wc.includes('女')) wcClass = 'wechat-female';
         else if (wc.includes('[男]') || wc.includes('男')) wcClass = 'wechat-male';
-        wechatHtml = `<button type="button" class="phone-wechat-btn ${wcClass}" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">${wc}</span></button>`;
+        html += `<button type="button" class="phone-wechat-btn ${wcClass}" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">${wc}</span></button>`;
     } else if (wechat && wechat.wechat_name === '无微信') {
-        wechatHtml = `<button type="button" class="phone-wechat-btn no-wechat" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">无微信</span></button>`;
-    } else {
-        wechatHtml = `<button type="button" class="phone-wechat-btn" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="添加微信"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i></button>`;
+        html += `<button type="button" class="phone-wechat-btn no-wechat" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">无微信</span></button>`;
+    } else if (!wechat || !wechat.wechat_name) {
+        // 有备注但无微信名时，不显示空的微信按钮
+        if (!wcNote) {
+            html += `<button type="button" class="phone-wechat-btn" onclick="openPhoneWechatSelector('${normalizedPhone}')" title="添加微信"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i></button>`;
+        }
     }
 
-    const existingWechat = row.querySelector('.phone-wechat-btn');
-    if (existingWechat) {
-        existingWechat.outerHTML = wechatHtml;
-    } else {
-        const location = row.querySelector('.phone-location');
-        if (location) location.insertAdjacentHTML('afterend', wechatHtml);
-    }
+    insertAfter.insertAdjacentHTML('afterend', html);
     if (window.lucide) lucide.createIcons();
 }
 
@@ -1429,6 +1461,67 @@ function toggleSourceFiles(el) {
     collapse.style.display = isHidden ? 'block' : 'none';
     if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
 }
+// ── 企业备注编辑（弹窗） ──
+function editCompanyNote() {
+    const wrap = document.getElementById('companyNoteWrap');
+    if (!wrap) return;
+    const companyId = {{ company.id }};
+    const btn = document.getElementById('companyNoteBtn');
+    const tipEl = btn ? btn.querySelector('.wechat-tip') : null;
+    const currentNote = tipEl ? (tipEl.textContent.trim() === '添加企业备注' ? '' : tipEl.textContent.trim()) : '';
+
+    const content = `
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="companyNoteInput" class="form-input" value="${currentNote}" placeholder="企业备注" style="flex: 1; font-size: 13px; color: var(--text-secondary);">
+                <button onclick="_saveCompanyNote(${companyId})" class="btn btn-primary" style="flex-shrink: 0; min-width: 80px; font-size: 13px; padding: 6px 14px; font-weight: 600;">
+                    <i data-lucide="check" style="width: 14px; height: 14px; margin-right: 3px; vertical-align: middle;"></i>保存
+                </button>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); padding-left: 2px;">当前：${currentNote || '（空）'}</div>
+        </div>
+    `;
+
+    showModal('企业备注', content, [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => { document.getElementById('companyNoteInput')?.focus(); document.getElementById('companyNoteInput')?.select(); }, 100);
+}
+
+async function _saveCompanyNote(companyId) {
+    const input = document.getElementById('companyNoteInput');
+    if (!input) return;
+    const note = input.value.trim();
+    try {
+        const resp = await fetch(`/company/${companyId}/note`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note })
+        });
+        const result = await resp.json();
+        if (result.code === 0) {
+            closeModal();
+            _renderNoteBtn(note);
+            window._enthubToast('success', '已保存', '');
+        } else {
+            window._enthubToast('error', '保存失败', result.message || '');
+        }
+    } catch(e) {
+        window._enthubToast('error', '保存失败', e.message);
+    }
+}
+
+function _renderNoteBtn(note) {
+    const wrap = document.getElementById('companyNoteWrap');
+    if (!wrap) return;
+    wrap.innerHTML = `<button type="button" id="companyNoteBtn" class="phone-wechat-btn company-note-btn has-note${note ? '' : ' empty-note'}" onclick="editCompanyNote()">
+        <i data-lucide="bookmark" style="width: 12px; height: 12px;"></i>
+        <span class="wechat-tip">${note || '添加企业备注'}</span>
+    </button>`;
+    if (window.lucide) lucide.createIcons();
+}
+window.editCompanyNote = editCompanyNote;
+window._saveCompanyNote = _saveCompanyNote;
+
 window.toggleSourceFiles = toggleSourceFiles;
 
 // ── 发送到多维表弹窗 ──

@@ -29,9 +29,9 @@ IMPORT_FIELDS = [
     "established_date", "approved_date", "business_term",
     "province", "city", "district", "insured_count",
     "company_type", "industry", "former_name", "website",
-    "email", "business_scope", "business_status",
+    "business_scope", "business_status",
     "enterprise_scale", "shareholders", "mailing_address",
-    "english_name", "source_file",
+    "english_name", "source_file", "note",
 ]
 
 
@@ -213,6 +213,21 @@ def company_detail(company_id):
                            shareholders=shareholders,
                            field_counts=field_counts,
                            webhook_url=get_webhook_url())
+
+
+# ── 备注内联编辑 ──────────────────────────────────────────────────────────────
+
+@bp.route("/company/<int:company_id>/note", methods=["POST"])
+def update_company_note(company_id):
+    """内联更新企业备注。"""
+    row = g.db.execute("SELECT id FROM companies WHERE id = ?", [company_id]).fetchone()
+    if not row:
+        return jsonify({"code": 1002, "message": "企业不存在", "data": None}), 404
+
+    note = (request.json.get("note") or "").strip()
+    g.db.execute("UPDATE companies SET note = ?, updated_at = datetime('now', 'localtime') WHERE id = ?", [note or None, company_id])
+    g.db.commit()
+    return jsonify({"code": 0, "message": "ok", "data": {"note": note}})
 
 
 # ── 编辑 ────────────────────────────────────────────────────────────────────

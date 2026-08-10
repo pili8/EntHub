@@ -256,7 +256,11 @@ _startup_backup_check()
 
 
 if __name__ == "__main__":
+    import os
     init_db()
     # 后台预热模板（首次访问变快）
     threading.Thread(target=_warmup_templates, daemon=True).start()
-    app.run(host="0.0.0.0", port=APP_PORT, debug=True)
+    # 后台模式（--bg / LaunchAgent）关闭 reloader，避免双进程导致 PID 追踪混乱和端口占用
+    # 前台模式保留 debug，方便开发时自动重载
+    is_bg = os.environ.get("ENTHUB_BG", "0") == "1"
+    app.run(host="0.0.0.0", port=APP_PORT, debug=not is_bg, use_reloader=not is_bg)

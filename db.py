@@ -64,9 +64,10 @@ def init_db():
             business_status       TEXT,
             enterprise_scale      TEXT,
             shareholders          TEXT,
-    mailing_address       TEXT,
+            mailing_address       TEXT,
     english_name          TEXT,
     source_file           TEXT,
+    note                  TEXT,
             status                TEXT NOT NULL DEFAULT 'active',
             source                TEXT DEFAULT 'manual',
             created_at            TEXT DEFAULT (datetime('now', 'localtime')),
@@ -203,6 +204,7 @@ def init_db():
     _migrate(conn, "companies", "mailing_address", "TEXT")
     _migrate(conn, "companies", "english_name", "TEXT")
     _migrate(conn, "companies", "source_file", "TEXT")
+    _migrate(conn, "companies", "note", "TEXT")
     # is_recommended 已废弃，不再迁移。旧库中该列若存在不影响查询。
     _migrate(conn, "import_preview", "will_update", "INTEGER DEFAULT 0")
     _migrate(conn, "companies", "normalized_legal_person", "TEXT")
@@ -291,17 +293,39 @@ def init_db():
         )
     """)
 
+    # 检查是否需要重建 FTS 索引（首次添加微信内容时）
+    _need_fts_rebuild = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='wechat_fts_ai'"
+    ).fetchone() is None and conn.execute(
+        "SELECT COUNT(*) FROM companies_fts"
+    ).fetchone()[0] > 0
+
+    # 重建 FTS 触发器：先删除旧的（可能不含微信内容），再创建新的
+    for _t in ("companies_fts_ai", "companies_fts_ad", "companies_fts_au",
+               "emails_fts_ai", "emails_fts_ad", "emails_fts_au"):
+        conn.execute(f"DROP TRIGGER IF EXISTS {_t}")
+
     # 触发器：companies 表变更时同步 FTS
-    _fts_content_expr = (
-        "COALESCE(new.normalized_name, '') || ' ' || "
-        "COALESCE(new.former_name, '') || ' ' || "
-        "COALESCE(new.address, '') || ' ' || "
-        "COALESCE(new.legal_person, '') || ' ' || "
-        "COALESCE(new.shareholders, '') || ' ' || "
-        "COALESCE(new.website, '') || ' ' || "
-        "COALESCE((SELECT group_concat(email, ' ') "
-        "         FROM company_emails WHERE company_id = new.id), '')"
-    )
+    # FTS 内容包含：名称/曾用名/地址/法人/股东/网站/邮箱/微信昵称+备注
+    def _fts_content(ref):
+        """构建 FTS 内容表达式，ref 为 'new'/'old'/'c' 等。"""
+        return (
+            f"COALESCE({ref}.normalized_name, '') || ' ' || "
+            f"COALESCE({ref}.former_name, '') || ' ' || "
+            f"COALESCE({ref}.address, '') || ' ' || "
+            f"COALESCE({ref}.legal_person, '') || ' ' || "
+            f"COALESCE({ref}.shareholders, '') || ' ' || "
+            f"COALESCE({ref}.website, '') || ' ' || "
+            f"COALESCE((SELECT group_concat(email, ' ') "
+            f"         FROM company_emails WHERE company_id = {ref}.id), '') || ' ' || "
+            f"COALESCE((SELECT group_concat(pw.wechat_name || ' ' || COALESCE(pw.note, ''), ' ') "
+            f"         FROM phone_wechat pw "
+            f"         JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone "
+            f"         WHERE cp.company_id = {ref}.id), '') || ' ' || "
+            f"COALESCE({ref}.note, '')"
+        )
+
+    _fts_content_expr = _fts_content('new')
     conn.execute(f"""
         CREATE TRIGGER IF NOT EXISTS companies_fts_ai AFTER INSERT ON companies BEGIN
             INSERT INTO companies_fts(rowid, content) VALUES (new.id, {_fts_content_expr});
@@ -324,14 +348,7 @@ def init_db():
     def _build_email_trigger(action, ref):
         return (
             f"UPDATE companies_fts SET content = ("
-            f"  SELECT COALESCE(c.normalized_name, '') || ' ' || "
-            f"         COALESCE(c.former_name, '') || ' ' || "
-            f"         COALESCE(c.address, '') || ' ' || "
-            f"         COALESCE(c.legal_person, '') || ' ' || "
-            f"         COALESCE(c.shareholders, '') || ' ' || "
-            f"         COALESCE(c.website, '') || ' ' || "
-            f"         COALESCE((SELECT group_concat(email, ' ') "
-            f"                  FROM company_emails WHERE company_id = c.id), '') "
+            f"  SELECT {_fts_content('c')}"
             f"  FROM companies c WHERE c.id = {ref}.company_id"
             f") WHERE rowid = {ref}.company_id"
         )
@@ -351,25 +368,80 @@ def init_db():
         END
     """)
 
+    # 触发器：phone_wechat 变更时重建所有关联企业的 FTS 行
+    # 一个号码可能被多家企业共用，需更新所有含该号码的企业。
+    def _build_wechat_trigger(ref):
+        return (
+            f"UPDATE companies_fts SET content = ("
+            f"  SELECT {_fts_content('c')}"
+            f"  FROM companies c WHERE c.id = companies_fts.rowid"
+            f") WHERE rowid IN ("
+            f"  SELECT DISTINCT company_id FROM company_phones "
+            f"  WHERE normalized_phone = {ref}.normalized_phone"
+            f")"
+        )
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS wechat_fts_ai AFTER INSERT ON phone_wechat BEGIN
+            {_build_wechat_trigger('new')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS wechat_fts_ad AFTER DELETE ON phone_wechat BEGIN
+            {_build_wechat_trigger('old')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS wechat_fts_au AFTER UPDATE ON phone_wechat BEGIN
+            {_build_wechat_trigger('new')};
+        END
+    """)
+
+    # 触发器：company_phones 变更时重建对应企业的 FTS 行（微信内容可能变化）
+    def _build_phone_trigger(ref):
+        return (
+            f"UPDATE companies_fts SET content = ("
+            f"  SELECT {_fts_content('c')}"
+            f"  FROM companies c WHERE c.id = {ref}.company_id"
+            f") WHERE rowid = {ref}.company_id"
+        )
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS phones_fts_ai AFTER INSERT ON company_phones BEGIN
+            {_build_phone_trigger('new')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS phones_fts_ad AFTER DELETE ON company_phones BEGIN
+            {_build_phone_trigger('old')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS phones_fts_au AFTER UPDATE ON company_phones BEGIN
+            {_build_phone_trigger('new')};
+        END
+    """)
+
     # 如果 FTS 表为空但 companies 有数据，执行一次性填充
     fts_count = conn.execute("SELECT COUNT(*) FROM companies_fts").fetchone()[0]
     comp_count = conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
     if fts_count == 0 and comp_count > 0:
         print(f"[FTS5] 首次构建全文索引，共 {comp_count} 条记录…")
-        conn.execute("""
+        conn.execute(f"""
             INSERT INTO companies_fts(rowid, content)
-            SELECT c.id,
-                   COALESCE(c.normalized_name, '') || ' ' ||
-                   COALESCE(c.former_name, '') || ' ' ||
-                   COALESCE(c.address, '') || ' ' ||
-                   COALESCE(c.legal_person, '') || ' ' ||
-                   COALESCE(c.shareholders, '') || ' ' ||
-                   COALESCE(c.website, '') || ' ' ||
-                   COALESCE((SELECT group_concat(email, ' ')
-                             FROM company_emails WHERE company_id = c.id), '')
+            SELECT c.id, {_fts_content('c')}
             FROM companies c
         """)
         print(f"[FTS5] 全文索引构建完成")
+
+    # 升级迁移：FTS 索引存在但内容不含微信 → 重建
+    if _need_fts_rebuild and comp_count > 0:
+        print(f"[FTS5] 重建全文索引（添加微信内容），共 {comp_count} 条记录…")
+        conn.execute("DELETE FROM companies_fts")
+        conn.execute(f"""
+            INSERT INTO companies_fts(rowid, content)
+            SELECT c.id, {_fts_content('c')}
+            FROM companies c
+        """)
+        print(f"[FTS5] 全文索引重建完成")
 
     conn.commit()
     conn.close()
