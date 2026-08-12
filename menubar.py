@@ -15,27 +15,43 @@ from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
 PROJECT_DIR = Path(__file__).parent
 PID_FILE = Path.home() / "Library" / "Application Support" / "EntHub" / "enthub.pid"
 LOG_FILE = Path.home() / "Library" / "Logs" / "EntHub.log"
-CONFIG_FILE = PROJECT_DIR / "config.json"
 LAUNCHD_PLIST = Path.home() / "Library" / "LaunchAgents" / "com.enthub.startup.plist"
 URL = "http://127.0.0.1:5210"
 
 
 def _read_config() -> dict:
-    """读取项目根目录 config.json"""
-    if CONFIG_FILE.exists():
-        try:
-            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
+    """从数据库 settings 表读取配置。"""
+    import sqlite3
+    import bootstrap
+    db_path = bootstrap.get_db_path()
+    if not db_path.exists():
+        return {}
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=5.0)
+        row = conn.execute("SELECT value FROM settings WHERE key = 'config'").fetchone()
+        conn.close()
+        if row:
+            return json.loads(row[0])
+    except Exception:
+        pass
     return {}
 
 
 def _write_config(config: dict) -> None:
-    """写入 config.json"""
-    CONFIG_FILE.write_text(
-        json.dumps(config, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    """写入配置到数据库 settings 表。"""
+    import sqlite3
+    import bootstrap
+    db_path = bootstrap.get_db_path()
+    conn = sqlite3.connect(str(db_path), timeout=30.0)
+    conn.execute(
+        "INSERT INTO settings (key, value, updated_at) "
+        "VALUES (?, ?, datetime('now', 'localtime')) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+        "updated_at = datetime('now', 'localtime')",
+        ["config", json.dumps(config, ensure_ascii=False)],
     )
+    conn.commit()
+    conn.close()
 
 
 def _open(path: str) -> None:

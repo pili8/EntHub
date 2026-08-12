@@ -5,20 +5,12 @@ from pathlib import Path
 from datetime import datetime
 import json
 
-# 默认备份目录
-DEFAULT_BACKUP_DIR = Path.home() / ".enthub" / "backups"
+import bootstrap
 
 
 def get_backup_dir():
-    """获取备份目录，优先从配置文件读取"""
-    config_path = Path(__file__).parent / "config.json"
-    if config_path.exists():
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            backup_dir = config.get("backup_dir")
-            if backup_dir:
-                return Path(backup_dir)
-    return DEFAULT_BACKUP_DIR
+    """获取备份目录，从 bootstrap.json 读取。"""
+    return bootstrap.get_backup_dir()
 
 
 def create_backup(db_path: Path, reason: str = "手动备份") -> dict:

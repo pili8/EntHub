@@ -1,8 +1,14 @@
 """Database layer for EntHub."""
+import json
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "data" / "enthub.db"
+import bootstrap
+
+# 启动时确保 bootstrap.json 存在（首次升级自动迁移旧 DB）
+bootstrap.ensure_bootstrap()
+
+DB_PATH = bootstrap.get_db_path()
 
 # Safety flag to prevent accidental deletion of production database
 _PRODUCTION_DB_PROTECTED = True
@@ -443,8 +449,93 @@ def init_db():
         """)
         print(f"[FTS5] 全文索引重建完成")
 
+    # ── settings 表（key-value 配置存储，替代 config.json）──
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key         TEXT PRIMARY KEY,
+            value       TEXT NOT NULL,
+            updated_at  TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    """)
+
+    # 从旧 config.json 迁移配置到 settings 表（仅首次执行）
+    _migrate_config_to_settings(conn)
+
     conn.commit()
     conn.close()
+
+
+def _migrate_config_to_settings(conn):
+    """将旧 config.json 内容导入 settings 表（仅首次执行，完成后重命名旧文件）。"""
+    old_config_path = Path(__file__).parent / "config.json"
+    if not old_config_path.exists():
+        return
+
+    # 检查是否已迁移
+    existing = conn.execute("SELECT COUNT(*) FROM settings WHERE key = 'config'").fetchone()[0]
+    if existing > 0:
+        # 已迁移过，但旧文件还在，重命名掉
+        try:
+            old_config_path.rename(old_config_path.with_suffix(".json.migrated"))
+        except OSError:
+            pass
+        return
+
+    try:
+        with open(old_config_path, "r", encoding="utf-8") as f:
+            old_config = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return
+
+    conn.execute(
+        "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', 'localtime'))",
+        ["config", json.dumps(old_config, ensure_ascii=False)],
+    )
+    conn.commit()
+    print(f"[迁移] 旧 config.json 内容已导入 settings 表")
+
+    # 重命名旧文件，避免重复迁移
+    try:
+        old_config_path.rename(old_config_path.with_suffix(".json.migrated"))
+        print(f"[迁移] 旧 config.json 已重命名为 config.json.migrated")
+    except OSError:
+        pass
+
+
+# ── settings 表辅助函数 ─────────────────────────────────────────────────────
+
+def get_setting(key, default=None):
+    """从 settings 表读取单个配置值。"""
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", [key]).fetchone()
+        return row["value"] if row else default
+    finally:
+        conn.close()
+
+
+def set_setting(key, value):
+    """写入或更新 settings 表中的单个配置值。"""
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now', 'localtime')) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now', 'localtime')",
+            [key, value],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_all_settings() -> dict:
+    """读取 settings 表所有键值对，返回 dict。"""
+    conn = get_db()
+    try:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+        return {r["key"]: r["value"] for r in rows}
+    finally:
+        conn.close()
 
 
 def _migrate(conn, table, column, col_type):

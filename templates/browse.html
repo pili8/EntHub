@@ -256,17 +256,6 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 备注指示点（浏览页） */
-.browse-note-dot {
-display: inline-block;
-width: 6px;
-height: 6px;
-border-radius: 50%;
-background: #f59e0b;
-margin-right: 6px;
-vertical-align: middle;
-cursor: help;
-}
 </style>
 
 <script>
@@ -538,13 +527,12 @@ function renderRow(r, isNew) {
   const cityDistrict = escapeHtml(r.city || '-') +
     (r.district && r.district !== '-' ? ' ' + escapeHtml(r.district) : '');
   const newClass = isNew ? ' row-new' : '';
-  const noteBadge = r.note ? `<span class="browse-note-dot" title="${escapeAttr(r.note)}" onclick="event.stopPropagation();event.preventDefault()"></span>` : '';
   return `
     <tr data-href="/company/${r.id}" class="browse-row${newClass}" onclick="handleBrowseRowClick(event, this)">
       <td onclick="event.stopPropagation()">
         <input type="checkbox" class="row-select" value="${r.id}" onchange="updateToolbar()">
       </td>
-      <td title="${escapeAttr(r.name)}">${noteBadge}${escapeHtml(r.name)}</td>
+      <td title="${escapeAttr(r.name)}">${escapeHtml(r.name)}</td>
       <td title="${escapeAttr(r.phone || '')}">${escapeHtml(r.phone || '-')}</td>
       <td title="${escapeAttr(r.legal_person || '')}">${escapeHtml(r.legal_person || '-')}</td>
       <td title="${escapeAttr((r.city || '') + ' ' + (r.district || ''))}">${cityDistrict}</td>

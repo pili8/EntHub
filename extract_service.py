@@ -635,9 +635,9 @@ _LLM_EXTRACT_PROMPT = """你是一个工商信息提取助手。请从以下文�
 
 
 def _get_llm_config():
-    """从配置文件读取 LLM API 配置。
+    """从数据库 settings 表读取 LLM API 配置。
 
-    配置路径：config.json → llm_api
+    配置路径：settings 表 → config → llm_api
     {
         "llm_api": {
             "enabled": true,

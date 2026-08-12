@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-08-12 — v0.7.0 配置存储架构升级 + 数据存储配置
+
+### 配置存储从 config.json 迁移到数据库 settings 表
+
+1. **新增 `bootstrap.py` 引导配置** — 数据位置（`db_path` / `backup_dir`）存放到 `~/Library/Application Support/EntHub/bootstrap.json`，业务配置（API 密钥、Webhook、访问密码等）存入数据库 `settings` 表，随数据库一起迁移
+2. **首次启动自动迁移** — 旧 `data/enthub.db` 复制到新默认位置；旧 `config.json` 内容导入 `settings` 表并重命名为 `config.json.migrated`
+3. **配置读写改造** — `config.py` / `menubar.py` / `extract_service.py` 改为从数据库 `settings` 表读写；`db.py` 新增 `settings` 表及 `get_setting` / `set_setting` / `get_all_settings` 辅助函数
+
+### 设置页新增「数据存储」区块
+
+- 新增路由 `/settings/storage`，可配置数据库路径与备份目录（更改数据库路径后需重启应用）
+
+### 录入表单提交栏改造（add / edit）
+
+- 顶部内联提交栏 + 滑出视口后变形出现的悬浮提交按钮
+
+### 企业备注弹窗优化（company_detail）
+
+- 查看 / 编辑双模式：有备注时先查看（多行只读），无备注直接编辑；编辑用多行 textarea，回车换行
+
+### 微信备注弹窗优化
+
+- 增加清空按钮、回车自动保存、剪贴板粘贴前先清空原数据
+
+### 发送到多维表字段调整
+
+- 移除「说明」字段，聚焦「跟进记录」；`公司名` 字段名改为 `企业名称`
+
+### 其他
+
+- 新增 Jinja2 `filesize` 过滤器，备份页数据库大小 / 备份文件自适应显示 B / KB / MB / GB
+- 企业备注 tooltip 支持多行显示（`white-space: pre-wrap`）
+
 ## 2026-08-10 — v0.6.6 多项优化与修复
 
 - 多项功能优化与 Bug 修复（详见各文件 diff）

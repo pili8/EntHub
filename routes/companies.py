@@ -1030,9 +1030,8 @@ def send_to_kinboard(company_id):
         notes_parts.append(f"实缴：{paid}")
     notes = "；".join(notes_parts)
 
-    # 说明 + 跟进记录：从 AJAX 请求体中获取（用户在弹窗中输入，可选）
+    # 跟进记录：从 AJAX 请求体中获取（用户在弹窗中输入，选填）
     data = request.get_json(silent=True) or {}
-    remark = (data.get("remark") or "").strip()
     follow_up = (data.get("follow_up") or "").strip()
 
     payload = {
@@ -1042,7 +1041,6 @@ def send_to_kinboard(company_id):
         "主电话": primary_phone,
         "其他电话": other_phones_str,
         "备注": notes,
-        "说明": remark,
         "跟进记录": follow_up,
     }
 

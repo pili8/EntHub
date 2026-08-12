@@ -29,7 +29,7 @@
         <div class="db-stats">
             <div class="stat-item">
                 <div class="stat-label">数据库大小</div>
-                <div class="stat-value">{{ db_size_mb }} MB</div>
+                <div class="stat-value">{{ db_size|filesize }}</div>
             </div>
             <div class="stat-item">
                 <div class="stat-label">企业记录</div>
@@ -94,7 +94,7 @@
                     <select name="filename" class="restore-select" required>
                         <option value="">-- 选择备份文件 --</option>
                         {% for b in backups %}
-                        <option value="{{ b.filename }}">{{ b.time }} — {{ b.filename }} ({{ (b.size / 1024)|round(1) }} KB)</option>
+                        <option value="{{ b.filename }}">{{ b.time }} — {{ b.filename }} ({{ b.size|filesize }})</option>
                         {% endfor %}
                     </select>
                     <button type="submit" class="btn btn-sm" style="background: var(--bg-subtle); border: 1px solid var(--border);">
@@ -138,7 +138,7 @@
                     <tr {% if loop.first %}style="background: var(--success-light, #d4edda);" {% endif %}>
                         <td><code>{{ b.filename }}</code></td>
                         <td>{{ b.time }}</td>
-                        <td>{{ (b.size / 1024)|round(1) }} KB</td>
+                        <td>{{ b.size|filesize }}</td>
                         <td class="actions">
                             <a href="{{ url_for('backup_flow_bp.backup_download', filename=b.filename) }}" class="btn btn-sm btn-primary">
                                 <i data-lucide="download" style="width:14px;height:14px"></i>

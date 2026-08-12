@@ -24,58 +24,111 @@
 
   <form action="{{ url_for('companies_bp.edit_company', company_id=company.id) }}" method="post">
 
-    <!-- ══ 粘性提交栏（滚动时始终可见）═══ -->
-    <div class="sticky-submit">
-      <div class="ss-actions">
-        <button type="submit" class="btn btn-primary">
-          <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i>
-          保存
-        </button>
-        <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="btn btn-secondary">取消</a>
-      </div>
-    </div>
-
-    {% include '_company_form.html' %}
-
-    <!-- ═ 底部提交栏 ══ -->
-    <div class="bottom-submit">
+    <!-- ═ 顶部内联提交栏 ══ -->
+    <div class="top-submit" id="top-submit">
       <button type="submit" class="btn btn-primary">
         <i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i>
         保存
       </button>
       <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="btn btn-secondary">取消</a>
     </div>
+
+    {% include '_company_form.html' %}
+
+    <!-- ═ 悬浮提交按钮（滑出视口后变形出现）══ -->
+    <div class="floating-submit" id="floating-submit">
+      <button type="submit" class="floating-btn floating-btn-primary" title="保存">
+        <i data-lucide="check" style="width:18px;height:18px"></i>
+        <span>保存</span>
+      </button>
+      <a href="{{ url_for('companies_bp.company_detail', company_id=company.id) }}" class="floating-btn floating-btn-secondary" title="取消">
+        <i data-lucide="x" style="width:18px;height:18px"></i>
+      </a>
+    </div>
   </form>
 
 </div>
 
 <style>
-/* ═ 粘性提交栏 ═══ */
-.sticky-submit {
-  position: sticky;
-  top: 0;
-  z-index: 50;
+/* ═ 顶部内联提交栏 ══ */
+.top-submit {
+  display: flex;
+  gap: 10px;
+  align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 10px 16px;
+  margin-bottom: 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
-.sticky-submit .ss-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
 
-/*  底部提交栏 ══ */
-.bottom-submit {
+/* ═ 悬浮提交按钮（默认隐藏，滑出视口后变形出现）══ */
+.floating-submit {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  align-items: center;
+  z-index: 50;
+  /* 默认隐藏：缩小 + 透明 */
+  transform: scale(0) translateX(20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.25s ease;
+  transform-origin: bottom right;
+}
+/* 滑出视口后显示 */
+.floating-submit.visible {
+  transform: scale(1) translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.floating-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 28px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  font-family: inherit;
+}
+.floating-btn-secondary {
+  width: 44px;
+  height: 44px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-  margin-top: 8px;
+  color: var(--text-muted);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.floating-btn-secondary:hover {
+  border-color: var(--danger, #dc2626);
+  color: var(--danger, #dc2626);
+  box-shadow: 0 4px 12px rgba(220,38,38,.12);
+  transform: translateY(-1px);
+}
+.floating-btn-primary {
+  min-width: 96px;
+  height: 44px;
+  padding: 0 20px;
+  background: var(--accent, #D97757);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(217,119,87,.35);
+}
+.floating-btn-primary:hover {
+  background: var(--accent-hover, #c8664a);
+  box-shadow: 0 6px 20px rgba(217,119,87,.45);
+  transform: translateY(-1px);
+}
+.floating-btn-primary:active {
+  transform: translateY(0);
 }
 </style>
 {% endblock %}
@@ -207,5 +260,26 @@ async function _applyFromDiffModal() {
 
 window.refreshCompany = refreshCompany;
 window._applyFromDiffModal = _applyFromDiffModal;
+
+// ── 顶部按钮滑出视口 → 变形为悬浮按钮 ──
+(function() {
+  const topSubmit = document.getElementById('top-submit');
+  const floatingSubmit = document.getElementById('floating-submit');
+  if (!topSubmit || !floatingSubmit) return;
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) {
+          floatingSubmit.classList.add('visible');
+        } else {
+          floatingSubmit.classList.remove('visible');
+        }
+      });
+    },
+    { threshold: 0 }
+  );
+  observer.observe(topSubmit);
+})();
 </script>
 {% endblock %}

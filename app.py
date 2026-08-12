@@ -19,6 +19,23 @@ app = Flask(__name__)
 app.secret_key = "enthub-dev-key-2024"
 
 
+# ── Jinja2 过滤器 ────────────────────────────────────────────────────────────
+
+@app.template_filter('filesize')
+def filesize_filter(size):
+    """自适应文件大小格式化：B / KB / MB / GB"""
+    if size is None or size == 0:
+        return '0 B'
+    if size < 1024:
+        return f'{int(size)} B'
+    elif size < 1024 * 1024:
+        return f'{size / 1024:.1f} KB'
+    elif size < 1024 * 1024 * 1024:
+        return f'{size / (1024 * 1024):.1f} MB'
+    else:
+        return f'{size / (1024 * 1024 * 1024):.1f} GB'
+
+
 # ── 全局模板变量 ────────────────────────────────────────────────────────────
 
 @app.context_processor

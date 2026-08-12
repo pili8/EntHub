@@ -1224,6 +1224,12 @@ padding: 0 8px !important;
 gap: 3px;
 font-size: 11px;
 }
+/* 企业备注 tooltip 支持多行显示 */
+.company-note-btn .wechat-tip {
+white-space: pre-wrap;
+max-width: 300px;
+word-break: break-word;
+}
 
 /* 电话备注指示按钮（bookmark 图标 + 琥珀色，与微信图标区分） */
 .phone-wechat-btn.has-note {

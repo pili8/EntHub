@@ -1,10 +1,16 @@
-"""配置管理：读写 config.json，支持 API 密钥、配额统计、访问密码。"""
+"""配置管理：从数据库 settings 表读写配置（替代 config.json）。
+
+配置存储在 settings 表中，key = 'config'，value = JSON 字符串。
+引导配置（db_path / backup_dir）在 bootstrap.json 中，不在此处。
+"""
 import json
+import sqlite3
 from pathlib import Path
 from werkzeug.security import generate_password_hash, check_password_hash
 
 APP_PORT = 5210
 
+# 旧路径（仅用于迁移检测，不再用于读写）
 CONFIG_PATH = Path(__file__).parent / "config.json"
 
 # 默认配额
@@ -28,21 +34,57 @@ DEFAULT_PROVIDERS = {
 }
 
 
-def load_config():
-    """读取 config.json，如果不存在则创建默认配置。"""
-    if not CONFIG_PATH.exists():
-        return {}
+def _get_conn():
+    """获取 DB 连接：优先使用 Flask g.db，否则创建独立连接。
+
+    返回 (conn, should_close) 元组。
+    """
     try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
+        from flask import g
+        if hasattr(g, "db") and g.db is not None:
+            return g.db, False
+    except (RuntimeError, ImportError):
+        pass
+    from db import DB_PATH
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
+    conn.row_factory = sqlite3.Row
+    return conn, True
+
+
+def load_config():
+    """读取配置（从数据库 settings 表）。"""
+    from db import DB_PATH
+    if not DB_PATH.exists():
         return {}
+    conn, should_close = _get_conn()
+    try:
+        row = conn.execute("SELECT value FROM settings WHERE key = 'config'").fetchone()
+        if row:
+            return json.loads(row["value"])
+        return {}
+    except sqlite3.OperationalError:
+        # settings 表可能还不存在（init_db 未执行）
+        return {}
+    finally:
+        if should_close:
+            conn.close()
 
 
 def save_config(config):
-    """写入 config.json。"""
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    """写入配置（到数据库 settings 表）。"""
+    conn, should_close = _get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO settings (key, value, updated_at) "
+            "VALUES (?, ?, datetime('now', 'localtime')) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+            "updated_at = datetime('now', 'localtime')",
+            ["config", json.dumps(config, ensure_ascii=False)],
+        )
+        conn.commit()
+    finally:
+        if should_close:
+            conn.close()
 
 
 def get_api_providers():

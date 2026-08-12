@@ -213,13 +213,13 @@
         <div style="margin-top: 10px;">
           <p><strong>发送字段说明：</strong></p>
           <ul style="margin: 4px 0 0 16px; line-height: 1.8;">
-            <li><code>公司名</code> — 企业名称</li>
+            <li><code>企业名称</code> — 企业名称</li>
             <li><code>地址</code> — 优先最新年报地址，没有则传注册地址</li>
             <li><code>法人</code> — 刘亚民（法人）</li>
             <li><code>主电话</code> — 星标主号且为手机号（11位1[3-9]开头），非手机号或无主号时传空</li>
             <li><code>其他电话</code> — 所有号码（含主号），每个号码一行</li>
             <li><code>备注</code> — 注册日期 + 资本（实缴）</li>
-            <li><code>说明</code> — 发送前在弹窗中输入的内容（选填）</li>
+            <li><code>跟进记录</code> — 发送前在弹窗中输入的内容（选填）</li>
           </ul>
           <p style="margin-top: 10px;"><strong>WPS 自动化流程配置：</strong></p>
           <ol style="margin: 4px 0 0 16px; line-height: 1.8;">
@@ -228,15 +228,72 @@
             <li>请求体（raw）填入以下示例，定义字段结构：</li>
           </ol>
           <pre style="background: var(--bg); padding: 10px; border-radius: 6px; margin: 8px 0; overflow-x: auto; font-size: 11px; line-height: 1.6;">{
-  "公司名": "",
+  "企业名称": "",
   "地址": "",
   "法人": "",
   "主电话": "",
   "其他电话": "",
   "备注": "",
-  "说明": ""
+  "跟进记录": ""
 }</pre>
           <p style="margin-top: 8px;">4. 后续添加「创建记录」动作，将上述字段映射到多维表对应列</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       〇、数据存储
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <i data-lucide="database" style="width:16px;height:16px;color:var(--accent)"></i>
+      数据存储
+      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">数据库与备份目录的位置</span>
+    </h2>
+
+    <div class="settings-card" style="border-left-color: var(--accent);">
+      <div class="settings-card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 600;">存储路径</span>
+        </div>
+        <span style="font-size: 12px; color: var(--text-muted);">更改数据库路径后需重启应用</span>
+      </div>
+
+      <form method="post" action="{{ url_for('settings_flow_bp.save_storage_paths') }}" style="padding: 16px 20px;">
+        <div style="display: flex; flex-direction: column; gap: 14px; max-width: 600px;">
+          <div>
+            <label class="settings-label">数据库路径</label>
+            <input type="text" name="db_path" value="{{ db_path }}"
+                   placeholder="~/Library/Application Support/EntHub/enthub.db"
+                   style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: monospace;">
+          </div>
+          <div>
+            <label class="settings-label">备份目录</label>
+            <input type="text" name="backup_dir" value="{{ backup_dir }}"
+                   placeholder="~/.enthub/backups"
+                   style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: monospace;">
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="submit" class="btn-sm btn-primary-sm">
+              <i data-lucide="save" style="width:14px;height:14px"></i> 保存
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <details style="padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border);">
+        <summary style="cursor: pointer; font-weight: 600; color: var(--text-secondary); user-select: none; list-style: none;">
+          <i data-lucide="chevron-right" style="width: 12px; height: 12px; display: inline-block; transition: transform 0.2s; margin-right: 4px;"></i>
+          数据存储说明
+        </summary>
+        <div style="margin-top: 10px;">
+          <ul style="margin: 4px 0 0 16px; line-height: 1.8;">
+            <li><strong>数据库路径</strong>：SQLite 数据库文件的位置。换机器时，下载应用后指向已有的 .db 文件即可使用</li>
+            <li><strong>备份目录</strong>：备份文件存放位置。修改后新备份将存到新目录，旧备份不会自动迁移</li>
+            <li>所有业务配置（API 密钥、Webhook、密码等）存储在数据库内，随数据库一起迁移</li>
+            <li>引导配置文件位置：<code>~/Library/Application Support/EntHub/bootstrap.json</code></li>
+          </ul>
         </div>
       </details>
     </div>

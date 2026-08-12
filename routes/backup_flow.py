@@ -21,7 +21,6 @@ def backup_page():
     # 数据库信息
     db_path = DB_PATH
     db_size = db_path.stat().st_size if db_path.exists() else 0
-    db_size_mb = round(db_size / 1024 / 1024, 2)
 
     # 数据统计
     total_records = g.db.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
@@ -34,7 +33,7 @@ def backup_page():
     return render_template("backup.html",
                            backups=backups,
                            backup_dir=str(backup_dir),
-                           db_size_mb=db_size_mb,
+                           db_size=db_size,
                            total_records=total_records,
                            total_phones=total_phones,
                            total_emails=total_emails,

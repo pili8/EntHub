@@ -59,18 +59,22 @@ def get_local_ips():
 
 @bp.route("/settings")
 def settings_page():
-    """设置页面：API 密钥 + 配额统计 + LLM 配置 + 访问密码 + 网络地址 + 金山多维表。"""
+    """设置页面：API 密钥 + 配额统计 + LLM 配置 + 访问密码 + 网络地址 + 金山多维表 + 数据存储。"""
     providers = get_api_providers()
     quota = get_quota()
     llm = get_llm_config()
     local_ips = get_local_ips()
     password_enabled = is_password_enabled()
     webhook_url = get_webhook_url()
+    import bootstrap
+    bs = bootstrap.get_bootstrap()
     return render_template("settings.html",
                            providers=providers, quota=quota, llm=llm,
                            local_ips=local_ips,
                            password_enabled=password_enabled,
-                           webhook_url=webhook_url)
+                           webhook_url=webhook_url,
+                           db_path=bs["db_path"],
+                           backup_dir=bs["backup_dir"])
 
 
 @bp.route("/settings/api-provider/<provider_key>", methods=["POST"])
@@ -231,4 +235,31 @@ def save_kinboard_webhook():
     url = request.form.get("webhook_url", "").strip()
     save_webhook_url(url)
     flash("✅ 金山多维表 Webhook 已保存", "success")
+    return redirect(url_for("settings_flow_bp.settings_page"))
+
+
+# ── 数据存储路径配置 ──────────────────────────────────────────────────────────
+
+@bp.route("/settings/storage", methods=["POST"])
+def save_storage_paths():
+    """保存数据存储路径（数据库路径 + 备份目录）。"""
+    import bootstrap
+    new_db_path = request.form.get("db_path", "").strip()
+    new_backup_dir = request.form.get("backup_dir", "").strip()
+
+    if new_backup_dir:
+        bootstrap.save_bootstrap(backup_dir=new_backup_dir)
+        flash(f"✅ 备份目录已更新为 {new_backup_dir}", "success")
+
+    if new_db_path:
+        from pathlib import Path
+        p = Path(new_db_path)
+        if not p.exists():
+            flash(f"❌ 数据库文件不存在：{new_db_path}", "error")
+        elif p.suffix != ".db":
+            flash("❌ 请选择 .db 格式的数据库文件", "error")
+        else:
+            bootstrap.save_bootstrap(db_path=new_db_path)
+            flash(f"✅ 数据库路径已更新，重启后生效", "success")
+
     return redirect(url_for("settings_flow_bp.settings_page"))

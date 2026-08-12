@@ -1300,19 +1300,21 @@ async function openPhoneWechatSelector(normalizedPhone) {
     let content = `
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="text" id="wechatNote" class="form-input" value="${note}" placeholder="备注" style="flex: 1; font-size: 13px; color: var(--text-secondary);">
+                <div style="position: relative; flex: 1;">
+                    <input type="text" id="wechatNote" class="form-input" value="${note}" placeholder="备注" style="width: 100%; padding-right: 32px; font-size: 13px; color: var(--text-secondary);">
+                    <button type="button" onclick="clearWechatNote()" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="清空">
+                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </div>
                 <button onclick="savePhoneWechat('${normalizedPhone}')" class="btn btn-primary" style="flex-shrink: 0; min-width: 80px; font-size: 13px; padding: 6px 14px; font-weight: 600;">
                     <i data-lucide="check" style="width: 14px; height: 14px; margin-right: 3px; vertical-align: middle;"></i>保存
                 </button>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div style="position: relative; flex: 1;">
-                    <input type="text" id="wechatName" class="form-input" value="${name}" placeholder="微信昵称" style="width: 100%; padding-right: 60px; font-size: 13px; color: var(--text-secondary);">
-                    <button type="button" onclick="pasteToWechat()" style="position: absolute; right: 30px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="从剪贴板粘贴">
+                    <input type="text" id="wechatName" class="form-input" value="${name}" placeholder="微信昵称" style="width: 100%; padding-right: 36px; font-size: 13px; color: var(--text-secondary);">
+                    <button type="button" onclick="pasteToWechat()" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="清空并从剪贴板粘贴">
                         <i data-lucide="clipboard" style="width: 14px; height: 14px;"></i>
-                    </button>
-                    <button type="button" onclick="clearWechatInput()" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; padding: 4px; color: var(--text-muted); display: flex; align-items: center;" title="清空">
-                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
                     </button>
                 </div>
                 <button onclick="setWechatGender('男','${normalizedPhone}')" style="font-size: 12px; padding: 5px 10px; color: #3b82f6; border: 1px solid #3b82f630; background: #3b82f610; border-radius: 4px; cursor: pointer; white-space: nowrap;">＋ 男</button>
@@ -1324,7 +1326,25 @@ async function openPhoneWechatSelector(normalizedPhone) {
 
     showModal('备注', content, [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
     if (window.lucide) lucide.createIcons();
-    setTimeout(() => { document.getElementById('wechatNote')?.focus(); }, 100);
+
+    // 回车键自动保存
+    const handleWechatEnter = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            savePhoneWechat(normalizedPhone);
+        }
+    };
+    setTimeout(() => {
+        const noteInput = document.getElementById('wechatNote');
+        const nameInput = document.getElementById('wechatName');
+        if (noteInput) {
+            noteInput.addEventListener('keydown', handleWechatEnter);
+            noteInput.focus();
+        }
+        if (nameInput) {
+            nameInput.addEventListener('keydown', handleWechatEnter);
+        }
+    }, 100);
 }
 
 async function savePhoneWechat(normalizedPhone) {
@@ -1350,15 +1370,17 @@ function setWechatGender(gender, normalizedPhone) {
 async function pasteToWechat() {
     try {
         const text = await navigator.clipboard.readText();
-        if (text) {
-            const input = document.getElementById('wechatName');
-            if (input) { input.value = text.trim(); input.focus(); }
+        const input = document.getElementById('wechatName');
+        if (input) {
+            input.value = '';  // 先清空原数据
+            if (text) { input.value = text.trim(); }
+            input.focus();
         }
     } catch(e) { window._enthubToast('warning', '无法读取剪贴板', ''); }
 }
 
-function clearWechatInput() {
-    const input = document.getElementById('wechatName');
+function clearWechatNote() {
+    const input = document.getElementById('wechatNote');
     if (input) { input.value = ''; input.focus(); }
 }
 
@@ -1450,7 +1472,7 @@ window.clearPhoneWechat = clearPhoneWechat;
 window.refreshPhoneWechat = refreshPhoneWechat;
 window.setWechatGender = setWechatGender;
 window.pasteToWechat = pasteToWechat;
-window.clearWechatInput = clearWechatInput;
+window.clearWechatNote = clearWechatNote;
 
 // ── 来源文件展开/收起 ──
 function toggleSourceFiles(el) {
@@ -1461,7 +1483,7 @@ function toggleSourceFiles(el) {
     collapse.style.display = isHidden ? 'block' : 'none';
     if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
 }
-// ── 企业备注编辑（弹窗） ──
+// ── 企业备注（弹窗：查看 / 编辑两种模式） ──
 function editCompanyNote() {
     const wrap = document.getElementById('companyNoteWrap');
     if (!wrap) return;
@@ -1470,21 +1492,59 @@ function editCompanyNote() {
     const tipEl = btn ? btn.querySelector('.wechat-tip') : null;
     const currentNote = tipEl ? (tipEl.textContent.trim() === '添加企业备注' ? '' : tipEl.textContent.trim()) : '';
 
-    const content = `
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="text" id="companyNoteInput" class="form-input" value="${currentNote}" placeholder="企业备注" style="flex: 1; font-size: 13px; color: var(--text-secondary);">
-                <button onclick="_saveCompanyNote(${companyId})" class="btn btn-primary" style="flex-shrink: 0; min-width: 80px; font-size: 13px; padding: 6px 14px; font-weight: 600;">
-                    <i data-lucide="check" style="width: 14px; height: 14px; margin-right: 3px; vertical-align: middle;"></i>保存
-                </button>
-            </div>
-            <div style="font-size: 11px; color: var(--text-muted); padding-left: 2px;">当前：${currentNote || '（空）'}</div>
-        </div>
-    `;
+    // 有备注 → 查看模式；无备注 → 直接编辑模式
+    if (currentNote) {
+        _showNoteViewMode(companyId, currentNote);
+    } else {
+        _showNoteEditMode(companyId, '');
+    }
+}
 
-    showModal('企业备注', content, [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
-    if (window.lucide) lucide.createIcons();
-    setTimeout(() => { document.getElementById('companyNoteInput')?.focus(); document.getElementById('companyNoteInput')?.select(); }, 100);
+// 查看模式：多行只读显示
+function _showNoteViewMode(companyId, note) {
+    const content = `
+        <div style="padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; background: var(--bg-secondary, #f9fafb); color: var(--text-primary); min-height: 48px;">${_escapeHtml(note)}</div>
+    `;
+    showModal('企业备注', content, [
+        { text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' },
+        { text: '编辑', class: 'btn btn-primary', action: '' }
+    ]);
+    const editBtn = document.querySelector('#modal-footer .btn-primary');
+    if (editBtn) editBtn.onclick = () => _showNoteEditMode(companyId, note);
+}
+
+// 编辑模式：多行 textarea，回车换行
+function _showNoteEditMode(companyId, note) {
+    const content = `
+        <textarea id="companyNoteInput" rows="3" placeholder="企业备注"
+                  style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; resize: vertical; box-sizing: border-box; line-height: 1.6; font-family: inherit;">${_escapeHtml(note)}</textarea>
+    `;
+    showModal('企业备注', content, [
+        { text: '取消', class: 'btn btn-secondary', action: 'closeModal()' },
+        ...(note ? [{ text: '查看', class: 'btn btn-secondary', action: '' }] : []),
+        { text: '保存', class: 'btn btn-primary', action: '' }
+    ]);
+
+    // 绑定保存按钮
+    const saveBtn = document.querySelector('#modal-footer .btn-primary');
+    if (saveBtn) saveBtn.onclick = () => _saveCompanyNote(companyId);
+
+    // 绑定查看按钮（切换回查看模式）
+    const secondaryBtns = document.querySelectorAll('#modal-footer .btn-secondary');
+    if (note && secondaryBtns.length > 1) {
+        secondaryBtns[1].onclick = () => _showNoteViewMode(companyId, note);
+    }
+
+    setTimeout(() => {
+        const input = document.getElementById('companyNoteInput');
+        if (input) { input.focus(); input.select(); }
+    }, 100);
+}
+
+function _escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 async function _saveCompanyNote(companyId) {
@@ -1515,8 +1575,10 @@ function _renderNoteBtn(note) {
     if (!wrap) return;
     wrap.innerHTML = `<button type="button" id="companyNoteBtn" class="phone-wechat-btn company-note-btn has-note${note ? '' : ' empty-note'}" onclick="editCompanyNote()">
         <i data-lucide="bookmark" style="width: 12px; height: 12px;"></i>
-        <span class="wechat-tip">${note || '添加企业备注'}</span>
+        <span class="wechat-tip"></span>
     </button>`;
+    const tip = wrap.querySelector('.wechat-tip');
+    if (tip) tip.textContent = note || '添加企业备注';
     if (window.lucide) lucide.createIcons();
 }
 window.editCompanyNote = editCompanyNote;
@@ -1574,10 +1636,7 @@ function openKinboardModal(companyId) {
 
     const content = previewHtml + `
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary);">跟进记录</label>
-        <textarea id="kinboard-follow-up" rows="3" placeholder="记录本次跟进情况…"
-                  style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; resize: none; box-sizing: border-box; line-height: 1.5; margin-bottom: 12px;"></textarea>
-        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-primary);">说明</label>
-        <textarea id="kinboard-remark" rows="2"
+        <textarea id="kinboard-follow-up" rows="3" placeholder="记录本次跟进情况…（选填）"
                   style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; resize: none; box-sizing: border-box; line-height: 1.5;"></textarea>
     `;
     const buttons = [
@@ -1597,7 +1656,6 @@ function openKinboardModal(companyId) {
     const sendBtn = document.querySelector('#modal-footer .btn-primary');
     sendBtn.onclick = async () => {
         const followUp = document.getElementById('kinboard-follow-up').value;
-        const remark = document.getElementById('kinboard-remark').value;
         const originalText = sendBtn.textContent;
         sendBtn.textContent = '发送中…';
         sendBtn.disabled = true;
@@ -1606,7 +1664,7 @@ function openKinboardModal(companyId) {
             const resp = await fetch(`/company/${companyId}/send-to-kinboard`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ remark: remark, follow_up: followUp })
+                body: JSON.stringify({ follow_up: followUp })
             });
             const data = await resp.json();
             if (data.code === 0) {
