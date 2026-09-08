@@ -104,7 +104,8 @@ class TestSplitRecommended:
 class TestValidatePhone:
     def test_mobile_valid(self):
         for prefix in '3456789':
-            n = f'1{prefix}80013800'
+            # 手机号必须 11 位（1 + 3-9 + 9 位），原来是 1+1+8=10 位，故不合法
+            n = f'1{prefix}800138000'
             is_valid, ptype, _ = validate_phone(n)
             assert is_valid, f'{n} should be valid'
             assert ptype == 'mobile'

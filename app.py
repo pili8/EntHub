@@ -3,9 +3,11 @@
 应用入口：创建 Flask 实例、注册蓝图、启动检查。
 具体路由分散在 routes/ 目录下的各蓝图模块。
 """
+import secrets
 import threading
 import time
 import urllib.request
+from pathlib import Path
 
 from flask import Flask, g, session, redirect, url_for, request, jsonify
 
@@ -15,8 +17,27 @@ from api import api_bp
 from config import is_password_enabled, verify_access_password, APP_PORT
 import backup
 
+# session 签名密钥不能硬编码：硬编码值会随代码进 git 历史，等于公开，
+# 任何人都能据此伪造 session cookie 绕过登录页。密钥改为存本地文件，
+# 且目录选在 ~/Library/Application Support 下（不在同步文件夹、不进数据库）。
+SECRET_KEY_PATH = Path.home() / "Library" / "Application Support" / "EntHub" / "secret.key"
+
+
+def _load_secret_key():
+    """读取本地密钥文件；文件不存在则随机生成后写入（权限 600）。"""
+    if SECRET_KEY_PATH.exists():
+        key = SECRET_KEY_PATH.read_text(encoding="utf-8").strip()
+        if key:
+            return key
+    SECRET_KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    key = secrets.token_hex(32)
+    SECRET_KEY_PATH.write_text(key, encoding="utf-8")
+    SECRET_KEY_PATH.chmod(0o600)
+    return key
+
+
 app = Flask(__name__)
-app.secret_key = "enthub-dev-key-2024"
+app.secret_key = _load_secret_key()
 
 
 # ── Jinja2 过滤器 ────────────────────────────────────────────────────────────
