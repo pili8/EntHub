@@ -293,13 +293,14 @@ def _extract_personnel(text):
 # ── 股东区块解析 ─────────────────────────────────────────────────────────────
 
 _COMPANY_SUFFIX_RE = re.compile(r'(?:公司|集团|有限|厂|店|社|院|事务所|工作室|商行|合伙)')
+# 支持完整后缀如"合伙企业（有限合伙）"、"有限责任公司"等
 _COMPANY_NAME_RE = re.compile(
-    r'([\u4e00-\u9fa5]{2,20}(?:公司|集团|有限|厂|店|社|院|事务所|工作室|商行|合伙)(?:\n公司)?)'
+    r'([\u4e00-\u9fa5]{2,20}(?:公司|集团|有限|厂|店|社|院|事务所|工作室|商行|合伙)(?:企业)?(?:（有限合伙）|（自然人投资或控股）)?)'
 )
 
 
 def _extract_shareholders(text):
-    """从文本中提取股东名称（best effort，仅提取公司名）。
+    """从文本中提取股东名称（公司名 + 自然人）。
 
     返回 [name, ...]
     """
@@ -314,11 +315,11 @@ def _extract_shareholders(text):
         return []
 
     section_text = text[section_start:]
-    # 截断到下一个大区块
-    for next_marker in ['主要人员', '高级职员', '对外投资', '变更记录', '变更信息',
-                        '企业年报', '控制企业', '分支机构', '财务数据',
-                        '企业受益', '受益股东', '疑似实际', '最终受益',
-                        '实际控制人', '同业分析', '关联方认定', '社保人数']:
+    # 截断到下一个大区块（注意：实际控制人、受益所有人等可能紧跟在股东表格后）
+    for next_marker in ['实际控制人', '受益所有人', '受益股东', '主要人员', '高级职员',
+                        '对外投资', '变更记录', '变更信息', '企业年报',
+                        '控制企业', '分支机构', '财务数据', '企业受益',
+                        '疑似实际', '最终受益', '同业分析', '关联方认定', '社保人数']:
         idx = section_text.find(next_marker, 20)
         if idx >= 0:
             section_text = section_text[:idx]
@@ -326,6 +327,8 @@ def _extract_shareholders(text):
 
     shareholders = []
     seen = set()
+
+    # ── 提取公司名股东 ──
     for m in _COMPANY_NAME_RE.finditer(section_text):
         name = m.group(1).replace('\n', '').strip()
         # 去除常见 UI 后缀
@@ -333,10 +336,27 @@ def _extract_shareholders(text):
         # 长度限制
         if len(name) < 4 or len(name) > 30:
             continue
-        # 过滤非公司名（句子、公告等）
+        # 过滤非公司名（噪音片段如"有限合伙""直接或间接拥有公司"）
+        if name in ('有限合伙', '直接或间接拥有公司'):
+            continue
         if any(w in name for w in ['公告', '报告', '由公司', '第条', '条款', '条规定', '上市']):
             continue
         if name not in seen and name not in _NON_NAME_WORDS:
+            seen.add(name)
+            shareholders.append(name)
+
+    # ── 提取自然人股东 ──
+    # 风鸟格式：序号 \n 姓 \n 全名 \n N家 \n 比例%
+    # 用正则匹配"序号后2-4字中文姓名"的模式
+    _PERSON_SHAREHOLDER_RE = re.compile(
+        r'(?:^|\n)\d+\s*\n[\u4e00-\u9fa5]\n([\u4e00-\u9fa5]{2,4})\n',
+        re.UNICODE
+    )
+    for m in _PERSON_SHAREHOLDER_RE.finditer(section_text):
+        name = m.group(1)
+        if name in _NON_NAME_WORDS:
+            continue
+        if name not in seen:
             seen.add(name)
             shareholders.append(name)
 
@@ -545,6 +565,18 @@ def clean_extracted_fields(fields):
             # 电话：包含 7 位以上数字
             digits = re.sub(r'\D', '', val)
             if len(digits) >= 7:
+                cleaned[field] = val
+            continue
+
+        if field == "org_code":
+            # 组织机构代码：8-12位字母数字（可能含连字符）
+            if re.match(r'^[0-9A-Za-z-]{8,12}$', val):
+                cleaned[field] = val
+            continue
+
+        if field == "registration_no":
+            # 注册号：15位纯数字
+            if re.match(r'^\d{15}$', val):
                 cleaned[field] = val
             continue
 

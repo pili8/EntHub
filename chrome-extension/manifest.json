@@ -31,6 +31,19 @@
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": [
+        "*://*.tianyancha.com/*",
+        "*://*.qcc.com/*",
+        "*://*.aiqicha.baidu.com/*",
+        "*://*.gsxt.gov.cn/*",
+        "*://*.xin.baidu.com/*",
+        "*://*.riskbird.com/*"
+      ]
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

@@ -48,6 +48,15 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function init() {
+  // 确保 auto 选项存在（风鸟等场景需要）
+  const autoOpt = [...methodSelect.options].find(o => o.value === 'auto');
+  if (!autoOpt) {
+    const opt = document.createElement('option');
+    opt.value = 'auto';
+    opt.textContent = '自动';
+    methodSelect.insertBefore(opt, methodSelect.firstChild);
+  }
+
   // 恢复上次的提取方式
   const savedMethod = await chrome.storage.local.get('extract_method');
   if (savedMethod.extract_method) methodSelect.value = savedMethod.extract_method;
@@ -72,6 +81,10 @@ async function init() {
     'gsxt.gov.cn', 'xin.baidu.com', 'riskbird.com'];
   const host = currentTab ? new URL(currentTab.url).hostname : '';
   if (currentTab && /^https?:/.test(currentTab.url) && SUPPORTED.some(s => host.includes(s))) {
+    // 风鸟页面：DOM 提取效果差，直接用 auto（正则→LLM fallback）
+    if (host.includes('riskbird.com')) {
+      methodSelect.value = 'auto';
+    }
     btnGrab.click();
   }
 }
@@ -138,107 +151,27 @@ btnGrab.addEventListener('click', async () => {
   }
 });
 
-// ── 调用 EntHub API 提取 ────────────────────────────────────────────────────
+// ── 直接使用插件解析的字段（不再调 EntHub API 提取）──────────────────────
 
-async function extractViaAPI(text, method) {
-  method = method || methodSelect.value;
+async function reExtract() {
+  if (!grabbedData) return;
+  extractError.style.display = 'none';
+  dupWarning.style.display = 'none';
 
-  try {
-    const resp = await sendMessage({
-      action: 'extractText',
-      text: text,
-      method: method,
-    });
+  // content script 已经解析好了字段，直接用
+  extractedFields = grabbedData.fields || {};
 
-    if (!resp || resp.code !== 0) {
-      throw new Error(resp?.message || 'API 提取失败');
-    }
+  const fieldCount = Object.keys(extractedFields).length;
+  extractMeta.textContent = `插件解析 · ${fieldCount} 个字段`;
 
-    const data = resp.data;
-    extractedFields = data.fields || {};
-    existingCompany = data.existing;
+  renderFields(extractedFields);
+  sectionResult.style.display = 'block';
+  sectionActions.style.display = 'block';
+  btnRetry.style.display = 'none';  // 不再需要重新提取
 
-    renderFields(extractedFields);
-    extractMeta.textContent = `${data.method_used || method} · ${data.field_count || 0} 个字段`;
-
-    if (data.error) {
-      extractError.textContent = data.error;
-      extractError.style.display = 'block';
-    }
-
-    // 重复检查
-    if (existingCompany) {
-      dupWarning.innerHTML = `⚠️ 已存在: <strong>${existingCompany.name}</strong> (ID: ${existingCompany.id})`;
-      dupWarning.style.display = 'block';
-      btnSubmit.style.display = 'none';
-      overwriteRow.style.display = 'block';
-    } else {
-      dupWarning.style.display = 'none';
-      btnSubmit.style.display = 'block';
-      overwriteRow.style.display = 'none';
-    }
-
-    sectionResult.style.display = 'block';
-    sectionActions.style.display = 'block';
-    btnRetry.style.display = 'block';
-  } catch (e) {
-    extractError.textContent = e.message;
-    extractError.style.display = 'block';
-    sectionResult.style.display = 'block';
-    sectionActions.style.display = 'block';
-    btnRetry.style.display = 'block';
-  }
-}
-
-// ── DOM 字段清洗（送后端）────────────────────────────────────────────────────
-
-async function cleanDomFields(rawFields) {
-  try {
-    const resp = await sendMessage({
-      action: 'cleanDom',
-      fields: rawFields,
-    });
-
-    if (!resp || resp.code !== 0) {
-      throw new Error(resp?.message || '后端清洗失败');
-    }
-
-    const data = resp.data;
-    extractedFields = data.fields || {};
-    existingCompany = data.existing;
-
-    renderFields(extractedFields);
-    extractMeta.textContent = `${grabbedData.source} · DOM · ${data.field_count || Object.keys(extractedFields).length} 个字段`;
-
-    if (existingCompany) {
-      dupWarning.innerHTML = `⚠️ 已存在: <strong>${existingCompany.name}</strong> (ID: ${existingCompany.id})`;
-      dupWarning.style.display = 'block';
-      btnSubmit.style.display = 'none';
-      overwriteRow.style.display = 'block';
-    } else {
-      dupWarning.style.display = 'none';
-      btnSubmit.style.display = 'block';
-      overwriteRow.style.display = 'none';
-    }
-
-    sectionResult.style.display = 'block';
-    sectionActions.style.display = 'block';
-    btnRetry.style.display = 'block';
-    extractError.style.display = 'none';
-  } catch (e) {
-    // 后端不可达 → 退回原始 DOM 字段（离线兜底）
-    extractedFields = rawFields;
-    renderFields(extractedFields);
-    extractMeta.textContent = `${grabbedData.source} · DOM · ${Object.keys(extractedFields).length} 个字段（未清洗）`;
-    extractError.textContent = '后端不可达，展示原始 DOM 数据';
-    extractError.style.display = 'block';
-    dupWarning.style.display = 'none';
-    btnSubmit.style.display = 'block';
-    overwriteRow.style.display = 'none';
-    sectionResult.style.display = 'block';
-    sectionActions.style.display = 'block';
-    btnRetry.style.display = 'none';
-  }
+  // 重复检查：提交时由后端返回
+  btnSubmit.style.display = 'block';
+  overwriteRow.style.display = 'none';
 }
 
 // ── 渲染字段列表 ────────────────────────────────────────────────────────────
@@ -354,13 +287,16 @@ async function doSubmit(overwrite) {
     successMsg.style.display = 'block';
     sectionResult.style.display = 'none';
     sectionActions.style.display = 'none';
-
-    // 在 EntHub 中打开
-    const baseUrl = await sendMessage({ action: 'getSettings' });
-    if (baseUrl?.enthub_url) {
-      setTimeout(() => {
-        chrome.tabs.create({ url: `${baseUrl.enthub_url}/company/${data.id}` });
-      }, 1500);
+    // 风鸟页面：静默保存，不跳转 EntHub
+    const host = currentTab ? new URL(currentTab.url).hostname : '';
+    if (!host.includes('riskbird.com')) {
+      // 非风鸟页面：保持原有跳转行为
+      const baseUrl = await sendMessage({ action: 'getSettings' });
+      if (baseUrl?.enthub_url) {
+        setTimeout(() => {
+          chrome.tabs.create({ url: `${baseUrl.enthub_url}/company/${data.id}` });
+        }, 1500);
+      }
     }
   } catch (e) {
     alert(e.message);
@@ -371,23 +307,6 @@ async function doSubmit(overwrite) {
 }
 
 // ── 重新提取 ────────────────────────────────────────────────────────────────
-
-async function reExtract() {
-  if (!grabbedData) return;
-  const userMethod = methodSelect.value;
-  extractError.style.display = 'none';
-  dupWarning.style.display = 'none';
-  if (userMethod === 'dom') {
-    await cleanDomFields(grabbedData.fields || {});
-  } else {
-    const text = grabbedData.text || '';
-    if (!text) {
-      btnGrab.click();
-      return;
-    }
-    await extractViaAPI(text, userMethod);
-  }
-}
 
 btnRetry.addEventListener('click', reExtract);
 

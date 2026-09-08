@@ -2,10 +2,16 @@
 __pycache__/
 *.py[cod]
 venv/
+.pytest_cache/
 
-# IDE
+# IDE / OS
 .DS_Store
 .workbuddy/
+
+# AI 工具产物（与项目无关，仅忽略根目录的，docs/已删除/ 下的归档保留）
+/.yione/
+/.yione-uploads/
+/.zerone-uploads/
 
 # Data
 data/
@@ -17,9 +23,12 @@ data/
 *.bak
 *.bak[0-9]
 *.backup
-.restart_trigger
+/.restart_trigger
 
-# Logs
-*.log
-mcp_server.log
-config.json
+# Logs（仅忽略根目录的）
+/*.log
+
+# Runtime / 临时文件（仅忽略根目录的）
+/.mcp_pid
+/config.json
+/config.json.migrated

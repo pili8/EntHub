@@ -11,7 +11,9 @@ from utils import (
     normalize_name, normalize_credit_code,
     normalize_person_name, normalize_email,
 )
-from data_helpers import sync_phones, sync_emails, sync_shareholders
+from data_helpers import (sync_phones, merge_phones,
+                          sync_emails, merge_emails,
+                          sync_shareholders, merge_shareholders)
 from extract_service import extract_company_info, count_extracted_fields, post_process_fields
 from ._base import make_bp
 
@@ -65,6 +67,8 @@ def extract_only():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     method = (data.get("method") or "auto").strip()
+    # 前端（插件 DOM 提取）传来的字段，优先于后端正则
+    frontend_fields = data.get("fields") or {}
 
     if not text:
         return jsonify({"code": 1001, "message": "请输入文本", "data": None})
@@ -74,6 +78,13 @@ def extract_only():
         return jsonify({"code": 1001, "message": "method 必须是 auto/regex/llm", "data": None})
 
     result = extract_company_info(text, method=method)
+
+    # 合并：前端 DOM 提取的值优先于后端正则提取的值
+    merged_fields = dict(result["fields"])
+    for key, val in frontend_fields.items():
+        if val and str(val).strip():
+            merged_fields[key] = str(val).strip()
+    result["fields"] = merged_fields
 
     # 为前端准备带标签的字段列表
     fields_labeled = []
@@ -241,12 +252,13 @@ def extract_and_import():
                 "UPDATE companies SET credit_code = ? WHERE id = ?",
                 [normalize_credit_code(fields["credit_code"]), company_id]
             )
+        # 电话/邮箱/股东均只追加不删除（数据不丢失）
         if phone_val:
-            sync_phones(g.db, company_id, phone_val)
+            merge_phones(g.db, company_id, phone_val)
         if email_val:
-            sync_emails(g.db, company_id, email_val)
+            merge_emails(g.db, company_id, email_val)
         if shareholders_val:
-            sync_shareholders(g.db, company_id, shareholders_val)
+            merge_shareholders(g.db, company_id, shareholders_val)
         g.db.execute(
             "UPDATE companies SET updated_at = datetime('now', 'localtime') WHERE id = ?",
             [company_id]

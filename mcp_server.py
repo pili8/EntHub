@@ -824,7 +824,9 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
-        from data_helpers import sync_phones, sync_emails, sync_shareholders
+        from data_helpers import (sync_phones, merge_phones,
+                                  sync_emails, merge_emails,
+                                  sync_shareholders, merge_shareholders)
         from utils import normalize_name, normalize_person_name, normalize_email, normalize_credit_code
 
         # 更新时自动维护的 normalized 字段
@@ -865,13 +867,13 @@ def extract_and_import(text: str, method: str = "auto") -> dict:
                         f"UPDATE companies SET {norm_field} = ? WHERE id = ?",
                         [norm_fn(fields[field]), company_id]
                     )
-            # 更新电话、邮箱和股东
+            # 电话/邮箱/股东均只追加不删除（数据不丢失）
             if phone_val:
-                sync_phones(conn, company_id, phone_val)
+                merge_phones(conn, company_id, phone_val)
             if email_val:
-                sync_emails(conn, company_id, email_val)
+                merge_emails(conn, company_id, email_val)
             if shareholders_val:
-                sync_shareholders(conn, company_id, shareholders_val)
+                merge_shareholders(conn, company_id, shareholders_val)
             conn.commit()
 
             return {

@@ -1114,6 +1114,11 @@ def _import_worker(batch_id, meta, skip_dup, task_queue, stop_event):
                         rec.get("_recommended_phone", ""),
                         phone_sets, has_primary)
                     phones_invalid += _skipped
+                    _merge_emails_cached(db, existing_id,
+                                         rec.get("email", ""),
+                                         email_sets, has_email_primary)
+                    _merge_shareholders_cached(db, existing_id,
+                                               rec.get("shareholders", ""), sh_sets)
                     _sync_tags(db, existing_id, rec.get("tags", ""))
 
                     if sig_match:

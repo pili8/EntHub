@@ -537,7 +537,7 @@ async function doExtract(triggerBtn) {
 
     if (existing) {
       showQeStatus('warning',
-        `⚠️ 该企业已存在: <a href="/company/${existing.id}" style="color:var(--warning);text-decoration:underline;">${existing.name}</a> — 已填充 ${filled} 个字段（${ml}）`);
+        `⚠️ 该企业已存在: <a href="/company/${existing.id}" target="_blank" style="color:var(--warning);text-decoration:underline;">${existing.name}</a> — 已填充 ${filled} 个字段（${ml}）`);
     } else {
       showQeStatus('success', `✅ ${ml}提取 ${filled} 个字段已填充，请检查后点击「录入」`);
     }
@@ -598,7 +598,7 @@ if (nameInput) {
     try {
       const r = await fetch(`/api/company/check-duplicate?name=${encodeURIComponent(name)}`);
       const d = await r.json();
-      if (d.data && d.data.exists) rd.innerHTML = `<span style="color:#dc2626;">⚠️ 该公司已存在 — <a href="/company/${d.data.id}" style="color:#dc2626;text-decoration:underline;">查看</a></span>`;
+      if (d.data && d.data.exists) rd.innerHTML = `<span style="color:#dc2626;">⚠️ 该公司已存在 — <a href="/company/${d.data.id}" target="_blank" style="color:#dc2626;text-decoration:underline;">查看</a></span>`;
       else rd.innerHTML = `<span style="color:#16a34a;">✓ 未重复</span>`;
     } catch (e) { rd.innerHTML = ''; }
   });
@@ -617,7 +617,7 @@ async function _doFetchAll(name) {
   try {
     const r = await fetch('/api/company/fetch-all',{ method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name}) });
     const d = await r.json();
-    if (d.code===2002) { showConfirm('该公司已存在',`「${d.data.existing_name}」已在数据库中，是否仍要继续录入？`,()=>{},[{text:'查看已有',class:'btn btn-secondary',action:()=>{window.location.href=`/company/${d.data.existing_id}`}},{text:'继续录入',class:'btn btn-primary',action:'closeModal()'}]); return; }
+    if (d.code===2002) { showConfirm('该公司已存在',`「${d.data.existing_name}」已在数据库中，是否仍要继续录入？`,()=>{},[{text:'查看已有',class:'btn btn-secondary',action:()=>{window.open(`/company/${d.data.existing_id}`,'_blank')}},{text:'继续录入',class:'btn btn-primary',action:'closeModal()'}]); return; }
     if (d.code!==0) { window._enthubToast('error','获取失败',d.message); return; }
     const m = d.data.mapped;
     if (!m) { window._enthubToast('warning','未找到数据','API 返回为空'); return; }
@@ -659,7 +659,7 @@ window.clearAllInputs = clearAllInputs;
         }
       });
     },
-    { threshold: 0 }
+    { threshold: 0, rootMargin: '-52px 0px 0px 0px' }
   );
   observer.observe(topSubmit);
 })();
@@ -769,13 +769,16 @@ function _showDuplicateModal(data, originalFormData) {
   const options = [
     {
       icon: '🔍', title: '查看已有企业',
-      desc: '跳转到「' + ename + '」的详情页面，不做任何修改',
-      action: () => { closeModal(); window.location.href = `/company/${eid}`; }
+      desc: '在新标签页中打开「' + ename + '」的详情页面，不做任何修改',
+      action: () => { closeModal(); window.open(`/company/${eid}`, '_blank'); }
     },
     {
       icon: '✏️', title: '覆盖更新',
-      desc: '用表单数据更新已有企业的工商字段（空字段不覆盖），同时追加新号码和新股东',
-      action: async () => { closeModal(); await _resubmitWithAction(originalFormData, 'overwrite', eid); }
+      desc: '用表单数据更新已有企业的工商字段（空字段不覆盖）；电话/邮箱/股东只追加不删除，备注保留库内原有内容',
+      action: async () => {
+        const cb = document.getElementById('clear-empty-checkbox');
+        closeModal(); await _resubmitWithAction(originalFormData, 'overwrite', eid, cb && cb.checked);
+      }
     },
   ];
   if (hasMerge) {
@@ -788,6 +791,16 @@ function _showDuplicateModal(data, originalFormData) {
       action: async () => { closeModal(); await _resubmitWithAction(originalFormData, 'merge_phones', eid); }
     });
   }
+
+  // 空值清除选项（勾选后：表单里留空的字段会清掉库内旧值，用于旧信息作废场景）
+  const clearEmptyRow = `
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:0 0 10px;padding:10px 12px;
+      border:1px dashed var(--border);border-radius:8px;cursor:pointer;">
+      <input type="checkbox" id="clear-empty-checkbox" style="margin-top:2px;flex-shrink:0;">
+      <span style="font-size:11px;color:var(--text-muted);line-height:1.5;">
+        空值清除：勾选后，表单里<strong>留空的字段</strong>会清掉库内旧值（适用于旧信息已作废的场景）。不勾则空字段保持不变。
+      </span>
+    </label>`;
 
   const optionCards = options.map((opt, i) => `
     <div class="dup-option" data-idx="${i}" style="
@@ -811,6 +824,7 @@ function _showDuplicateModal(data, originalFormData) {
       </div>
       ${phoneList}${shList}
     </div>
+    ${clearEmptyRow}
     <div style="margin-top:10px;">
       ${optionCards}
     </div>
@@ -838,7 +852,7 @@ function _showDuplicateModal(data, originalFormData) {
 }
 
 // ── 带操作参数重新提交 ──
-async function _resubmitWithAction(originalFormData, action, existingId) {
+async function _resubmitWithAction(originalFormData, action, existingId, clearEmpty) {
   const fd = new FormData();
   for (const [key, value] of originalFormData.entries()) {
     fd.append(key, value);
@@ -846,6 +860,7 @@ async function _resubmitWithAction(originalFormData, action, existingId) {
   fd.set('_ajax', '1');
   fd.set('_action', action);
   fd.set('_existing_id', String(existingId));
+  if (clearEmpty) fd.set('_clear_empty', '1');
 
   window._enthubToast && window._enthubToast('info', '正在处理...', '');
 

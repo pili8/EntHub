@@ -15,7 +15,9 @@ from utils import (
     get_phone_wechat, get_phone_wechat_batch,
     validate_phone,
 )
-from data_helpers import sync_phones, sync_emails, sync_shareholders
+from data_helpers import (sync_phones, merge_phones,
+                          sync_emails, merge_emails,
+                          sync_shareholders, merge_shareholders)
 from extract_service import extract_company_info
 
 api_bp = Blueprint('api_bp', __name__)
@@ -616,14 +618,14 @@ def update_company(company_id):
                 [norm_val, company_id]
             )
 
-    # 电话
+    # 电话/邮箱：只追加不删除（数据不丢失）
     if phone_val:
-        sync_phones(g.db, company_id, phone_val)
+        merge_phones(g.db, company_id, phone_val)
         updated_fields.append("phone")
 
     # 邮箱
     if email_val:
-        sync_emails(g.db, company_id, email_val)
+        merge_emails(g.db, company_id, email_val)
         updated_fields.append("email")
 
     # 股东
@@ -729,7 +731,7 @@ def quick_import():
                 "extracted_fields": fields,
                 "field_count": result["field_count"],
                 "method_used": result["method_used"],
-            }, f"企业已存在: {existing['name']}，设置 overwrite=true 可覆盖更新")
+            }, f"企业已存在: {existing['name']}，设置 overwrite=true 可覆盖更新（电话/邮箱/股东只追加不删除）")
 
         # 覆盖更新
         company_id = existing["id"]
@@ -749,12 +751,13 @@ def quick_import():
                     [norm_fn(fields[field]), company_id]
                 )
 
+        # 电话/邮箱/股东均只追加不删除（数据不丢失）
         if phone_val:
-            sync_phones(g.db, company_id, phone_val)
+            merge_phones(g.db, company_id, phone_val)
         if email_val:
-            sync_emails(g.db, company_id, email_val)
+            merge_emails(g.db, company_id, email_val)
         if shareholders_val:
-            sync_shareholders(g.db, company_id, shareholders_val)
+            merge_shareholders(g.db, company_id, shareholders_val)
 
         g.db.execute(
             "UPDATE companies SET updated_at = datetime('now', 'localtime') WHERE id = ?",

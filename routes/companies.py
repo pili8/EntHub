@@ -28,7 +28,7 @@ IMPORT_FIELDS = [
     "legal_person", "registered_capital", "paid_capital",
     "established_date", "approved_date", "business_term",
     "province", "city", "district", "insured_count",
-    "company_type", "industry", "former_name", "website",
+    "company_type", "industry", "former_name", "website", "email",
     "business_scope", "business_status",
     "enterprise_scale", "shareholders", "mailing_address",
     "english_name", "source_file", "note",
@@ -241,6 +241,10 @@ def edit_company(company_id):
     if request.method == "POST":
         fields = {}
         for f in IMPORT_FIELDS:
+            # 只收集表单实际提交的字段；note/source_file 不在编辑表单里，
+            # 不提交就不更新，避免把库内备注/来源文件清空
+            if f not in request.form:
+                continue
             val = request.form.get(f, "").strip()
             fields[f] = val if val else ""
 
@@ -340,6 +344,8 @@ def add_company():
         shareholders_val = fields.pop("shareholders", "")
 
         # ── 操作：覆盖更新已有企业 ──
+        # _clear_empty=1 时：表单提交中为空的字段会被清空（用于工商信息作废场景）
+        clear_empty = request.form.get("_clear_empty", "") == "1"
         if action == "overwrite" and existing_id_raw:
             eid = int(existing_id_raw)
             row = g.db.execute(
@@ -353,14 +359,19 @@ def add_company():
                 return redirect(url_for("companies_bp.add_company"))
 
             # 字段级 UPDATE：仅写入非空且与库内不同的字段（空值不覆盖）
+            # clear_empty 模式下，表单提交了的字段若为空且库内有值 → 清为 NULL
             updates = {}
             for f_name in IMPORT_FIELDS:
+                # note（备注）跟着企业走，不从录入表单覆盖，只能手动编辑
                 if f_name in ("phone", "email", "shareholders",
-                              "source_file"):
+                              "source_file", "note"):
                     continue
                 inc_val = fields.get(f_name, "")
                 if inc_val and inc_val != (row[f_name] or ""):
                     updates[f_name] = inc_val
+                elif (clear_empty and f_name in request.form
+                      and not inc_val and row[f_name]):
+                    updates[f_name] = None
 
             # 派生归一化字段
             if "name" in updates:
@@ -376,13 +387,13 @@ def add_company():
                     list(updates.values()) + [eid]
                 )
 
-            # 电话 & 邮箱 & 股东：非空时全量重建（覆盖），空值不动（保留已有）
+            # 电话/邮箱/股东均只追加不删除（数据不丢失）
             if phone_val:
-                sync_phones(g.db, eid, phone_val)
+                merge_phones(g.db, eid, phone_val)
             if email_val:
-                sync_emails(g.db, eid, email_val)
+                merge_emails(g.db, eid, email_val)
             if shareholders_val:
-                sync_shareholders(g.db, eid, shareholders_val)
+                merge_shareholders(g.db, eid, shareholders_val)
             g.db.commit()
 
             msg = f"已更新：{fields.get('name', row['name'])}"
@@ -483,10 +494,11 @@ def add_company():
 
         msg = f"已录入：{name}"
         if is_ajax:
+            new_id = cursor.lastrowid
             return jsonify({"code": 0, "message": msg,
-                            "redirect": url_for("companies_bp.add_company")})
+                "redirect": url_for("companies_bp.company_detail", company_id=new_id)})
         flash(msg, "success")
-        return redirect(url_for("companies_bp.add_company"))
+        return redirect(url_for("companies_bp.company_detail", company_id=cursor.lastrowid))
 
     return render_template("add.html", company={})
 
