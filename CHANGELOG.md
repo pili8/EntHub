@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 2026-09-08 — v0.7.1 覆盖更新防丢数据 + 插件独立解析 + 仓库整理
+## 2026-09-08 — v1.0.0 覆盖更新防丢数据 + 插件独立解析 + 仓库整理
 
 ### 覆盖更新改为「只追加不删除」（守住不丢数据）
 
@@ -39,6 +39,12 @@
 2. **旧文件归档到 `docs/已删除/`** — `.mcp_pid`、上传图片、`.yione/sdd` 任务文件、`config.json.migrated`、`mcp_server.log`、一次性迁移/测试脚本
 3. **`wps_api_verify/` → `docs/wps_api_verify/`**
 4. **新增文档** — `docs/ROADMAP.md`、`docs/收尾评审报告-2026-09-08.md`
+
+### 安全与测试修复
+
+1. **secret_key 改为本地文件随机生成** — 不再硬编码，改为生成并保存在 `~/Library/Application Support/EntHub/secret.key`，文件权限 600
+2. **修正手机号测试用例** — 原用例拼出 10 位号码导致必然失败，已修正为合法号码
+3. **补充 pytest 配置** — 新增 `pytest.ini` 与 pytest 依赖，测试 35 passed
 
 ## 2026-08-12 — v0.7.0 配置存储架构升级 + 数据存储配置
 
