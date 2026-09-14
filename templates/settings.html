@@ -626,6 +626,91 @@
       </form>
     </div>
   </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       三、飞书配置（网页采集模块用）
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <i data-lucide="cloud" style="width:16px;height:16px;color:var(--accent)"></i>
+      飞书配置
+      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">用于「网页采集」模块的数据写入</span>
+    </h2>
+
+    <div class="settings-card" style="border-left-color: {{ '#22c55e' if feishu.app_id and feishu.app_token and feishu.collect_table_id else '#d1d5db' }};">
+      <div class="settings-card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 600;">飞书开放平台</span>
+          {% if feishu.app_id and feishu.app_token and feishu.collect_table_id %}
+          <span class="status-badge status-badge-active">已配置</span>
+          {% else %}
+          <span class="status-badge status-badge-inactive">未配置</span>
+          {% endif %}
+        </div>
+        <a href="https://open.feishu.cn" target="_blank" style="font-size: 12px; color: var(--accent); text-decoration: none;">open.feishu.cn →</a>
+      </div>
+
+      <form method="post" action="{{ url_for('settings_flow_bp.save_feishu') }}" style="padding: 16px 20px;">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px;">应用凭证</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; max-width: 600px;">
+          <div>
+            <label class="settings-label">App ID</label>
+            <input type="text" name="feishu_app_id" value="{{ feishu.app_id }}" placeholder="cli_xxxxxxxxxx"
+                   style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: monospace;">
+          </div>
+          <div>
+            <label class="settings-label">App Secret（留空不修改）</label>
+            <div style="position: relative;">
+              <input type="password" name="feishu_app_secret" class="masked-input" placeholder="{{ mask_secret(feishu.app_secret) }}"
+                     style="width: 100%; padding: 7px 36px 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: monospace;">
+              <button type="button" onclick="toggleMask(this)" tabindex="-1" class="eye-btn"><i data-lucide="eye" style="width:14px;height:14px"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; border-top: 1px solid var(--border); padding-top: 14px;">多维表格</div>
+        <div style="display: flex; flex-direction: column; gap: 14px; max-width: 600px;">
+          <div>
+            <label class="settings-label">App Token</label>
+            <input type="text" name="feishu_app_token" value="{{ feishu.app_token }}" placeholder="多维表格链接中 /base/ 后面的部分"
+                   style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: monospace;">
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div>
+              <label class="settings-label">采集表 ID（结果表）</label>
+              <input type="text" name="feishu_collect_table_id" value="{{ feishu.collect_table_id }}" placeholder="tblxxxxxx"
+                     style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: monospace;">
+            </div>
+            <div>
+              <label class="settings-label">收集表 ID（待采集）</label>
+              <input type="text" name="feishu_source_table_id" value="{{ feishu.source_table_id }}" placeholder="tblyyyyyy"
+                     style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: monospace;">
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <button type="submit" class="btn-sm btn-primary-sm"><i data-lucide="save" style="width:14px;height:14px"></i> 保存</button>
+        </div>
+      </form>
+
+      <details style="padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border);">
+        <summary style="cursor: pointer; font-weight: 600; color: var(--text-secondary); user-select: none; list-style: none;">
+          <i data-lucide="chevron-right" style="width: 12px; height: 12px; display: inline-block; transition: transform 0.2s; margin-right: 4px;"></i>
+          配置说明
+        </summary>
+        <div style="margin-top: 10px;">
+          <ul style="margin: 4px 0 0 16px; line-height: 1.8;">
+            <li><strong>App ID / App Secret</strong>：飞书开放平台 → 创建应用 → 获取凭证</li>
+            <li><strong>App Token</strong>：飞书多维表格链接中 <code>/base/</code> 后面的部分，标识哪个多维表格</li>
+            <li><strong>采集表</strong>：存储采集到的公司信息的数据表，需先在飞书多维表格中创建</li>
+            <li><strong>收集表</strong>：日常收集待采集链接的数据表，可开启飞书表单功能方便提交</li>
+            <li>采集表中需要的字段（类型/公司名/联系人/电话/地址/摘要/来源/发布日期/来源链接/采集时间）可在采集页面点击「初始化飞书字段」自动创建</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
 </div>
 
 <style>

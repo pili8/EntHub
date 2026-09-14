@@ -1,0 +1,525 @@
+{% extends "base.html" %}
+
+{% block title %}网页采集{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-head">
+    <h1 class="page-title">网页采集</h1>
+    <p class="page-sub">从网页链接或文字中提取公司信息，写入飞书多维表格</p>
+  </div>
+
+  <!-- 配置状态提示 -->
+  {% if not feishu_ready %}
+  <div class="card" style="border-left: 3px solid #ef4444; padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary);">
+    <i data-lucide="alert-triangle" style="width: 18px; height: 18px; color: #ef4444; flex-shrink: 0;"></i>
+    <span>飞书未配置，请先到
+      <a href="{{ url_for('settings_flow_bp.settings_page') }}" style="color: var(--accent); font-weight: 500;">设置页面</a>
+      配置飞书凭证和采集表 ID</span>
+  </div>
+  {% endif %}
+
+  {% if not llm.enabled %}
+  <div class="card" style="border-left: 3px solid #f59e0b; padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary);">
+    <i data-lucide="alert-triangle" style="width: 18px; height: 18px; color: #f59e0b; flex-shrink: 0;"></i>
+    <span>大模型 API 未启用，采集时无法调用 AI 提取。请到
+      <a href="{{ url_for('settings_flow_bp.settings_page') }}" style="color: var(--accent); font-weight: 500;">设置页面</a>
+      配置并启用大模型</span>
+  </div>
+  {% endif %}
+
+  <!-- ═══ 采集区 ═══ -->
+  <div class="card" style="margin-bottom: 16px;">
+    <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="file-text" style="width:16px;height:16px;color:var(--accent)"></i>
+        <span style="font-size: 14px; font-weight: 600;">采集信息</span>
+      </div>
+      <button class="page-btn" onclick="testConnectivity()" id="test-conn-btn">
+        <i data-lucide="plug-zap" style="width:13px;height:13px"></i> 测试连接
+      </button>
+    </div>
+
+    <div style="padding: 20px;">
+      <label style="display: block; font-size: 12px; color: var(--text-secondary); font-weight: 500; margin-bottom: 6px;">粘贴链接或文字信息（每行一个链接，或直接粘贴文字）</label>
+      <textarea id="urls-input" class="form-input" placeholder="粘贴网页链接，或直接粘贴公司信息文字"
+                style="width: 100%; height: 120px; resize: vertical; font-size: 14px; line-height: 1.5;"></textarea>
+
+      <div style="margin-top: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <button class="btn btn-primary btn-sm" id="btn-collect" onclick="collect()">
+          <i data-lucide="play" style="width:14px;height:14px"></i> 开始采集
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="clearInput()">
+          <i data-lucide="eraser" style="width:14px;height:14px"></i> 清空
+        </button>
+        <span style="width: 1px; height: 20px; background: var(--border); margin: 0 4px;"></span>
+        <button class="btn btn-secondary btn-sm" id="btn-from-table" onclick="collectFromTable()">
+          <i data-lucide="table" style="width:14px;height:14px"></i> 从收集表采集
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="initFields()">
+          <i data-lucide="list-plus" style="width:14px;height:14px"></i> 初始化飞书字段
+        </button>
+      </div>
+
+      <!-- 进度状态 -->
+      <div id="status-bar" style="display: none; margin-top: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; line-height: 1.6;">
+        <span id="status-icon" style="display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px;"></span>
+        <span id="status-text">采集中...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 自动采集 ═══ -->
+  <div class="card" id="auto-card" style="display: none; margin-bottom: 16px;">
+    <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="repeat" style="width:16px;height:16px;color:var(--accent)"></i>
+        <span style="font-size: 14px; font-weight: 600;">自动采集</span>
+        <span id="auto-status-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500;"></span>
+      </div>
+      <button class="page-btn" id="btn-auto-toggle" onclick="toggleAutoCollection()">
+        <span id="btn-auto-text">--</span>
+      </button>
+    </div>
+
+    <div style="padding: 14px 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
+      <div>间隔：<span id="auto-interval-display" style="font-family: var(--mono); color: var(--text-primary);">--</span> 分钟</div>
+      <div id="auto-progress-row" style="display: none; color: var(--accent); font-weight: 500;">
+        当前进度：<span id="auto-progress-msg">--</span>
+      </div>
+      <div>上次运行：<span id="auto-last-run" style="color: var(--text-primary);">--</span></div>
+      <div>上次结果：<span id="auto-last-count" style="color: var(--text-primary);">--</span> 条</div>
+      <div id="auto-last-errors-row" style="display: none; color: #c62828; margin-top: 4px; font-size: 12px;">
+        最近错误：<span id="auto-last-errors"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 采集结果 ═══ -->
+  <div class="card" id="result-card" style="display: none; margin-bottom: 16px;">
+    <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px;">
+      <i data-lucide="check-circle" style="width:16px;height:16px;color:#22c55e"></i>
+      <span style="font-size: 14px; font-weight: 600;">采集结果</span>
+    </div>
+    <div class="table-wrap" style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">类型</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">公司名</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">联系人</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">电话</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">地址</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">摘要</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">来源</th>
+            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-muted); font-weight: 500;">发布日期</th>
+          </tr>
+        </thead>
+        <tbody id="result-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ 提示词编辑 ═══ -->
+  <details class="card" style="margin-bottom: 16px;">
+    <summary style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; user-select: none;">
+      <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--text-muted);transition:transform 0.2s" id="prompt-chevron"></i>
+      <i data-lucide="message-square-code" style="width:16px;height:16px;color:var(--accent)"></i>
+      <span style="font-size: 14px; font-weight: 600;">提示词编辑</span>
+      <span style="font-size: 12px; color: var(--text-muted);">采集时使用的 AI 提取规则</span>
+    </summary>
+
+    <div style="padding: 20px;">
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 12px; color: var(--text-secondary); font-weight: 500; margin-bottom: 6px;">System Prompt（角色与行为约束）</label>
+        <textarea id="cfg-system-prompt" class="form-input" style="height: 80px; font-size: 12px; font-family: var(--mono); resize: vertical;">{{ prompts.system_prompt }}</textarea>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">设定 AI 的角色和输出格式约束，优先级高于 User Prompt</div>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 12px; color: var(--text-secondary); font-weight: 500; margin-bottom: 6px;">User Prompt（提取规则）</label>
+        <textarea id="cfg-user-prompt" class="form-input" style="height: 300px; font-size: 12px; font-family: var(--mono); resize: vertical;">{{ prompts.user_prompt }}</textarea>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;"><code style="font-family: var(--mono);">{text}</code> 为文章内容占位符，修改后下次采集生效</div>
+      </div>
+
+      <button class="btn btn-primary btn-sm" onclick="savePrompts()">
+        <i data-lucide="save" style="width:14px;height:14px"></i> 保存提示词
+      </button>
+    </div>
+  </details>
+</div>
+
+<style>
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+#status-bar.loading {
+  display: block !important;
+  background: #e3f2fd;
+  color: #1565c0;
+}
+#status-bar.ok {
+  display: block !important;
+  background: #ECFDF3;
+  color: #16A34A;
+}
+#status-bar.err {
+  display: block !important;
+  background: #FEF1EB;
+  color: #C2410C;
+}
+#status-bar.loading #status-icon {
+  animation: spin 0.8s linear infinite;
+}
+#status-bar.ok #status-icon,
+#status-bar.err #status-icon {
+  display: none;
+}
+details[open] #prompt-chevron {
+  transform: rotate(90deg);
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── 采集 ──
+async function collect() {
+  const urls = document.getElementById('urls-input').value.trim();
+  if (!urls) {
+    window._enthubToast('warning', '请输入内容', '粘贴链接或文字后开始采集');
+    return;
+  }
+  const btn = document.getElementById('btn-collect');
+  const bar = document.getElementById('status-bar');
+  const text = document.getElementById('status-text');
+  btn.disabled = true;
+  bar.className = 'loading';
+  bar.querySelector('#status-icon').style.display = 'inline-block';
+  text.textContent = '采集中，请稍候...';
+
+  try {
+    const resp = await fetch('/api/collector/collect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({urls})
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      bar.className = 'err';
+      text.textContent = err.error || '请求失败';
+      return;
+    }
+
+    await readSSE(resp, bar, text);
+  } catch (e) {
+    bar.className = 'err';
+    text.textContent = '请求失败: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── 从收集表采集 ──
+async function collectFromTable() {
+  const btn = document.getElementById('btn-from-table');
+  const bar = document.getElementById('status-bar');
+  const text = document.getElementById('status-text');
+  btn.disabled = true;
+  bar.className = 'loading';
+  bar.querySelector('#status-icon').style.display = 'inline-block';
+  text.textContent = '正在从收集表读取...';
+
+  try {
+    const resp = await fetch('/api/collector/collect-from-table', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      bar.className = 'err';
+      text.textContent = err.error || '请求失败';
+      return;
+    }
+
+    await readSSE(resp, bar, text);
+  } catch (e) {
+    bar.className = 'err';
+    text.textContent = '请求失败: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── SSE 读取通用逻辑 ──
+async function readSSE(resp, bar, text) {
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, {stream: true});
+
+    let lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let evt;
+      try { evt = JSON.parse(line); } catch(e) { continue; }
+
+      if (evt.type === 'count') {
+        text.textContent = `发现 ${evt.total} 条待采集内容，开始处理...`;
+      }
+      if (evt.type === 'progress') {
+        text.textContent = `正在采集 ${evt.current}/${evt.total}：${evt.msg}`;
+      }
+      if (evt.type === 'result') {
+        let info = '';
+        if (evt.articles && evt.articles.length) {
+          info = evt.articles.map(a => `《${a.title || '未知标题'}》— ${a.author || '未知'} ${a.date || ''}`).join('\n');
+        }
+
+        bar.className = evt.count > 0 ? 'ok' : 'err';
+        bar.querySelector('#status-icon').style.display = 'none';
+        let msg = `成功采集 ${evt.count} 条记录`;
+        if (evt.summary && evt.summary.length) msg += '；' + evt.summary.join('；');
+        if (info) msg += '\n' + info;
+        if (evt.errors.length) msg += '\n' + evt.errors.join('\n');
+        text.textContent = msg;
+        text.style.whiteSpace = 'pre-line';
+
+        if (evt.records.length) {
+          document.getElementById('result-card').style.display = 'block';
+          document.getElementById('result-body').innerHTML = evt.records.map(r => `
+            <tr>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['类型'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 500;">${r['公司名'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['联系人'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono);">${r['电话'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['地址'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text-muted);">${r['摘要'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['来源'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono);">${r['发布日期'] || '-'}</td>
+            </tr>
+          `).join('');
+        }
+
+        if (evt.count > 0) {
+          window._enthubToast('success', `采集完成 ${evt.count} 条`, evt.summary ? evt.summary.join('；') : '');
+        } else {
+          window._enthubToast('warning', '未采集到记录', evt.errors ? evt.errors[0] : '');
+        }
+      }
+    }
+  }
+}
+
+// ── 清空 ──
+function clearInput() {
+  document.getElementById('urls-input').value = '';
+  const bar = document.getElementById('status-bar');
+  bar.className = '';
+  bar.style.display = 'none';
+  document.getElementById('result-card').style.display = 'none';
+  document.getElementById('result-body').innerHTML = '';
+}
+
+// ── 初始化飞书字段 ──
+async function initFields() {
+  if (!confirm('将在飞书采集表中创建所需字段（类型/公司名/联系人/电话/地址/摘要/来源/发布日期/来源链接/采集时间），已存在的字段会跳过。继续？')) return;
+  window._enthubToast('info', '正在初始化飞书字段...', '');
+  try {
+    const resp = await fetch('/api/collector/init-fields', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      window._enthubToast('success', '字段创建完成', data.message);
+    } else {
+      window._enthubToast('error', '初始化失败', data.error || '');
+    }
+  } catch (e) {
+    window._enthubToast('error', '请求失败', e.message);
+  }
+}
+
+// ── 提示词保存 ──
+async function savePrompts() {
+  const systemPrompt = document.getElementById('cfg-system-prompt').value;
+  const userPrompt = document.getElementById('cfg-user-prompt').value;
+  try {
+    const resp = await fetch('/api/collector/prompts', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({system_prompt: systemPrompt, user_prompt: userPrompt})
+    });
+    const data = await resp.json();
+    if (data.success) {
+      window._enthubToast('success', '提示词已保存', '下次采集时生效');
+    } else {
+      window._enthubToast('error', '保存失败', data.error || '');
+    }
+  } catch (e) {
+    window._enthubToast('error', '保存失败', e.message);
+  }
+}
+
+// ── 自动采集状态 ──
+let _autoRunning = false;
+
+async function loadAutoStatus() {
+  try {
+    const resp = await fetch('/api/collector/auto-status');
+    const data = await resp.json();
+
+    _autoRunning = !!data.running;
+
+    const card = document.getElementById('auto-card');
+    const badge = document.getElementById('auto-status-badge');
+
+    if (data.enabled || data.last_run) {
+      card.style.display = 'block';
+    } else {
+      card.style.display = 'none';
+      return;
+    }
+
+    if (data.running) {
+      badge.textContent = '采集中...';
+      badge.style.background = '#e3f2fd';
+      badge.style.color = '#1565c0';
+    } else if (data.enabled) {
+      badge.textContent = '运行中';
+      badge.style.background = '#ECFDF3';
+      badge.style.color = '#16A34A';
+    } else {
+      badge.textContent = '已暂停';
+      badge.style.background = '#f3f4f6';
+      badge.style.color = '#6b7280';
+    }
+
+    document.getElementById('auto-interval-display').textContent = data.interval;
+
+    const progressRow = document.getElementById('auto-progress-row');
+    const progressMsg = document.getElementById('auto-progress-msg');
+    if (data.running && data.progress_msg) {
+      progressRow.style.display = 'block';
+      progressMsg.textContent = data.progress_msg;
+    } else {
+      progressRow.style.display = 'none';
+    }
+
+    if (data.last_run) {
+      try {
+        const dt = new Date(data.last_run);
+        document.getElementById('auto-last-run').textContent = dt.toLocaleString('zh-CN');
+      } catch(e) {
+        document.getElementById('auto-last-run').textContent = data.last_run;
+      }
+    } else {
+      document.getElementById('auto-last-run').textContent = '尚未运行';
+    }
+
+    document.getElementById('auto-last-count').textContent = data.last_count || 0;
+
+    const errorsRow = document.getElementById('auto-last-errors-row');
+    const errorsEl = document.getElementById('auto-last-errors');
+    if (data.last_errors && data.last_errors.length > 0) {
+      errorsRow.style.display = 'block';
+      errorsEl.textContent = data.last_errors.slice(-3).join('; ');
+    } else {
+      errorsRow.style.display = 'none';
+    }
+
+    const btnText = document.getElementById('btn-auto-text');
+    const btn = document.getElementById('btn-auto-toggle');
+    btnText.textContent = data.enabled ? '暂停' : '开启';
+    btn.className = data.enabled ? 'page-btn' : 'page-btn page-btn-primary';
+
+  } catch (e) {
+    console.error('Failed to load auto status:', e);
+  }
+}
+
+async function toggleAutoCollection() {
+  const btn = document.getElementById('btn-auto-toggle');
+  btn.disabled = true;
+  try {
+    const statusResp = await fetch('/api/collector/auto-status');
+    const status = await statusResp.json();
+    const newState = !status.enabled;
+
+    const resp = await fetch('/api/collector/auto-toggle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: newState})
+    });
+    const data = await resp.json();
+    if (data.success) {
+      window._enthubToast('success', data.message, '');
+      loadAutoStatus();
+    }
+  } catch (e) {
+    window._enthubToast('error', '操作失败', e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// 自动采集状态轮询
+let _autoPollTimer = null;
+function scheduleAutoPoll() {
+  if (_autoPollTimer) clearTimeout(_autoPollTimer);
+  const delay = _autoRunning ? 10000 : 30000;
+  _autoPollTimer = setTimeout(async () => {
+    await loadAutoStatus();
+    scheduleAutoPoll();
+  }, delay);
+}
+
+// ── 连通性测试 ──
+async function testConnectivity() {
+  const btn = document.getElementById('test-conn-btn');
+  if (!btn) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-2" style="width:13px;height:13px;animation:spin 1s linear"></i> 测试中...';
+  if (window.lucide) lucide.createIcons();
+  window._enthubToast('info', '正在测试连通性...', '');
+
+  try {
+    const resp = await fetch('/api/collector/test-connectivity', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}
+    });
+    const data = await resp.json();
+
+    let msg = data.results.map(r => {
+      if (r.status === 'ok') return `${r.name}: ✅ ${r.detail || '连接正常'}`;
+      if (r.status === 'skip') return `${r.name}: ⏭️ ${r.error || '跳过'}`;
+      return `${r.name}: ❌ ${r.error || '失败'}`;
+    }).join('\n');
+
+    if (data.success) {
+      window._enthubToast('success', '连通测试完成', msg);
+    } else {
+      window._enthubToast('warning', '部分连接异常', msg);
+    }
+  } catch (e) {
+    window._enthubToast('error', '测试失败', e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// ── 页面初始化 ──
+loadAutoStatus().then(() => scheduleAutoPoll());
+if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

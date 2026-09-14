@@ -13,6 +13,7 @@ from config import (get_api_providers, update_provider, is_provider_ready,
                      get_webhook_url, save_webhook_url,
                      get_preferences, save_preferences)
 import enthub_api
+from feishu_service import get_feishu_config, save_feishu_config, mask_secret
 
 bp = Blueprint('settings_flow_bp', __name__)
 
@@ -112,6 +113,25 @@ def settings_page():
     manageable.sort(key=lambda x: (x["group"], x["order"]))
     core_modules.sort(key=lambda x: (x["group"], x["order"]))
 
+    # 飞书公共服务不在 routes/ 下（是根目录服务层），手动注入核心模块列表
+    feishu = get_feishu_config()
+    feishu_core = {
+        "id": "feishu_service",
+        "name": "飞书公共服务",
+        "icon": "cloud",
+        "url": "",
+        "group": "system",
+        "order": 25,
+        "core": True,
+        "external": False,
+        "group_label": "系统",
+        "enabled": True,
+        "pending": "",
+    }
+    # 插入到 system 组前面（按 order 排，25 在 settings 的 30 之前）
+    core_modules.insert(0, feishu_core)
+    core_modules.sort(key=lambda x: (x["group"], x["order"]))
+
     return render_template("settings.html",
                            providers=providers, quota=quota, llm=llm,
                            local_ips=local_ips,
@@ -121,7 +141,9 @@ def settings_page():
                            backup_dir=bs["backup_dir"],
                            manageable_modules=manageable,
                            core_modules=core_modules,
-                           prefs=prefs)
+                           prefs=prefs,
+                           feishu=feishu,
+                           mask_secret=mask_secret)
 
 
 @bp.route("/settings/api-provider/<provider_key>", methods=["POST"])
@@ -282,6 +304,22 @@ def save_kinboard_webhook():
     url = request.form.get("webhook_url", "").strip()
     save_webhook_url(url)
     flash("✅ 金山多维表 Webhook 已保存", "success")
+    return redirect(url_for("settings_flow_bp.settings_page"))
+
+
+# ── 飞书配置 ─────────────────────────────────────────────────────────────────
+
+@bp.route("/settings/feishu", methods=["POST"])
+def save_feishu():
+    """保存飞书配置。"""
+    save_feishu_config(
+        app_id=request.form.get("feishu_app_id", "").strip(),
+        app_secret=request.form.get("feishu_app_secret", "").strip() or None,
+        app_token=request.form.get("feishu_app_token", "").strip(),
+        collect_table_id=request.form.get("feishu_collect_table_id", "").strip(),
+        source_table_id=request.form.get("feishu_source_table_id", "").strip(),
+    )
+    flash("✅ 飞书配置已保存", "success")
     return redirect(url_for("settings_flow_bp.settings_page"))
 
 
