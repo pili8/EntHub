@@ -25,15 +25,17 @@ MODULE_META = {
     "id": "pages",
     "name": "核心页面",
     "core": True,
+    "risk": "high",
+    "impact": "搜索、浏览、电话可信度、关联发现四个页面。停用后任何页面都打不开。",
     "menu": [
         {"name": "搜索", "icon": "search", "url": "/search",
          "group": "data", "order": 10, "show_in": ["drawer"]},
         {"name": "浏览全部", "name_short": "浏览", "icon": "table", "url": "/browse",
-         "group": "data", "order": 20},
+         "group": "data", "order": 20, "desktop_order": 10},
         {"name": "电话可信度", "name_short": "电话", "icon": "phone", "url": "/phones",
-         "group": "data", "order": 30},
+         "group": "data", "order": 30, "desktop_order": 30},
         {"name": "关联发现", "name_short": "关联", "icon": "git-branch", "url": "/relations",
-         "group": "data", "order": 40},
+         "group": "data", "order": 40, "desktop_order": 40},
     ],
 }
 
@@ -55,25 +57,29 @@ def index():
             (SELECT COUNT(*) FROM company_emails) AS rows_with_email
         FROM companies
     """).fetchone()
-    rows = g.db.execute("""
-        SELECT id, q, query_type, result_count, created_at
-        FROM recent_searches
-        ORDER BY id DESC
-        LIMIT 8
-    """).fetchall()
-    today = _date.today()
+    from config import get_preferences
+    prefs = get_preferences()
     recents = []
-    for r in rows:
-        dt = datetime.strptime(r['created_at'], '%Y-%m-%d %H:%M:%S')
-        d = dt.date()
-        time_str = dt.strftime('%H:%M')
-        if d == today:
-            label = f'今天 {time_str}'
-        elif d == today - timedelta(days=1):
-            label = f'昨天 {time_str}'
-        else:
-            label = f'{d.month}月{d.day}日 {time_str}'
-        recents.append({**r, 'time_label': label})
+    if prefs.get("recent_search_enabled", True):
+        _limit = prefs.get("recent_search_limit", 50)
+        rows = g.db.execute("""
+            SELECT id, q, query_type, result_count, created_at
+            FROM recent_searches
+            ORDER BY id DESC
+            LIMIT 8
+        """).fetchall()
+        today = _date.today()
+        for r in rows:
+            dt = datetime.strptime(r['created_at'], '%Y-%m-%d %H:%M:%S')
+            d = dt.date()
+            time_str = dt.strftime('%H:%M')
+            if d == today:
+                label = f'今天 {time_str}'
+            elif d == today - timedelta(days=1):
+                label = f'昨天 {time_str}'
+            else:
+                label = f'{d.month}月{d.day}日 {time_str}'
+            recents.append({**r, 'time_label': label})
     return render_template("index.html", stats=stats, recents=recents)
 
 
@@ -487,17 +493,21 @@ def search():
 
     # 记录最近查询（仅首页查询，分页不记；同关键词去重，只显示最新一条）
     if page == 1 and q:
-        g.db.execute("DELETE FROM recent_searches WHERE q = ?", [q])
-        g.db.execute(
-            "INSERT INTO recent_searches (q, query_type, result_count) VALUES (?, ?, ?)",
-            [q, query_type, total]
-        )
-        # 超过 50 条清理一次
-        g.db.execute(
-            "DELETE FROM recent_searches WHERE id NOT IN "
-            "(SELECT id FROM recent_searches ORDER BY id DESC LIMIT 50)"
-        )
-        g.db.commit()
+        from config import get_preferences
+        prefs = get_preferences()
+        if prefs.get("recent_search_enabled", True):
+            g.db.execute("DELETE FROM recent_searches WHERE q = ?", [q])
+            g.db.execute(
+                "INSERT INTO recent_searches (q, query_type, result_count) VALUES (?, ?, ?)",
+                [q, query_type, total]
+            )
+            _limit = prefs.get("recent_search_limit", 50)
+            g.db.execute(
+                "DELETE FROM recent_searches WHERE id NOT IN "
+                "(SELECT id FROM recent_searches ORDER BY id DESC LIMIT ?)",
+                [_limit]
+            )
+            g.db.commit()
 
     return render_template("search.html", q=q, query_type=query_type,
                            rows=rows, total=total, page=page, pages=pages)

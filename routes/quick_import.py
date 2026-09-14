@@ -26,6 +26,8 @@ MODULE_META = {
     "group": "ops",
     "order": 90,
     "core": True,       # Chrome 插件/移动端"标注"依赖其 API
+    "risk": "high",
+    "impact": "网页提取与快速入库接口。停用后标注按钮、从网页提取、Chrome 插件一起失效。",
     "show_in": [],      # 无独立导航入口（移动端底部标注按钮调用其 API）
 }
 

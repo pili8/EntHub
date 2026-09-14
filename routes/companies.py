@@ -15,7 +15,7 @@ from data_helpers import (
     merge_phones, merge_emails, merge_shareholders,
     split_phones, split_shareholders,
 )
-from config import is_provider_ready, get_webhook_url
+from config import is_provider_ready, get_webhook_url, get_preferences
 import enthub_api
 
 bp = Blueprint('companies_bp', __name__)
@@ -28,7 +28,10 @@ MODULE_META = {
     "url": "/add",
     "group": "ops",
     "order": 10,
+    "desktop_order": 20,   # 桌面顶部：浏览 · 录入 · 电话 · 关联 · 标记 · MCP · 导入
     "core": True,
+    "risk": "high",
+    "impact": "手动录入与企业详情页，公司主数据本身。停用后全站报错。",
 }
 
 
@@ -75,10 +78,11 @@ def company_detail(company_id):
     phone_wechat_map = get_phone_wechat_batch(
         g.db, [r["normalized_phone"] for r in company_phones]
     ) if company_phones else {}
+    _show_loc = get_preferences().get("show_phone_location", True)
     company_phones_enriched = []
     for cp in company_phones:
         cp_dict = dict(cp)
-        cp_dict["location"] = phone_location(cp["phone"])
+        cp_dict["location"] = phone_location(cp["phone"]) if _show_loc else None
         cp_dict["tag"] = phone_tag_map.get(cp["normalized_phone"])
         cp_dict["wechat"] = phone_wechat_map.get(cp["normalized_phone"])
         is_valid, phone_type, reason = validate_phone(cp["normalized_phone"])

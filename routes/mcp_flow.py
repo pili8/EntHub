@@ -17,6 +17,9 @@ MODULE_META = {
     "url": "/mcp",
     "group": "ops",
     "order": 40,
+    "desktop_order": 60,
+    "risk": "low",
+    "impact": "MCP 面板与进程控制。停用后 MCP 进程自动停止，外部 AI 工具无法调用。",
 }
 
 MCP_HOST = "localhost"
@@ -42,6 +45,30 @@ def _read_mcp_pid():
         except (ValueError, OSError):
             return None
     return None
+
+
+def on_disable():
+    """模块停用时自动停止 MCP 进程。"""
+    pid = _read_mcp_pid()
+    if pid:
+        try:
+            os.kill(pid, 15)  # SIGTERM
+        except ProcessLookupError:
+            pass
+        except Exception:
+            pass
+    # 兜底：通过端口找进程杀
+    if _check_mcp_running():
+        try:
+            subprocess.run(["lsof", "-ti", f":{MCP_PORT}", "-kill"],
+                           check=False, timeout=5)
+        except Exception:
+            pass
+    try:
+        MCP_PID_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+    print("[mcp_flow] 模块已停用，MCP 进程已停止")
 
 
 @bp.route("/mcp")

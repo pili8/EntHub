@@ -72,6 +72,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
+      {% if 'import_flow' in ENABLED_MODULE_IDS %}
       <a href="{{ url_for('import_flow_bp.import_page') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--sky">
           <i data-lucide="upload" aria-hidden="true"></i>
@@ -82,6 +83,7 @@
         </span>
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
+      {% endif %}
 
       <a href="{{ url_for('pages_bp.browse_relation_groups', dup_type='phone') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--coral">

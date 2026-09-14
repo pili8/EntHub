@@ -18,7 +18,9 @@ MODULE_META = {
     "icon": "link",
     "group": "system",
     "order": 96,
-    "core": True,       # 电话页/公司详情页依赖
+    "core": False,
+    "risk": "warn",
+    "impact": "号码微信号接口。停用后详情页和电话页的微信信息直接隐藏。",
     "show_in": [],      # 纯 API，无页面入口
     "tables": [
         # 电话微信号关联表（每个号码一条微信信息，normalized_phone 为单主键）

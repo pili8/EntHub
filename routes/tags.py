@@ -17,7 +17,10 @@ MODULE_META = {
     "url": "/tags",
     "group": "ops",
     "order": 30,
+    "desktop_order": 50,
     "core": True,   # 标签 API 被公司详情页/浏览页依赖，暂设为核心
+    "risk": "warn",
+    "impact": "企业标签的增删改查。停用后详情页标签区变空白，打标签按钮失效。",
 }
 
 

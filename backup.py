@@ -453,7 +453,12 @@ def check_daily_backup(db_path: Path) -> dict:
     if hours_since >= 24:
         result = create_backup(db_path, reason="定时备份")
         if result["success"]:
-            cleanup_old_backups(keep_count=7)
+            try:
+                from config import get_preferences
+                keep = get_preferences().get("backup_keep_count", 7)
+            except Exception:
+                keep = 7
+            cleanup_old_backups(keep_count=keep)
         return result
     
     return {"success": False, "skipped": True, "reason": "今日已备份"}

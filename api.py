@@ -171,6 +171,8 @@ def company_detail(company_id):
 
     # 附加归属地、电话标记、微信和校验状态
     from utils import phone_location, get_phone_tags_batch, get_phone_wechat_batch, validate_phone
+    from config import get_preferences
+    _show_loc = get_preferences().get("show_phone_location", True)
     phone_tag_map = get_phone_tags_batch(
         g.db, [r['normalized_phone'] for r in company_phones]
     ) if company_phones else {}
@@ -180,7 +182,7 @@ def company_detail(company_id):
     phone_list = []
     for cp in company_phones:
         cp_dict = dict(cp)
-        cp_dict['location'] = phone_location(cp['phone'])
+        cp_dict['location'] = phone_location(cp['phone']) if _show_loc else None
         cp_dict['tag'] = phone_tag_map.get(cp['normalized_phone'])
         cp_dict['wechat'] = phone_wechat_map.get(cp['normalized_phone'])
         is_valid, phone_type, reason = validate_phone(cp['normalized_phone'])
@@ -824,11 +826,13 @@ def phone_count():
 
     count = _phone_dup_count(g.db, norm)
     is_valid, phone_type, _ = validate_phone(norm)
+    from config import get_preferences
+    _show_loc = get_preferences().get("show_phone_location", True)
     return _ok({
         "phone": phone,
         "normalized": norm,
         "count": count,
-        "location": phone_location(phone),
+        "location": phone_location(phone) if _show_loc else None,
         "tag": get_phone_tags(g.db, norm),
         "wechat": get_phone_wechat(g.db, norm),
         "phone_type": phone_type,
@@ -848,6 +852,8 @@ def phone_count_batch():
     except Exception:
         return _err(1001, "请求体必须是 JSON 格式")
 
+    from config import get_preferences
+    _show_loc = get_preferences().get("show_phone_location", True)
     results = []
     for raw in phones:
         raw = str(raw).strip()
@@ -862,7 +868,7 @@ def phone_count_batch():
             "phone": raw,
             "normalized": norm,
             "count": count,
-            "location": phone_location(raw),
+            "location": phone_location(raw) if _show_loc else None,
             "phone_type": ptype,
         })
 

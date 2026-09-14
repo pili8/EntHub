@@ -1,5 +1,62 @@
 # CHANGELOG
 
+## 2026-09-14 — v1.1.1 通用设置落地 + 模块可管理清单定案
+
+### 通用设置（设置页新增「〇、通用设置」面板）
+
+1. **6 项偏好** — 启动时自动备份、备份保留份数（1–100）、电话归属地显示、最近查询记录（开关 + 保留 10–500 条）、启动时自动打开浏览器、开机自启动
+2. **存储层** — `config.py` 新增 `DEFAULT_PREFERENCES` / `get_preferences()`（读取时补全默认值）/ `save_preferences()`（只写传入字段）
+3. **与菜单栏双向同步** — `auto_open_web` / `auto_start` 除写入 `preferences` 子对象外同时写根级别，兼容 `menubar.py` / `start.sh` 的旧读取方式；菜单栏勾选后也回写 `preferences`，两边不再各说各话
+
+### 偏好真正生效（不是摆设）
+
+1. **自动备份开关** — `app.py` 的 `_startup_backup_check()` 读 `auto_backup`，关闭则跳过启动备份
+2. **备份保留份数** — `backup.py` 的 `check_daily_backup()` 与 `routes/import_flow.py` 导入前备份，清理份数由写死 7 改为读偏好
+3. **归属地显示** — `api.py` 三处（企业详情 / 单个号码统计 / 批量号码统计）与 `routes/companies.py` 详情页，关闭后不再查归属地
+4. **最近查询** — `routes/pages.py` 首页不查不显示、搜索页不记录、清理条数按偏好
+5. **开机自启动** — 保存时调用 `menubar._install_launch_agent()` / `_uninstall_launch_agent()` 安装/卸载 macOS LaunchAgent（仅 darwin；非 macOS 环境静默跳过）
+
+### 模块可管理清单定案（新增 `docs/模块可管理清单.md`）
+
+1. **三条红线** — R1 关掉后任何页面打不开（模板 `url_for` 硬引用）/ R2 失去不可替代能力（备份恢复入口）/ R3 别处留下死按钮且该功能在用
+2. **核心常驻 8** — pages、companies、settings_flow、tags、api_legacy、backup_flow、quick_import、phone_tags
+3. **可管理 4** — mcp_flow、cleanup_flow、import_flow（新放开）、phone_wechat（新放开）
+4. **本期不放开 2** — phone_tags、quick_import：需改造 2 / 5 个入口（含 Chrome 插件与菜单栏客户端无法变灰）
+5. **归属调整** — `backup_flow` 收回核心（含唯一数据回滚入口）；`import_flow`、`phone_wechat` 由核心改为可管理
+6. **自带模块去掉删除按钮** — 模板不再渲染删除入口（后端 `/settings/modules/delete` 路由保留，留给将来后接入的模块）
+7. **纠错** — `routes/api_legacy.py` 原注释「Chrome 插件 / MCP 依赖，不可关闭」不成立：MCP 直连数据库、插件只调 `quick_import`，真正的硬依赖只有 `templates/browse.html` 的批量删除 / 批量打标签
+
+### 停用安全（不留死按钮）
+
+1. `templates/index.html` 导入卡片 → 按 `ENABLED_MODULE_IDS` 条件渲染
+2. `templates/company_detail.html` 微信号按钮 → 模块停用时不渲染
+3. `templates/phones.html` 单个号码查询的微信行 → JS 侧读模块开关（`_wcEnabled`）
+
+### 模块管理面板升级
+
+1. **分两组渲染** — 「可管理模块」（开关 + 状态）与「核心模块」（仅常驻 chip）；核心行不再显示影响说明
+2. **模块自述** — `MODULE_META` 新增 `impact`（一句白话影响）与 `risk`（high / warn / low），12 个模块全部补齐
+3. **高危二次确认** — 可管理且 `risk=high` 的开关提交前走 `confirmHighRisk()`，确认框原样复述该行影响文案
+4. **待重启提示** — 开关状态与已注册路由不一致时显示「待启用 / 待停用 · 待重启」
+
+### 模块停用钩子
+
+1. 注册器跳过停用模块时调用模块可选定义的 `on_disable()`（异常不阻断注册，仅打印）
+2. `routes/mcp_flow.py` 实现：SIGTERM 结束 MCP 进程 + 按端口 `lsof -ti` 兜底 + 清理 PID 文件
+
+### 桌面导航独立排序
+
+1. `MODULE_META` 新增 `desktop_order`（缺省回退 `order`），`MENU_KEYS` 同步
+2. `routes/__init__.py` 新增 `DESKTOP_MODULES`，`app.py` 注入模板；`base.html` 桌面顶部导航改用 `DESKTOP_MODULES`，移动端抽屉仍按 `group + order` 渲染
+3. 桌面实际顺序：浏览 · 录入 · 电话 · 关联 · 标记 · MCP · 导入
+
+### 已验证
+
+- 35 个 pytest 全部通过
+- 生产库快照副本（`sqlite3` backup API，源库只读）+ Flask test client：12 个页面全部 200；设置页渲染出「通用设置 / 可管理模块 / 核心模块」三块，版本号显示 v1.1.1，模块行已无删除按钮
+- 模块注册复核：12 个模块全部注册，核心 8 / 可管理 4，与清单一致
+- 偏好读写往返：`get_preferences` → `save_preferences` → 表单 POST 三段均正确落库
+
 ## 2026-09-14 — v1.1.0 插件化架构（模块可插拔）验收通过
 
 ### 模块自动注册 + 导航动态化

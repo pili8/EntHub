@@ -3,6 +3,11 @@
 {% block title %}设置{% endblock %}
 
 {% block content %}
+{# 模块副信息：多入口模块显示入口数，单入口显示 URL，纯 API 标注内部 API #}
+{% macro mod_sub(m) -%}
+{{ m.group_label }}{% if m.menu %} · {{ m.menu | length }} 个入口{% elif m.url %} · {{ m.url }}{% else %} · 内部 API{% endif %}
+{%- endmacro %}
+
 <div class="page">
   <div class="page-head">
     <h1 class="page-title" style="display: flex; align-items: center; gap: 10px;">
@@ -15,44 +20,194 @@
   <!-- ═══════════════════════════════════════════════════════════════════
        〇、模块管理
        ═══════════════════════════════════════════════════════════════════ -->
-  <div style="margin-bottom: 32px;">
-    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-      <i data-lucide="blocks" style="width:16px;height:16px;color:var(--accent)"></i>
-      模块管理
-      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">启用 / 停用 / 删除功能模块，重启服务后生效</span>
-    </h2>
+  <details class="mod-section" open>
+    <summary class="mod-section-summary">
+      <h2 class="settings-head-title">
+        <i data-lucide="blocks"></i>模块管理
+      </h2>
+      <span class="settings-head-hint">启用 / 停用需重启服务生效</span>
+    </summary>
 
-    <div class="settings-card">
-      {% for m in manage_modules %}
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; {% if not loop.first %}border-top: 1px solid var(--border);{% endif %}">
-        <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-          <i data-lucide="{{ m.icon }}" style="width:15px;height:15px;color:var(--text-muted); flex-shrink:0"></i>
-          <span style="font-size: 13px; font-weight: 500;">{{ m.name }}</span>
-          <span class="status-badge status-badge-inactive" style="font-size: 11px; cursor: default;">{{ m.group }}</span>
-          {% if m.core %}<span style="font-size: 11px; color: var(--text-muted);">核心 · 常驻</span>{% endif %}
+    <details class="mod-group" open>
+    <summary class="mod-group-head">
+      <span class="mod-group-name">可管理模块</span>
+      <span class="mod-group-count">{{ manageable_modules | length }}</span>
+      <span class="mod-group-hint">停用后路由与菜单消失，数据保留</span>
+    </summary>
+    <div class="settings-card mod-card">
+      {% for m in manageable_modules %}
+      <div class="mod-row">
+        <span class="mod-icon"><i data-lucide="{{ m.icon }}"></i></span>
+        <div class="mod-meta">
+          <span class="mod-name">{{ m.name }}</span>
+          <span class="mod-sub">{{ mod_sub(m) }}</span>
+          {% if m.impact %}<span class="mod-impact">{{ m.impact }}</span>{% endif %}
         </div>
-        <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-          {% if m.core %}
-            <span style="font-size: 12px; color: var(--text-muted);">—</span>
-          {% else %}
-            <form method="post" action="{{ url_for('settings_flow_bp.toggle_module') }}" style="display: inline;">
-              <input type="hidden" name="module_id" value="{{ m.id }}">
-              <input type="hidden" name="action" value="{{ 'off' if m.enabled else 'on' }}">
-              <button type="submit" class="btn btn-sm {{ 'btn-secondary' if m.enabled else 'btn-primary' }}" style="min-width: 64px;">
-                {{ '停用' if m.enabled else '启用' }}
-              </button>
-            </form>
-            <form method="post" action="{{ url_for('settings_flow_bp.delete_module') }}"
-                  onsubmit="return confirmDeleteModule(this, '{{ m.name }}')" style="display: inline;">
-              <input type="hidden" name="module_id" value="{{ m.id }}">
-              <input type="hidden" name="purge" value="">
-              <button type="submit" class="btn btn-sm btn-secondary" style="color: #dc2626; border-color: #fca5a5;">删除</button>
-            </form>
-          {% endif %}
+        <div class="mod-actions">
+          {% if m.pending %}<span class="mod-chip mod-chip-warn">{{ m.pending }} · 待重启</span>{% endif %}
+          <span class="mod-state {{ 'on' if m.enabled else 'off' }}">{{ '已启用' if m.enabled else '已停用' }}</span>
+          <form method="post" action="{{ url_for('settings_flow_bp.toggle_module') }}"
+                {% if m.risk == 'high' %}onsubmit="return confirmHighRisk(this, '{{ m.name }}', {{ 'true' if m.enabled else 'false' }})"{% endif %}>
+            <input type="hidden" name="module_id" value="{{ m.id }}">
+            <input type="hidden" name="action" value="{{ 'off' if m.enabled else 'on' }}">
+            <button type="submit" class="mod-switch" data-on="{{ 'true' if m.enabled else 'false' }}"
+                    title="{{ '点击停用' if m.enabled else '点击启用' }}（重启服务后生效）"
+                    aria-label="{{ '停用' if m.enabled else '启用' }}{{ m.name }}"></button>
+          </form>
         </div>
       </div>
       {% endfor %}
     </div>
+    </details>
+
+    <details class="mod-group">
+    <summary class="mod-group-head">
+      <span class="mod-group-name">核心模块</span>
+      <span class="mod-group-count">{{ core_modules | length }}</span>
+      <span class="mod-group-hint">系统地基，不可停用</span>
+    </summary>
+    <div class="settings-card mod-card mod-card-core">
+      {% for m in core_modules %}
+      <div class="mod-row">
+        <span class="mod-icon"><i data-lucide="{{ m.icon }}"></i></span>
+        <div class="mod-meta">
+          <span class="mod-name">{{ m.name }}</span>
+          <span class="mod-sub">{{ mod_sub(m) }}</span>
+        </div>
+        <div class="mod-actions">
+          {% if m.external %}<span class="mod-chip mod-chip-info">外部依赖</span>{% endif %}
+          <span class="mod-chip">常驻</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    </details>
+  </details>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       〇、通用设置
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <i data-lucide="sliders-horizontal" style="width:16px;height:16px;color:var(--accent)"></i>
+      通用设置
+      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">个性化你的使用体验</span>
+    </h2>
+
+    <form method="post" action="{{ url_for('settings_flow_bp.save_preferences_route') }}">
+    <div class="settings-card" style="border-left-color: var(--accent);">
+
+      <!-- 备份相关 -->
+      <div class="settings-card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 600;">备份与数据</span>
+        </div>
+      </div>
+
+      <div style="padding: 14px 20px; display: flex; flex-direction: column; gap: 16px;">
+
+        <!-- 启动时自动备份 -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">启动时自动备份</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">每天首次启动自动创建一份备份</div>
+          </div>
+          <label class="pref-switch">
+            <input type="checkbox" name="auto_backup" {{ 'checked' if prefs.auto_backup else '' }} onchange="this.nextElementSibling.dataset.on=this.checked">
+            <span class="mod-switch" data-on="{{ 'true' if prefs.auto_backup else 'false' }}"></span>
+          </label>
+        </div>
+
+        <!-- 备份保留份数 -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">备份保留份数</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">自动备份和压缩后删除旧备份，保留最新 N 份</div>
+          </div>
+          <input type="number" name="backup_keep_count" value="{{ prefs.backup_keep_count }}" min="1" max="100"
+                 style="width: 72px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; text-align: center; font-family: var(--mono);">
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin: 0 -20px;"></div>
+
+        <!-- 电话归属地 -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">电话归属地显示</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">详情页和电话页的手机号旁显示省份城市</div>
+          </div>
+          <label class="pref-switch">
+            <input type="checkbox" name="show_phone_location" {{ 'checked' if prefs.show_phone_location else '' }} onchange="this.nextElementSibling.dataset.on=this.checked">
+            <span class="mod-switch" data-on="{{ 'true' if prefs.show_phone_location else 'false' }}"></span>
+          </label>
+        </div>
+
+        <div style="border-top: 1px solid var(--border); margin: 0 -20px;"></div>
+
+        <!-- 最近查询记录 -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">最近查询记录</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">首页显示最近搜索关键词，关闭后不记录</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <input type="number" name="recent_search_limit" value="{{ prefs.recent_search_limit }}" min="10" max="500"
+                   style="width: 72px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; text-align: center; font-family: var(--mono);"
+                   {{ '' if prefs.recent_search_enabled else 'disabled' }}>
+            <label class="pref-switch">
+              <input type="checkbox" name="recent_search_enabled" {{ 'checked' if prefs.recent_search_enabled else '' }} onchange="this.nextElementSibling.dataset.on=this.checked; this.closest('div').querySelector('input[type=number]').disabled=!this.checked">
+              <span class="mod-switch" data-on="{{ 'true' if prefs.recent_search_enabled else 'false' }}"></span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 启动行为 -->
+    <div class="settings-card" style="border-left-color: var(--accent); margin-top: 16px;">
+      <div class="settings-card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 14px; font-weight: 600;">启动行为</span>
+          <span style="font-size: 12px; color: var(--text-muted);">与菜单栏小工具同步</span>
+        </div>
+      </div>
+
+      <div style="padding: 14px 20px; display: flex; flex-direction: column; gap: 16px;">
+
+        <!-- 启动时自动打开浏览器 -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">启动时自动打开浏览器</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">服务启动后自动打开控制台页面</div>
+          </div>
+          <label class="pref-switch">
+            <input type="checkbox" name="auto_open_web" {{ 'checked' if prefs.auto_open_web else '' }} onchange="this.nextElementSibling.dataset.on=this.checked">
+            <span class="mod-switch" data-on="{{ 'true' if prefs.auto_open_web else 'false' }}"></span>
+          </label>
+        </div>
+
+        <!-- 开机自启动 -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">开机自启动</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">通过 macOS LaunchAgent 实现开机自动启动</div>
+          </div>
+          <label class="pref-switch">
+            <input type="checkbox" name="auto_start" {{ 'checked' if prefs.auto_start else '' }} onchange="this.nextElementSibling.dataset.on=this.checked">
+            <span class="mod-switch" data-on="{{ 'true' if prefs.auto_start else 'false' }}"></span>
+          </label>
+        </div>
+
+      </div>
+
+      <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn-sm btn-primary-sm">
+          <i data-lucide="save" style="width:14px;height:14px"></i> 保存设置
+        </button>
+      </div>
+    </div>
+    </form>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════
@@ -625,6 +780,267 @@
   background: #f3f4f6;
   color: #6b7280;
 }
+/* ── 设置区块标题（左右分栏：标题 + 右侧说明）── */
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.settings-head-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-head-title i {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+.settings-head-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+/* ── 模块管理 ── */
+.mod-section {
+margin-bottom: 32px;
+}
+.mod-section-summary {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 12px;
+cursor: pointer;
+list-style: none;
+margin-bottom: 14px;
+}
+.mod-section-summary::-webkit-details-marker {
+display: none;
+}
+.mod-section-summary .settings-head-title::before {
+content: '▶';
+font-size: 10px;
+color: var(--text-muted);
+transition: transform 0.2s;
+display: inline-block;
+margin-right: 4px;
+}
+.mod-section[open] .mod-section-summary .settings-head-title::before {
+transform: rotate(90deg);
+}
+.mod-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px 2px;
+}
+summary.mod-group-head {
+  cursor: pointer;
+  list-style: none;
+  margin-bottom: 12px;
+}
+summary.mod-group-head::-webkit-details-marker {
+  display: none;
+}
+summary.mod-group-head .mod-group-name::before {
+  content: '▶';
+  font-size: 9px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  display: inline-block;
+  margin-right: 6px;
+}
+details.mod-group[open] summary.mod-group-head .mod-group-name::before {
+  transform: rotate(90deg);
+}
+.mod-group-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.mod-group-count {
+  font-size: 11px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-radius: 9px;
+  padding: 1px 7px;
+}
+.mod-group-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.mod-card {
+  margin-bottom: 20px;
+  border-left-color: var(--accent);
+  overflow: hidden;
+}
+.mod-card-core {
+  border-left-color: #d1d5db;
+}
+.mod-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.mod-row:last-child {
+  border-bottom: none;
+}
+.mod-row:hover {
+  background: var(--bg);
+}
+.mod-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.mod-icon i {
+  width: 15px;
+  height: 15px;
+}
+.mod-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.mod-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.mod-sub {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+/* 停用影响说明：每行下方一句白话，高危标红 */
+.mod-impact {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.mod-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.mod-state {
+  font-size: 11.5px;
+}
+.mod-state.on {
+  color: var(--success);
+}
+.mod-state.off {
+  color: var(--text-muted);
+}
+.mod-chip {
+  font-size: 11px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-radius: 9px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.mod-chip-info {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.mod-chip-warn {
+  background: #FEF3C7;
+  color: #B45309;
+}
+/* 通用设置开关（隐藏 checkbox，用 mod-switch 展示） */
+.pref-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.pref-switch input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.pref-switch input[type="checkbox"]:focus-visible + .mod-switch {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 开关（按钮即开关，提交表单，无需 JS） */
+.mod-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 11px;
+  background: #d1d5db;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.mod-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+.mod-switch[data-on="true"] {
+  background: var(--accent);
+}
+.mod-switch[data-on="true"]::after {
+  transform: translateX(16px);
+}
+.mod-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.mod-icon-btn i {
+  width: 14px;
+  height: 14px;
+}
+.mod-icon-btn:hover {
+  border-color: var(--border);
+  background: var(--bg);
+}
+.mod-icon-btn-danger:hover {
+  color: #dc2626;
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
 </style>
 {% endblock %}
 
@@ -715,15 +1131,15 @@ function confirmDisablePassword(e) {
 }
 window.confirmDisablePassword = confirmDisablePassword;
 
-// 模块删除两步确认：先确认删代码，再决定是否连数据一起清空
-function confirmDeleteModule(form, name) {
-  if (!confirm('确定删除模块「' + name + '」？\n\n代码文件将被移除，重启服务后生效。')) return false;
-  if (confirm('是否同时清空该模块的数据表？\n\n[确定] = 连数据一起删除\n[取消] = 保留数据（防误删，可手动清理）')) {
-    form.querySelector('input[name=purge]').value = 'on';
-  }
-  return true;
+// 高危模块停用前二次确认：把行内的影响说明原样念一遍，避免误点
+function confirmHighRisk(form, name, turningOff) {
+  if (!turningOff) return true;
+  const row = form.closest('.mod-row');
+  const impact = row && row.querySelector('.mod-impact');
+  const text = impact ? impact.textContent.trim() : '';
+  return confirm('确定要停用「' + name + '」吗？\n\n' + (text ? text + '\n\n' : '') + '重启服务后生效，随时可以再开启。');
 }
-window.confirmDeleteModule = confirmDeleteModule;
+window.confirmHighRisk = confirmHighRisk;
 
 // 金山多维表字段说明折叠 chevron 旋转
 document.querySelectorAll('details summary').forEach(summary => {

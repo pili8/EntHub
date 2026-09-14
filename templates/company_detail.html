@@ -252,7 +252,7 @@
           {% if cp.location %}
           <span class="phone-location" title="归属地">{{ cp.location.province }}{% if cp.location.city and cp.location.city != cp.location.province %} {{ cp.location.city }}{% endif %}</span>
           {% endif %}
-          {% if cp.phone_type in ['mobile', 'mobile_ext'] %}
+          {% if cp.phone_type in ['mobile', 'mobile_ext'] and 'phone_wechat' in ENABLED_MODULE_IDS %}
             {% set wc_has_note = cp.wechat and cp.wechat.note and cp.wechat.note.strip() %}
             {% if wc_has_note %}
             <button type="button" class="phone-wechat-btn has-note" onclick="openPhoneWechatSelector('{{ cp.normalized_phone }}')" title="备注：{{ cp.wechat.note }}">

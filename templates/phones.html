@@ -288,6 +288,9 @@ for item in r.json()["data"]["results"]:
 
 {% block scripts %}
 <script>
+// 模块开关状态（Jinja2 输出到 JS）
+const _wcEnabled = {{ 'true' if 'phone_wechat' in ENABLED_MODULE_IDS else 'false' }};
+
 // ── 工具函数（提前定义）──
 function switchTab(tab) {
     const tabs = ['text', 'single', 'batch'];
@@ -403,12 +406,12 @@ async function querySinglePhone(evt) {
             locEl.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">—</span>';
         }
 
-        // 微信（仅手机号显示）
+        // 微信（仅手机号显示，且模块启用时）
         const wechatRow = document.getElementById('single-wechat-row');
         const wechatEl = document.getElementById('single-wechat');
         const norm = result.normalized;
         const isMobile = result.phone_type === 'mobile' || result.phone_type === 'mobile_ext';
-        if (isMobile) {
+        if (isMobile && _wcEnabled) {
             wechatRow.style.display = '';
             if (result.wechat && result.wechat.wechat_name !== '无微信') {
                 wechatEl.innerHTML = '<button type="button" class="phone-wechat-btn has-wechat" onclick="openPhoneWechatSelectorSingle(\'' + norm + '\')" title="点击编辑"><i data-lucide="message-circle" style="width: 12px; height: 12px;"></i><span class="wechat-tip">' + result.wechat.wechat_name + '</span></button>';

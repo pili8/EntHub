@@ -22,6 +22,8 @@ MODULE_META = {
     "url": "/cleanup",
     "group": "system",
     "order": 20,
+    "risk": "low",
+    "impact": "去重、清空无效值、压缩数据库。停用后少一个整理工具，数据不受影响。",
 }
 
 

@@ -184,6 +184,8 @@ class EntHubMenuBar(rumps.App):
         config = _read_config()
         new_val = not config.get("auto_open_web", False)
         config["auto_open_web"] = new_val
+        # 同步到 preferences 子对象
+        config.setdefault("preferences", {})["auto_open_web"] = new_val
         _write_config(config)
         mark = "✓" if new_val else "✗"
         self.auto_open_item.title = f"{mark} 启动时自动打开Web"
@@ -195,6 +197,8 @@ class EntHubMenuBar(rumps.App):
         config = _read_config()
         new_val = not config.get("auto_start", False)
         config["auto_start"] = new_val
+        # 同步到 preferences 子对象
+        config.setdefault("preferences", {})["auto_start"] = new_val
         _write_config(config)
 
         if new_val:

@@ -20,6 +20,9 @@ MODULE_META = {
     "url": "/backup",
     "group": "system",
     "order": 10,
+    "core": True,
+    "risk": "high",
+    "impact": "备份创建/下载/恢复入口。停用后失去唯一的数据回滚入口。",
 }
 
 

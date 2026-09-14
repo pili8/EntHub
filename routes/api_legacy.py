@@ -15,11 +15,13 @@ bp = Blueprint('api_legacy_bp', __name__)
 
 MODULE_META = {
     "id": "api_legacy",
-    "name": "对外 API（旧版）",
+    "name": "对外 API",
     "icon": "plug",
     "group": "system",
     "order": 90,
-    "core": True,       # Chrome 插件 / MCP 依赖，不可关闭
+    "core": True,       # 浏览页批量操作依赖其端点（MCP 直连数据库，不走这里）
+    "risk": "high",
+    "impact": "对外接口：搜索、号码统计、批量删除/打标签。停用后浏览页批量按钮失效。",
     "external": True,
     "show_in": [],      # 纯 API，无页面入口
 }

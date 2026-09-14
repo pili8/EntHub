@@ -53,7 +53,10 @@ MODULE_META = {
     "url": "/import",
     "group": "ops",
     "order": 20,
-    "core": True,
+    "desktop_order": 70,
+    "core": False,
+    "risk": "warn",
+    "impact": "Excel 批量导入。停用后导入入口消失，其他功能不受影响。",
 }
 
 
@@ -611,7 +614,9 @@ def import_confirm(batch_id):
     # 导入前自动备份
     backup_result = backup.create_backup(DB_PATH, reason="导入前自动备份")
     if backup_result["success"]:
-        backup.cleanup_old_backups(keep_count=7)
+        from config import get_preferences
+        keep = get_preferences().get("backup_keep_count", 7)
+        backup.cleanup_old_backups(keep_count=keep)
         backup_msg = f"已自动创建备份：{backup_result['filename']}"
     else:
         backup_msg = f"自动备份失败：{backup_result.get('error', '未知错误')}"

@@ -10,7 +10,8 @@ from flask import Blueprint, g, request, render_template, redirect, url_for, \
 from config import (get_api_providers, update_provider, is_provider_ready,
                      get_quota, set_quota_remaining, get_llm_config, save_llm_config,
                      set_access_password, is_password_enabled, get_access_password,
-                     get_webhook_url, save_webhook_url)
+                     get_webhook_url, save_webhook_url,
+                     get_preferences, save_preferences)
 import enthub_api
 
 bp = Blueprint('settings_flow_bp', __name__)
@@ -23,6 +24,8 @@ MODULE_META = {
     "group": "system",
     "order": 30,
     "core": True,
+    "risk": "high",
+    "impact": "设置页本身，也是模块开关面板的所在地。停用后等于把自己锁死。",
 }
 
 
@@ -80,20 +83,34 @@ def settings_page():
     local_ips = get_local_ips()
     password_enabled = is_password_enabled()
     webhook_url = get_webhook_url()
+    prefs = get_preferences()
     import bootstrap
     bs = bootstrap.get_bootstrap()
 
-    # 模块管理数据：全部模块 + 当前开关状态（core 模块禁用开关、不可删除）
+    # 模块管理数据：分「可管理」与「核心常驻」两组渲染（core 模块无开关、不可删除）
     from config import get_module_config
     import routes
     states = get_module_config()
-    manage_modules = []
+    group_labels = {"data": "数据", "ops": "操作", "system": "系统"}
+    manageable, core_modules = [], []
     for m in routes.ALL_MODULES:
         item = {k: v for k, v in m.items() if not k.startswith("_")}
         item["enabled"] = states.get(m["id"], True)
         item["core"] = m.get("core", False)
-        manage_modules.append(item)
-    manage_modules.sort(key=lambda x: (not x["core"], x["group"], x["order"]))
+        item["external"] = m.get("external", False)
+        item["group_label"] = group_labels.get(m.get("group"), m.get("group") or "")
+        item["url"] = m.get("url", "")
+        # 开关与已注册路由不一致 = 已改配置但尚未重启，界面上给出提示
+        registered = m["id"] in routes.ENABLED_IDS
+        item["pending"] = ""
+        if not item["core"]:
+            if item["enabled"] and not registered:
+                item["pending"] = "待启用"
+            elif not item["enabled"] and registered:
+                item["pending"] = "待停用"
+        (core_modules if item["core"] else manageable).append(item)
+    manageable.sort(key=lambda x: (x["group"], x["order"]))
+    core_modules.sort(key=lambda x: (x["group"], x["order"]))
 
     return render_template("settings.html",
                            providers=providers, quota=quota, llm=llm,
@@ -102,7 +119,9 @@ def settings_page():
                            webhook_url=webhook_url,
                            db_path=bs["db_path"],
                            backup_dir=bs["backup_dir"],
-                           manage_modules=manage_modules)
+                           manageable_modules=manageable,
+                           core_modules=core_modules,
+                           prefs=prefs)
 
 
 @bp.route("/settings/api-provider/<provider_key>", methods=["POST"])
@@ -291,6 +310,47 @@ def _drop_module_tables(meta):
     finally:
         conn.close()
     return True
+
+
+@bp.route("/settings/preferences", methods=["POST"])
+def save_preferences_route():
+    """保存通用设置（偏好设置）。"""
+    auto_backup = request.form.get("auto_backup") == "on"
+    backup_keep_count = max(1, min(100, int(request.form.get("backup_keep_count", 7) or 7)))
+    show_phone_location = request.form.get("show_phone_location") == "on"
+    recent_search_enabled = request.form.get("recent_search_enabled") == "on"
+    recent_search_limit = max(10, min(500, int(request.form.get("recent_search_limit", 50) or 50)))
+    auto_open_web = request.form.get("auto_open_web") == "on"
+    auto_start = request.form.get("auto_start") == "on"
+
+    # 记录旧值（用于判断是否需要安装/卸载 LaunchAgent）
+    old_prefs = get_preferences()
+    old_auto_start = old_prefs.get("auto_start", False)
+
+    save_preferences(
+        auto_backup=auto_backup,
+        backup_keep_count=backup_keep_count,
+        show_phone_location=show_phone_location,
+        recent_search_enabled=recent_search_enabled,
+        recent_search_limit=recent_search_limit,
+        auto_open_web=auto_open_web,
+        auto_start=auto_start,
+    )
+
+    # 开机自启动：安装/卸载 LaunchAgent（仅 macOS）
+    import sys
+    if sys.platform == "darwin":
+        try:
+            import menubar
+            if auto_start and not old_auto_start:
+                menubar._install_launch_agent()
+            elif not auto_start and old_auto_start:
+                menubar._uninstall_launch_agent()
+        except Exception:
+            pass  # menubar 依赖 rumps，非 macOS 环境会失败，静默跳过
+
+    flash("✅ 通用设置已保存", "success")
+    return redirect(url_for("settings_flow_bp.settings_page"))
 
 
 @bp.route("/settings/modules/toggle", methods=["POST"])

@@ -8,8 +8,9 @@ app.py 入口只需调用 register_blueprints(app)。
 4. 核心模块（core=True）无条件注册；可选模块查 settings 开关，停用则跳过
 5. 注册动作：挂蓝图 + 收集菜单项 + 调用模块自治建表（tables / init_module）
 
-菜单数据收集在 MODULES（扁平菜单项列表），app.py 的 context_processor
-注入为 ENABLED_MODULES，base.html 据此动态渲染导航。
+菜单数据收集在 MODULES（按 group+order 排序，移动端抽屉分组渲染）与
+DESKTOP_MODULES（按 desktop_order 排序平铺，桌面顶部导航用）；app.py 的
+context_processor 注入为 ENABLED_MODULES / DESKTOP_MODULES，base.html 据此渲染。
 """
 import importlib
 import sqlite3
@@ -21,7 +22,11 @@ _ROUTES_DIR = Path(__file__).resolve().parent
 _EXCLUDED = {"__init__.py", "_base.py"}
 
 # 已启用模块的菜单项列表（每项含 name/name_short/icon/url/group/order/show_in）
+# 排序规则：group + order —— 移动端抽屉按此分组渲染
 MODULES = []
+# 桌面顶部导航专用列表：只含 show_in 带 desktop 的项，按 desktop_order（缺省 order）平铺排序
+# 桌面是横向按钮条、不分组，顺序需与抽屉不同，故与 MODULES 分开维护
+DESKTOP_MODULES = []
 # 全部模块元信息（含停用/隐藏的），设置页"模块管理"数据源
 ALL_MODULES = []
 # 已成功注册路由的模块 id 集合——模板里做 url_for 安全检查用
@@ -115,6 +120,13 @@ def register_blueprints(app):
             deps_ok = all(enabled.get(d, True) for d in meta["depends_on"])
             if not is_on:
                 print(f"[模块注册] {meta['id']} 已停用，跳过")
+                # 停用钩子：模块可定义 on_disable() 执行清理（如杀进程）
+                fn = getattr(module, "on_disable", None)
+                if fn:
+                    try:
+                        fn()
+                    except Exception as e:
+                        print(f"[模块注册] {meta['id']} on_disable 失败: {e}")
                 ALL_MODULES.append(meta)
                 continue
             if not deps_ok:
@@ -125,8 +137,13 @@ def register_blueprints(app):
         app.register_blueprint(bp)
         ENABLED_IDS.add(meta["id"])
         # 菜单只收有导航入口的项（show_in 非空）；纯 API 模块仅进 ALL_MODULES
-        MODULES.extend([it for it in _menu_items(meta) if it["show_in"]])
+        items = _menu_items(meta)
+        MODULES.extend([it for it in items if it["show_in"]])
+        DESKTOP_MODULES.extend([it for it in items if "desktop" in it["show_in"]])
         ALL_MODULES.append(meta)
         _init_tables(meta, module)
 
     MODULES.sort(key=lambda m: (m["group"], m["order"]))
+    DESKTOP_MODULES.sort(
+        key=lambda m: m["desktop_order"] if m["desktop_order"] is not None else m["order"]
+    )

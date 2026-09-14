@@ -11,7 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 APP_PORT = 5210
 
 # 应用版本号（发版时与 git tag / CHANGELOG 保持一致）
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 # 旧路径（仅用于迁移检测，不再用于读写）
 CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -317,3 +317,44 @@ def verify_access_password(plain_password: str) -> bool:
 def is_password_enabled() -> bool:
     """检查是否启用了密码保护。"""
     return bool(get_access_password())
+
+
+# ── 通用设置（偏好设置）──────────────────────────────────────────────────────
+
+DEFAULT_PREFERENCES = {
+    "auto_backup": True,           # 启动时自动备份
+    "backup_keep_count": 7,        # 备份保留份数
+    "show_phone_location": True,   # 电话归属地显示
+    "recent_search_enabled": True, # 最近查询记录
+    "recent_search_limit": 50,    # 最近查询保留条数
+    "auto_open_web": False,        # 启动时自动打开浏览器（与菜单栏同步）
+    "auto_start": False,           # 开机自启动（与菜单栏同步）
+}
+
+
+def get_preferences():
+    """获取通用设置，补全默认值。"""
+    config = load_config()
+    prefs = config.get("preferences", {})
+    for k, v in DEFAULT_PREFERENCES.items():
+        if k not in prefs:
+            prefs[k] = v
+    return prefs
+
+
+def save_preferences(**kwargs):
+    """保存通用设置（只更新传入的字段）。
+
+    auto_open_web / auto_start 同时写入根级别，兼容 menubar.py 和 start.sh 的读取方式。
+    """
+    config = load_config()
+    if "preferences" not in config:
+        config["preferences"] = dict(DEFAULT_PREFERENCES)
+    for k, v in kwargs.items():
+        if k in DEFAULT_PREFERENCES:
+            config["preferences"][k] = v
+            # 同步到根级别（兼容 menubar.py / start.sh 的旧读取方式）
+            if k in ("auto_open_web", "auto_start"):
+                config[k] = v
+    save_config(config)
+    return config["preferences"]

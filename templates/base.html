@@ -94,7 +94,7 @@
                     </button>
                 </form>
                 <div class="nav-actions">
-                {% for m in ENABLED_MODULES if m.group in ('data', 'ops') %}
+                {% for m in DESKTOP_MODULES if m.group in ('data', 'ops') %}
                     <a href="{{ m.url }}" class="nav-link">
                         <i data-lucide="{{ m.icon }}" style="width:15px;height:15px"></i>
                         {{ m.name_short }}

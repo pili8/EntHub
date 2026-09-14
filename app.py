@@ -65,7 +65,8 @@ def inject_globals():
     return {
         "APP_PORT": APP_PORT,
         "APP_VERSION": APP_VERSION,
-        "ENABLED_MODULES": routes.MODULES,      # 可见菜单项，base.html 动态渲染导航
+        "ENABLED_MODULES": routes.MODULES,      # 可见菜单项（group+order），抽屉分组渲染
+        "DESKTOP_MODULES": routes.DESKTOP_MODULES,  # 桌面顶部导航项（desktop_order 平铺）
         "ENABLED_MODULE_IDS": routes.ENABLED_IDS,  # 已注册路由的模块 id，页面按需条件渲染 url_for
     }
 
@@ -262,7 +263,12 @@ app.register_blueprint(api_bp)
 
 
 def _startup_backup_check():
-    """应用启动时检查是否需要每日备份"""
+    """应用启动时检查是否需要每日备份（受通用设置 auto_backup 控制）"""
+    from config import get_preferences
+    prefs = get_preferences()
+    if not prefs.get("auto_backup", True):
+        print("[备份] 自动备份已关闭，跳过")
+        return
     result = backup.check_daily_backup(DB_PATH)
     if result.get("success") and not result.get("skipped"):
         print(f"[备份] 启动时自动备份：{result.get('filename')}")

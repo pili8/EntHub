@@ -25,6 +25,8 @@ MODULE_META = {
     "group": "system",
     "order": 95,
     "core": True,       # 电话页/公司详情页依赖
+    "risk": "warn",
+    "impact": "号码标记接口。停用后标记按钮照常显示，点击设置会失败。",
     "show_in": [],      # 纯 API，无页面入口
 }
 
