@@ -5,8 +5,54 @@
 {% block content %}
 <div class="page">
   <div class="page-head">
-    <h1 class="page-title">设置</h1>
+    <h1 class="page-title" style="display: flex; align-items: center; gap: 10px;">
+      设置
+      <span class="status-badge status-badge-inactive" title="当前版本号" style="font-family: var(--mono); cursor: default;">v{{ APP_VERSION }}</span>
+    </h1>
     <p class="page-sub">配置 EntHub 服务参数</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       〇、模块管理
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div style="margin-bottom: 32px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <i data-lucide="blocks" style="width:16px;height:16px;color:var(--accent)"></i>
+      模块管理
+      <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 4px;">启用 / 停用 / 删除功能模块，重启服务后生效</span>
+    </h2>
+
+    <div class="settings-card">
+      {% for m in manage_modules %}
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; {% if not loop.first %}border-top: 1px solid var(--border);{% endif %}">
+        <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+          <i data-lucide="{{ m.icon }}" style="width:15px;height:15px;color:var(--text-muted); flex-shrink:0"></i>
+          <span style="font-size: 13px; font-weight: 500;">{{ m.name }}</span>
+          <span class="status-badge status-badge-inactive" style="font-size: 11px; cursor: default;">{{ m.group }}</span>
+          {% if m.core %}<span style="font-size: 11px; color: var(--text-muted);">核心 · 常驻</span>{% endif %}
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+          {% if m.core %}
+            <span style="font-size: 12px; color: var(--text-muted);">—</span>
+          {% else %}
+            <form method="post" action="{{ url_for('settings_flow_bp.toggle_module') }}" style="display: inline;">
+              <input type="hidden" name="module_id" value="{{ m.id }}">
+              <input type="hidden" name="action" value="{{ 'off' if m.enabled else 'on' }}">
+              <button type="submit" class="btn btn-sm {{ 'btn-secondary' if m.enabled else 'btn-primary' }}" style="min-width: 64px;">
+                {{ '停用' if m.enabled else '启用' }}
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('settings_flow_bp.delete_module') }}"
+                  onsubmit="return confirmDeleteModule(this, '{{ m.name }}')" style="display: inline;">
+              <input type="hidden" name="module_id" value="{{ m.id }}">
+              <input type="hidden" name="purge" value="">
+              <button type="submit" class="btn btn-sm btn-secondary" style="color: #dc2626; border-color: #fca5a5;">删除</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════
@@ -668,6 +714,16 @@ function confirmDisablePassword(e) {
   }
 }
 window.confirmDisablePassword = confirmDisablePassword;
+
+// 模块删除两步确认：先确认删代码，再决定是否连数据一起清空
+function confirmDeleteModule(form, name) {
+  if (!confirm('确定删除模块「' + name + '」？\n\n代码文件将被移除，重启服务后生效。')) return false;
+  if (confirm('是否同时清空该模块的数据表？\n\n[确定] = 连数据一起删除\n[取消] = 保留数据（防误删，可手动清理）')) {
+    form.querySelector('input[name=purge]').value = 'on';
+  }
+  return true;
+}
+window.confirmDeleteModule = confirmDeleteModule;
 
 // 金山多维表字段说明折叠 chevron 旋转
 document.querySelectorAll('details summary').forEach(summary => {

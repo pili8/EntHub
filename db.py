@@ -38,6 +38,60 @@ def reset_for_testing():
     init_db()
 
 
+# ── FTS 内容表达式（模块级纯函数，companies_fts 触发器共用）─────────────────
+
+def _fts_content(ref):
+    """构建 FTS 内容表达式，ref 为 'new'/'old'/'c' 等。"""
+    return (
+        f"COALESCE({ref}.normalized_name, '') || ' ' || "
+        f"COALESCE({ref}.former_name, '') || ' ' || "
+        f"COALESCE({ref}.address, '') || ' ' || "
+        f"COALESCE({ref}.legal_person, '') || ' ' || "
+        f"COALESCE({ref}.shareholders, '') || ' ' || "
+        f"COALESCE({ref}.website, '') || ' ' || "
+        f"COALESCE((SELECT group_concat(email, ' ') "
+        f"         FROM company_emails WHERE company_id = {ref}.id), '') || ' ' || "
+        f"COALESCE((SELECT group_concat(pw.wechat_name || ' ' || COALESCE(pw.note, ''), ' ') "
+        f"         FROM phone_wechat pw "
+        f"         JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone "
+        f"         WHERE cp.company_id = {ref}.id), '') || ' ' || "
+        f"COALESCE({ref}.note, '')"
+    )
+
+
+def ensure_wechat_fts_triggers(conn):
+    """创建 phone_wechat 变更同步 companies_fts 的触发器（幂等）。
+
+    phone_wechat 表已拆到 routes/phone_wechat 模块自治建表；
+    init_db 在表已存在时调用，模块建表后也会调用。
+    """
+    def _build_wechat_trigger(ref):
+        return (
+            f"UPDATE companies_fts SET content = ("
+            f"  SELECT {_fts_content('c')}"
+            f"  FROM companies c WHERE c.id = companies_fts.rowid"
+            f") WHERE rowid IN ("
+            f"  SELECT DISTINCT company_id FROM company_phones "
+            f"  WHERE normalized_phone = {ref}.normalized_phone"
+            f")"
+        )
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS wechat_fts_ai AFTER INSERT ON phone_wechat BEGIN
+            {_build_wechat_trigger('new')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS wechat_fts_ad AFTER DELETE ON phone_wechat BEGIN
+            {_build_wechat_trigger('old')};
+        END
+    """)
+    conn.execute(f"""
+        CREATE TRIGGER IF NOT EXISTS wechat_fts_au AFTER UPDATE ON phone_wechat BEGIN
+            {_build_wechat_trigger('new')};
+        END
+    """)
+
+
 def init_db():
     conn = get_db()
     conn.executescript("""
@@ -176,32 +230,8 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_ct_company ON company_tags(company_id);
         CREATE INDEX IF NOT EXISTS idx_ct_tag ON company_tags(tag_id);
 
-        -- 电话标记定义表（跟现有 tags 表独立，专用于电话号码）
-        CREATE TABLE IF NOT EXISTS phone_tags (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL UNIQUE,
-            color       TEXT DEFAULT '#3b82f6',
-            sort_order  INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now', 'localtime'))
-        );
-
-        -- 电话-标记关联表（每个号码只有一个标记，normalized_phone 为单主键）
-        CREATE TABLE IF NOT EXISTS phone_tag_map (
-            normalized_phone TEXT PRIMARY KEY,
-            tag_id           INTEGER NOT NULL,
-            created_at       TEXT DEFAULT (datetime('now', 'localtime')),
-            FOREIGN KEY (tag_id) REFERENCES phone_tags(id) ON DELETE CASCADE
-        );
-
-        -- 电话微信号关联表（每个号码一条微信信息，normalized_phone 为单主键）
-        CREATE TABLE IF NOT EXISTS phone_wechat (
-            normalized_phone TEXT PRIMARY KEY,
-            wechat_name      TEXT NOT NULL,
-            wechat_id        TEXT,
-            note             TEXT,
-            created_at       TEXT DEFAULT (datetime('now', 'localtime')),
-            updated_at       TEXT DEFAULT (datetime('now', 'localtime'))
-        );
+        -- 电话相关表（phone_tags / phone_tag_map / phone_wechat）已拆分到
+        -- routes/phone_tags.py、routes/phone_wechat.py 模块自治建表（init_module）。
     """)
 
     # Add columns for databases created before the new schema
@@ -240,20 +270,6 @@ def init_db():
             GROUP BY normalized_phone
         """)
         conn.execute("DROP TABLE phone_tag_map_old")
-
-    # 插入默认电话标记（仅首次创建时）
-    default_phone_tags = [
-        ("有效", "#22c55e", 1),
-        ("无效", "#ef4444", 2),
-        ("推销电话", "#f97316", 3),
-        ("中介", "#eab308", 4),
-        ("代理记账", "#8b5cf6", 5),
-    ]
-    for name, color, order in default_phone_tags:
-        conn.execute(
-            "INSERT OR IGNORE INTO phone_tags (name, color, sort_order) VALUES (?, ?, ?)",
-            (name, color, order)
-        )
 
     conn.execute("""
         CREATE VIEW IF NOT EXISTS company_export AS
@@ -313,24 +329,7 @@ def init_db():
 
     # 触发器：companies 表变更时同步 FTS
     # FTS 内容包含：名称/曾用名/地址/法人/股东/网站/邮箱/微信昵称+备注
-    def _fts_content(ref):
-        """构建 FTS 内容表达式，ref 为 'new'/'old'/'c' 等。"""
-        return (
-            f"COALESCE({ref}.normalized_name, '') || ' ' || "
-            f"COALESCE({ref}.former_name, '') || ' ' || "
-            f"COALESCE({ref}.address, '') || ' ' || "
-            f"COALESCE({ref}.legal_person, '') || ' ' || "
-            f"COALESCE({ref}.shareholders, '') || ' ' || "
-            f"COALESCE({ref}.website, '') || ' ' || "
-            f"COALESCE((SELECT group_concat(email, ' ') "
-            f"         FROM company_emails WHERE company_id = {ref}.id), '') || ' ' || "
-            f"COALESCE((SELECT group_concat(pw.wechat_name || ' ' || COALESCE(pw.note, ''), ' ') "
-            f"         FROM phone_wechat pw "
-            f"         JOIN company_phones cp ON cp.normalized_phone = pw.normalized_phone "
-            f"         WHERE cp.company_id = {ref}.id), '') || ' ' || "
-            f"COALESCE({ref}.note, '')"
-        )
-
+    # （_fts_content 已提为模块级函数）
     _fts_content_expr = _fts_content('new')
     conn.execute(f"""
         CREATE TRIGGER IF NOT EXISTS companies_fts_ai AFTER INSERT ON companies BEGIN
@@ -376,31 +375,12 @@ def init_db():
 
     # 触发器：phone_wechat 变更时重建所有关联企业的 FTS 行
     # 一个号码可能被多家企业共用，需更新所有含该号码的企业。
-    def _build_wechat_trigger(ref):
-        return (
-            f"UPDATE companies_fts SET content = ("
-            f"  SELECT {_fts_content('c')}"
-            f"  FROM companies c WHERE c.id = companies_fts.rowid"
-            f") WHERE rowid IN ("
-            f"  SELECT DISTINCT company_id FROM company_phones "
-            f"  WHERE normalized_phone = {ref}.normalized_phone"
-            f")"
-        )
-    conn.execute(f"""
-        CREATE TRIGGER IF NOT EXISTS wechat_fts_ai AFTER INSERT ON phone_wechat BEGIN
-            {_build_wechat_trigger('new')};
-        END
-    """)
-    conn.execute(f"""
-        CREATE TRIGGER IF NOT EXISTS wechat_fts_ad AFTER DELETE ON phone_wechat BEGIN
-            {_build_wechat_trigger('old')};
-        END
-    """)
-    conn.execute(f"""
-        CREATE TRIGGER IF NOT EXISTS wechat_fts_au AFTER UPDATE ON phone_wechat BEGIN
-            {_build_wechat_trigger('new')};
-        END
-    """)
+    # phone_wechat 表已拆到模块自治建表——表存在才建触发器；
+    # 全新库时由 routes/phone_wechat.py 建表后调用 ensure_wechat_fts_triggers。
+    if conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='phone_wechat'"
+    ).fetchone():
+        ensure_wechat_fts_triggers(conn)
 
     # 触发器：company_phones 变更时重建对应企业的 FTS 行（微信内容可能变化）
     def _build_phone_trigger(ref):

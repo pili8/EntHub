@@ -12,9 +12,10 @@ from pathlib import Path
 from flask import Flask, g, session, redirect, url_for, request, jsonify
 
 from db import get_db, init_db, DB_PATH
+import routes
 from routes import register_blueprints
 from api import api_bp
-from config import is_password_enabled, verify_access_password, APP_PORT
+from config import is_password_enabled, verify_access_password, APP_PORT, APP_VERSION
 import backup
 
 # session 签名密钥不能硬编码：硬编码值会随代码进 git 历史，等于公开，
@@ -61,7 +62,12 @@ def filesize_filter(size):
 
 @app.context_processor
 def inject_globals():
-    return {"APP_PORT": APP_PORT}
+    return {
+        "APP_PORT": APP_PORT,
+        "APP_VERSION": APP_VERSION,
+        "ENABLED_MODULES": routes.MODULES,      # 可见菜单项，base.html 动态渲染导航
+        "ENABLED_MODULE_IDS": routes.ENABLED_IDS,  # 已注册路由的模块 id，页面按需条件渲染 url_for
+    }
 
 
 # ── 访问密码保护 ────────────────────────────────────────────────────────────

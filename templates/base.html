@@ -56,44 +56,17 @@
             </button>
         </div>
         <div class="m-drawer-body">
-            <div class="m-drawer-section-title">数据</div>
-            <a href="{{ url_for('pages_bp.search') }}" class="m-drawer-item" data-key="/search">
-                <i data-lucide="search"></i><span>搜索</span>
+        {% for gkey, gtitle in [('data', '数据'), ('ops', '操作'), ('system', '系统')] %}
+        {% set gm = ENABLED_MODULES | selectattr('group', 'equalto', gkey) | list %}
+        {% if gm %}
+            <div class="m-drawer-section-title">{{ gtitle }}</div>
+        {% for m in gm %}
+            <a href="{{ m.url }}" class="m-drawer-item" data-key="{{ m.url }}">
+                <i data-lucide="{{ m.icon }}"></i><span>{{ m.name }}</span>
             </a>
-            <a href="{{ url_for('pages_bp.browse') }}" class="m-drawer-item" data-key="/browse">
-                <i data-lucide="table"></i><span>浏览全部</span>
-            </a>
-            <a href="{{ url_for('pages_bp.phones_page') }}" class="m-drawer-item" data-key="/phones">
-                <i data-lucide="phone"></i><span>电话可信度</span>
-            </a>
-            <a href="{{ url_for('pages_bp.relation_discovery') }}" class="m-drawer-item" data-key="/relations">
-                <i data-lucide="git-branch"></i><span>关联发现</span>
-            </a>
-
-            <div class="m-drawer-section-title">操作</div>
-            <a href="{{ url_for('companies_bp.add_company') }}" class="m-drawer-item" data-key="/add">
-                <i data-lucide="plus-circle"></i><span>手动录入</span>
-            </a>
-            <a href="{{ url_for('import_flow_bp.import_page') }}" class="m-drawer-item" data-key="/import">
-                <i data-lucide="upload"></i><span>Excel 导入</span>
-            </a>
-            <a href="{{ url_for('tags_bp.tags_page') }}" class="m-drawer-item" data-key="/tags">
-                <i data-lucide="tag"></i><span>标签管理</span>
-            </a>
-            <a href="{{ url_for('mcp_flow_bp.mcp_page') }}" class="m-drawer-item" data-key="/mcp">
-                <i data-lucide="bot"></i><span>MCP 工具</span>
-            </a>
-
-            <div class="m-drawer-section-title">系统</div>
-            <a href="{{ url_for('backup_flow_bp.backup_page') }}" class="m-drawer-item" data-key="/backup">
-                <i data-lucide="database"></i><span>数据备份</span>
-            </a>
-            <a href="{{ url_for('cleanup_flow_bp.cleanup_page') }}" class="m-drawer-item" data-key="/cleanup">
-                <i data-lucide="sparkles"></i><span>数据整理</span>
-            </a>
-            <a href="{{ url_for('settings_flow_bp.settings_page') }}" class="m-drawer-item" data-key="/settings">
-                <i data-lucide="settings"></i><span>设置</span>
-            </a>
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
 <a href="{{ url_for('pages_bp.exit_server') }}" class="m-drawer-item m-drawer-item-warn" onclick="return confirmLink(event, '{{ url_for('pages_bp.exit_server') }}', '退出服务', '确定要退出 EntHub 服务吗？');">
 <i data-lucide="power"></i><span>退出服务</span>
 </a>
@@ -121,51 +94,23 @@
                     </button>
                 </form>
                 <div class="nav-actions">
-                    <a href="{{ url_for('pages_bp.browse') }}" class="nav-link">
-                        <i data-lucide="table" style="width:15px;height:15px"></i>
-                        浏览
+                {% for m in ENABLED_MODULES if m.group in ('data', 'ops') %}
+                    <a href="{{ m.url }}" class="nav-link">
+                        <i data-lucide="{{ m.icon }}" style="width:15px;height:15px"></i>
+                        {{ m.name_short }}
                     </a>
-                    <a href="{{ url_for('companies_bp.add_company') }}" class="nav-link">
-                        <i data-lucide="plus" style="width:15px;height:15px"></i>
-                        录入
-                    </a>
-                    <a href="{{ url_for('pages_bp.phones_page') }}" class="nav-link">
-                        <i data-lucide="phone" style="width:15px;height:15px"></i>
-                        电话
-                    </a>
-                    <a href="{{ url_for('pages_bp.relation_discovery') }}" class="nav-link">
-                        <i data-lucide="git-branch" style="width:15px;height:15px"></i>
-                        关联
-                    </a>
-                    <a href="{{ url_for('tags_bp.tags_page') }}" class="nav-link">
-                        <i data-lucide="tag" style="width:15px;height:15px"></i>
-                        标记
-                    </a>
-                    <a href="{{ url_for('mcp_flow_bp.mcp_page') }}" class="nav-link">
-                        <i data-lucide="bot" style="width:15px;height:15px"></i>
-                        MCP
-                    </a>
-                    <a href="{{ url_for('import_flow_bp.import_page') }}" class="nav-link">
-                        <i data-lucide="upload" style="width:15px;height:15px"></i>
-                        导入
-                    </a>
+                {% endfor %}
                     <div class="nav-dropdown" style="position: relative;">
                         <a href="#" class="nav-link" onclick="toggleDropdown(event)">
                             <i data-lucide="more-vertical" style="width:15px;height:15px"></i>
                         </a>
                         <div class="nav-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 120px; z-index: 1000; margin-top: 4px;">
-                            <a href="{{ url_for('backup_flow_bp.backup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px;">
-                                <i data-lucide="database" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
-                                备份
+                        {% for m in ENABLED_MODULES if m.group == 'system' %}
+                            <a href="{{ m.url }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px;{% if not loop.first %} border-top: 1px solid var(--border);{% endif %}">
+                                <i data-lucide="{{ m.icon }}" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
+                                {{ m.name_short }}
                             </a>
-                            <a href="{{ url_for('cleanup_flow_bp.cleanup_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
-                                <i data-lucide="sparkles" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
-                                整理
-                            </a>
-                            <a href="{{ url_for('settings_flow_bp.settings_page') }}" class="nav-dropdown-item" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
-                                <i data-lucide="settings" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
-                                设置
-                            </a>
+                        {% endfor %}
 <a href="{{ url_for('pages_bp.exit_server') }}" class="nav-dropdown-item" onclick="return confirmLink(event, '{{ url_for('pages_bp.exit_server') }}', '退出服务', '确定要退出 EntHub 服务吗？');" style="display: block; padding: 8px 16px; color: var(--text-muted); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
 <i data-lucide="power" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
 退出服务

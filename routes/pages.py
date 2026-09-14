@@ -21,6 +21,22 @@ from utils import normalize_phone
 
 bp = Blueprint('pages_bp', __name__)
 
+MODULE_META = {
+    "id": "pages",
+    "name": "核心页面",
+    "core": True,
+    "menu": [
+        {"name": "搜索", "icon": "search", "url": "/search",
+         "group": "data", "order": 10, "show_in": ["drawer"]},
+        {"name": "浏览全部", "name_short": "浏览", "icon": "table", "url": "/browse",
+         "group": "data", "order": 20},
+        {"name": "电话可信度", "name_short": "电话", "icon": "phone", "url": "/phones",
+         "group": "data", "order": 30},
+        {"name": "关联发现", "name_short": "关联", "icon": "git-branch", "url": "/relations",
+         "group": "data", "order": 40},
+    ],
+}
+
 PER_PAGE = DEFAULT_PER_PAGE
 
 

@@ -1,5 +1,9 @@
-"""设置页面：API 密钥管理 + 配额统计 + 访问密码 + 网络地址。"""
+"""设置页面：API 密钥管理 + 配额统计 + 访问密码 + 网络地址 + 模块管理。"""
+import re
 import socket
+import sqlite3
+import sys
+from pathlib import Path
 from flask import Blueprint, g, request, render_template, redirect, url_for, \
                    flash, jsonify, Response
 
@@ -10,6 +14,16 @@ from config import (get_api_providers, update_provider, is_provider_ready,
 import enthub_api
 
 bp = Blueprint('settings_flow_bp', __name__)
+
+MODULE_META = {
+    "id": "settings_flow",
+    "name": "设置",
+    "icon": "settings",
+    "url": "/settings",
+    "group": "system",
+    "order": 30,
+    "core": True,
+}
 
 
 def get_local_ips():
@@ -59,7 +73,7 @@ def get_local_ips():
 
 @bp.route("/settings")
 def settings_page():
-    """设置页面：API 密钥 + 配额统计 + LLM 配置 + 访问密码 + 网络地址 + 金山多维表 + 数据存储。"""
+    """设置页面：API 密钥 + 配额统计 + LLM 配置 + 访问密码 + 网络地址 + 模块管理。"""
     providers = get_api_providers()
     quota = get_quota()
     llm = get_llm_config()
@@ -68,13 +82,27 @@ def settings_page():
     webhook_url = get_webhook_url()
     import bootstrap
     bs = bootstrap.get_bootstrap()
+
+    # 模块管理数据：全部模块 + 当前开关状态（core 模块禁用开关、不可删除）
+    from config import get_module_config
+    import routes
+    states = get_module_config()
+    manage_modules = []
+    for m in routes.ALL_MODULES:
+        item = {k: v for k, v in m.items() if not k.startswith("_")}
+        item["enabled"] = states.get(m["id"], True)
+        item["core"] = m.get("core", False)
+        manage_modules.append(item)
+    manage_modules.sort(key=lambda x: (not x["core"], x["group"], x["order"]))
+
     return render_template("settings.html",
                            providers=providers, quota=quota, llm=llm,
                            local_ips=local_ips,
                            password_enabled=password_enabled,
                            webhook_url=webhook_url,
                            db_path=bs["db_path"],
-                           backup_dir=bs["backup_dir"])
+                           backup_dir=bs["backup_dir"],
+                           manage_modules=manage_modules)
 
 
 @bp.route("/settings/api-provider/<provider_key>", methods=["POST"])
@@ -235,6 +263,82 @@ def save_kinboard_webhook():
     url = request.form.get("webhook_url", "").strip()
     save_webhook_url(url)
     flash("✅ 金山多维表 Webhook 已保存", "success")
+    return redirect(url_for("settings_flow_bp.settings_page"))
+
+
+# ── 模块管理（启用 / 停用 / 删除）────────────────────────────────────────────
+
+def _drop_module_tables(meta):
+    """清空模块数据：优先模块自带 drop_module_tables()，否则按 tables SQL 解析表名 DROP。"""
+    mod = sys.modules.get(f"routes.{meta['id']}")
+    fn = getattr(mod, "drop_module_tables", None) if mod else None
+    if fn:
+        fn()
+        return True
+    names = []
+    for sql in meta.get("tables") or []:
+        m = re.search(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\"'`]?(\w+)", sql, re.I)
+        if m:
+            names.append(m.group(1))
+    if not names:
+        return False
+    from db import DB_PATH
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
+    try:
+        for n in names:
+            conn.execute(f'DROP TABLE IF EXISTS "{n}"')
+        conn.commit()
+    finally:
+        conn.close()
+    return True
+
+
+@bp.route("/settings/modules/toggle", methods=["POST"])
+def toggle_module():
+    """启用/停用一个可选模块（写入 settings，重启服务后生效）。"""
+    from config import set_module_enabled
+    module_id = request.form.get("module_id", "").strip()
+    action = request.form.get("action", "")
+    import routes
+    meta = next((m for m in routes.ALL_MODULES if m["id"] == module_id), None)
+    if not meta or meta.get("core"):
+        flash("该模块不可关闭", "error")
+        return redirect(url_for("settings_flow_bp.settings_page"))
+    set_module_enabled(module_id, action == "on")
+    state = "启用" if action == "on" else "停用"
+    flash(f"✅ 模块「{meta['name']}」已{state}，重启服务后生效", "success")
+    return redirect(url_for("settings_flow_bp.settings_page"))
+
+
+@bp.route("/settings/modules/delete", methods=["POST"])
+def delete_module():
+    """删除一个模块：移除代码文件；purge 勾选时同时清空其数据表。"""
+    from config import remove_module_config
+    module_id = request.form.get("module_id", "").strip()
+    purge = request.form.get("purge") == "on"
+    import routes
+    meta = next((m for m in routes.ALL_MODULES if m["id"] == module_id), None)
+    if not meta or meta.get("core"):
+        flash("核心模块不可删除", "error")
+        return redirect(url_for("settings_flow_bp.settings_page"))
+
+    file_path = Path(__file__).parent / meta.get("_file", f"{module_id}.py")
+    if not file_path.exists():
+        flash(f"❌ 模块文件不存在：{file_path}", "error")
+        return redirect(url_for("settings_flow_bp.settings_page"))
+
+    file_path.unlink()  # 移除模块代码文件，重启后路由/菜单自动消失
+
+    purged = False
+    if purge:
+        try:
+            purged = _drop_module_tables(meta)
+        except Exception as e:
+            flash(f"⚠️ 数据清空失败：{e}", "error")
+
+    remove_module_config(module_id)
+    tail = "，数据已清空" if (purge and purged) else "，数据已保留"
+    flash(f"✅ 模块「{meta['name']}」代码已删除{tail}，重启服务后生效", "success")
     return redirect(url_for("settings_flow_bp.settings_page"))
 
 

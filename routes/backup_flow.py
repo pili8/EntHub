@@ -12,6 +12,16 @@ import backup
 
 bp = Blueprint('backup_flow_bp', __name__)
 
+MODULE_META = {
+    "id": "backup_flow",
+    "name": "数据备份",
+    "name_short": "备份",
+    "icon": "database",
+    "url": "/backup",
+    "group": "system",
+    "order": 10,
+}
+
 
 @bp.route("/backup")
 def backup_page():

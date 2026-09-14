@@ -116,6 +116,7 @@
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
 
+      {% if 'backup_flow' in ENABLED_MODULE_IDS %}
       <a href="{{ url_for('backup_flow_bp.backup_page') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--stone">
           <i data-lucide="database" aria-hidden="true"></i>
@@ -126,7 +127,9 @@
         </span>
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
+      {% endif %}
 
+      {% if 'cleanup_flow' in ENABLED_MODULE_IDS %}
       <a href="{{ url_for('cleanup_flow_bp.cleanup_page') }}" class="lh-card">
         <span class="lh-card-icon lh-card-icon--coral">
           <i data-lucide="trash-2" aria-hidden="true"></i>
@@ -137,6 +140,7 @@
         </span>
         <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
       </a>
+      {% endif %}
 
     </div>
   </section>

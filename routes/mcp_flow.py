@@ -9,6 +9,16 @@ from flask import Blueprint, render_template, jsonify
 
 bp = Blueprint('mcp_flow_bp', __name__)
 
+MODULE_META = {
+    "id": "mcp_flow",
+    "name": "MCP 工具",
+    "name_short": "MCP",
+    "icon": "bot",
+    "url": "/mcp",
+    "group": "ops",
+    "order": 40,
+}
+
 MCP_HOST = "localhost"
 MCP_PORT = 5310
 MCP_URL = f"http://{MCP_HOST}:{MCP_PORT}/mcp"

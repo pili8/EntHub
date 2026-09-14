@@ -19,6 +19,16 @@ from ._base import make_bp
 
 bp = make_bp("quick_import")
 
+MODULE_META = {
+    "id": "quick_import",
+    "name": "快速录入",
+    "icon": "zap",
+    "group": "ops",
+    "order": 90,
+    "core": True,       # Chrome 插件/移动端"标注"依赖其 API
+    "show_in": [],      # 无独立导航入口（移动端底部标注按钮调用其 API）
+}
+
 
 # ── 字段中文标签 ─────────────────────────────────────────────────────────────
 FIELD_LABELS = {

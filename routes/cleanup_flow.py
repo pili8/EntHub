@@ -14,6 +14,16 @@ from data_helpers import merge_phones, merge_emails, merge_shareholders
 
 bp = Blueprint('cleanup_flow_bp', __name__)
 
+MODULE_META = {
+    "id": "cleanup_flow",
+    "name": "数据整理",
+    "name_short": "整理",
+    "icon": "sparkles",
+    "url": "/cleanup",
+    "group": "system",
+    "order": 20,
+}
+
 
 # 与 import 流程一致的全量字段列表
 IMPORT_FIELDS = [

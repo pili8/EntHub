@@ -13,6 +13,17 @@ from utils import normalize_phone, normalize_credit_code
 
 bp = Blueprint('api_legacy_bp', __name__)
 
+MODULE_META = {
+    "id": "api_legacy",
+    "name": "对外 API（旧版）",
+    "icon": "plug",
+    "group": "system",
+    "order": 90,
+    "core": True,       # Chrome 插件 / MCP 依赖，不可关闭
+    "external": True,
+    "show_in": [],      # 纯 API，无页面入口
+}
+
 
 @bp.route("/api/search")
 def api_search():

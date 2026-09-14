@@ -18,6 +18,58 @@ from flask import Blueprint, g, request, jsonify
 
 bp = Blueprint('phone_tags_bp', __name__)
 
+MODULE_META = {
+    "id": "phone_tags",
+    "name": "电话标记 API",
+    "icon": "tag",
+    "group": "system",
+    "order": 95,
+    "core": True,       # 电话页/公司详情页依赖
+    "show_in": [],      # 纯 API，无页面入口
+}
+
+
+def init_module():
+    """模块自治建表：phone_tags / phone_tag_map + 默认标记种子（幂等）。
+
+    原逻辑在 db.py，插件化改造时随表迁移到本模块。
+    """
+    from db import DB_PATH
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
+    try:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS phone_tags (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL UNIQUE,
+                color       TEXT DEFAULT '#3b82f6',
+                sort_order  INTEGER DEFAULT 0,
+                created_at  TEXT DEFAULT (datetime('now', 'localtime'))
+            );
+
+            CREATE TABLE IF NOT EXISTS phone_tag_map (
+                normalized_phone TEXT PRIMARY KEY,
+                tag_id           INTEGER NOT NULL,
+                created_at       TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (tag_id) REFERENCES phone_tags(id) ON DELETE CASCADE
+            );
+        """)
+        # 默认电话标记（仅首次创建时，INSERT OR IGNORE 幂等）
+        default_phone_tags = [
+            ("有效", "#22c55e", 1),
+            ("无效", "#ef4444", 2),
+            ("推销电话", "#f97316", 3),
+            ("中介", "#eab308", 4),
+            ("代理记账", "#8b5cf6", 5),
+        ]
+        for name, color, order in default_phone_tags:
+            conn.execute(
+                "INSERT OR IGNORE INTO phone_tags (name, color, sort_order) VALUES (?, ?, ?)",
+                (name, color, order)
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
 
 # ── 电话标记定义 CRUD ─────────────────────────────────────────────────────────
 

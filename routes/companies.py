@@ -20,6 +20,17 @@ import enthub_api
 
 bp = Blueprint('companies_bp', __name__)
 
+MODULE_META = {
+    "id": "companies",
+    "name": "手动录入",
+    "name_short": "录入",
+    "icon": "plus-circle",
+    "url": "/add",
+    "group": "ops",
+    "order": 10,
+    "core": True,
+}
+
 
 # 全量字段列表（与导入共用）
 IMPORT_FIELDS = [

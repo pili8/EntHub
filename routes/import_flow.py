@@ -45,6 +45,17 @@ from utils import (
 
 bp = Blueprint('import_flow_bp', __name__)
 
+MODULE_META = {
+    "id": "import_flow",
+    "name": "Excel 导入",
+    "name_short": "导入",
+    "icon": "upload",
+    "url": "/import",
+    "group": "ops",
+    "order": 20,
+    "core": True,
+}
+
 
 # 全量字段列表（导入流程独立维护，避免与 companies 模块循环依赖）
 IMPORT_FIELDS = [

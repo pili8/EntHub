@@ -9,6 +9,17 @@ from flask import Blueprint, g, request, render_template, jsonify
 
 bp = Blueprint('tags_bp', __name__)
 
+MODULE_META = {
+    "id": "tags",
+    "name": "标签管理",
+    "name_short": "标记",
+    "icon": "tag",
+    "url": "/tags",
+    "group": "ops",
+    "order": 30,
+    "core": True,   # 标签 API 被公司详情页/浏览页依赖，暂设为核心
+}
+
 
 # ── 标签管理页面 ────────────────────────────────────────────────────────────
 

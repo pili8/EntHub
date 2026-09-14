@@ -12,6 +12,39 @@ from flask import Blueprint, g, request, jsonify
 
 bp = Blueprint('phone_wechat_bp', __name__)
 
+MODULE_META = {
+    "id": "phone_wechat",
+    "name": "电话微信关联 API",
+    "icon": "link",
+    "group": "system",
+    "order": 96,
+    "core": True,       # 电话页/公司详情页依赖
+    "show_in": [],      # 纯 API，无页面入口
+    "tables": [
+        # 电话微信号关联表（每个号码一条微信信息，normalized_phone 为单主键）
+        """CREATE TABLE IF NOT EXISTS phone_wechat (
+            normalized_phone TEXT PRIMARY KEY,
+            wechat_name      TEXT NOT NULL,
+            wechat_id        TEXT,
+            note             TEXT,
+            created_at       TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at       TEXT DEFAULT (datetime('now', 'localtime'))
+        )""",
+    ],
+}
+
+
+def init_module():
+    """建表后补建 FTS 同步触发器（companies_fts 含微信内容，见 db.py）。"""
+    import sqlite3
+    from db import DB_PATH, ensure_wechat_fts_triggers
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
+    try:
+        ensure_wechat_fts_triggers(conn)
+        conn.commit()
+    finally:
+        conn.close()
+
 
 @bp.route("/api/phone/<normalized>/wechat", methods=["GET"])
 def get_phone_wechat(normalized):

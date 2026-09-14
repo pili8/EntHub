@@ -10,6 +10,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 APP_PORT = 5210
 
+# 应用版本号（发版时与 git tag / CHANGELOG 保持一致）
+APP_VERSION = "1.1.0"
+
 # 旧路径（仅用于迁移检测，不再用于读写）
 CONFIG_PATH = Path(__file__).parent / "config.json"
 
@@ -203,6 +206,31 @@ def set_quota_remaining(remaining):
     config["api_quota"]["used"] = max(0, total - remaining)
     save_config(config)
     return get_quota()
+
+
+# ── 模块启停配置 ─────────────────────────────────────────────────────────────
+
+def get_module_config():
+    """获取模块启用开关表 {module_id: bool}。未记录的模块视为启用。"""
+    config = load_config()
+    return config.get("module_config", {})
+
+
+def set_module_enabled(module_id: str, enabled: bool) -> None:
+    """设置单个模块的启用开关（写入 settings 表，重启服务后生效）。"""
+    config = load_config()
+    mc = config.setdefault("module_config", {})
+    mc[module_id] = bool(enabled)
+    save_config(config)
+
+
+def remove_module_config(module_id: str) -> None:
+    """模块删除后清理其开关记录。"""
+    config = load_config()
+    mc = config.get("module_config", {})
+    if module_id in mc:
+        mc.pop(module_id)
+        save_config(config)
 
 
 # ── 金山多维表 Webhook ──────────────────────────────────────────────────────
