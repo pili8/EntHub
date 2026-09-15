@@ -28,6 +28,13 @@
   </div>
   {% endif %}
 
+  {% if not trafilatura_ok %}
+  <div class="card" style="border-left: 3px solid #f59e0b; padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary);">
+    <i data-lucide="alert-triangle" style="width: 18px; height: 18px; color: #f59e0b; flex-shrink: 0;"></i>
+    <span>缺少 <code style="font-family: var(--mono); background: var(--bg); padding: 2px 6px; border-radius: 4px;">trafilatura</code> 库，通用网页无法提取正文（微信公众号文章不受影响）。请在终端执行 <code style="font-family: var(--mono); background: var(--bg); padding: 2px 6px; border-radius: 4px;">./venv/bin/pip install trafilatura</code> 安装</span>
+  </div>
+  {% endif %}
+
   <!-- ═══ 采集区 ═══ -->
   <div class="card" style="margin-bottom: 16px;">
     <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
@@ -35,9 +42,14 @@
         <i data-lucide="file-text" style="width:16px;height:16px;color:var(--accent)"></i>
         <span style="font-size: 14px; font-weight: 600;">采集信息</span>
       </div>
-      <button class="page-btn" onclick="testConnectivity()" id="test-conn-btn">
-        <i data-lucide="plug-zap" style="width:13px;height:13px"></i> 测试连接
-      </button>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button class="page-btn" onclick="initFields()" id="init-fields-btn">
+          <i data-lucide="list-plus" style="width:13px;height:13px"></i> 初始化飞书字段
+        </button>
+        <button class="page-btn" onclick="testConnectivity()" id="test-conn-btn">
+          <i data-lucide="plug-zap" style="width:13px;height:13px"></i> 测试连接
+        </button>
+      </div>
     </div>
 
     <div style="padding: 20px;">
@@ -55,9 +67,6 @@
         <span style="width: 1px; height: 20px; background: var(--border); margin: 0 4px;"></span>
         <button class="btn btn-secondary btn-sm" id="btn-from-table" onclick="collectFromTable()">
           <i data-lucide="table" style="width:14px;height:14px"></i> 从收集表采集
-        </button>
-        <button class="btn btn-secondary btn-sm" onclick="initFields()">
-          <i data-lucide="list-plus" style="width:14px;height:14px"></i> 初始化飞书字段
         </button>
       </div>
 
@@ -207,15 +216,18 @@ async function collect() {
     });
 
     if (!resp.ok) {
-      const err = await resp.json();
+      let errMsg = '请求失败';
+      try { const err = await resp.json(); errMsg = err.error || errMsg; } catch(e) {}
       bar.className = 'err';
-      text.textContent = err.error || '请求失败';
+      bar.querySelector('#status-icon').style.display = 'none';
+      text.textContent = errMsg;
       return;
     }
 
     await readSSE(resp, bar, text);
   } catch (e) {
     bar.className = 'err';
+    bar.querySelector('#status-icon').style.display = 'none';
     text.textContent = '请求失败: ' + e.message;
   } finally {
     btn.disabled = false;
@@ -239,15 +251,18 @@ async function collectFromTable() {
     });
 
     if (!resp.ok) {
-      const err = await resp.json();
+      let errMsg = '请求失败';
+      try { const err = await resp.json(); errMsg = err.error || errMsg; } catch(e) {}
       bar.className = 'err';
-      text.textContent = err.error || '请求失败';
+      bar.querySelector('#status-icon').style.display = 'none';
+      text.textContent = errMsg;
       return;
     }
 
     await readSSE(resp, bar, text);
   } catch (e) {
     bar.className = 'err';
+    bar.querySelector('#status-icon').style.display = 'none';
     text.textContent = '请求失败: ' + e.message;
   } finally {
     btn.disabled = false;

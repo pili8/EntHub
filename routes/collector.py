@@ -144,6 +144,15 @@ def save_collector_auto_config(enabled=None, interval=None):
 # 文章抓取
 # ──────────────────────────────────────────────
 
+import ssl as _ssl
+
+# 某些网络环境（公司防火墙、代理网关）使用自签证书，
+# 与 LLM 调用和飞书 API 保持一致：跳过证书验证。
+_ssl_ctx = _ssl.create_default_context()
+_ssl_ctx.check_hostname = False
+_ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+
 def fetch_article(url, max_retries=2):
     """抓取网页 HTML，带重试。"""
     headers = {
@@ -155,7 +164,7 @@ def fetch_article(url, max_retries=2):
     for attempt in range(max_retries):
         req = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15, context=_ssl_ctx) as resp:
                 return resp.read().decode("utf-8", errors="replace")
         except Exception as e:
             last_error = e
@@ -171,6 +180,15 @@ def is_wechat_url(url):
     return "mp.weixin.qq.com" in url
 
 
+def is_trafilatura_available():
+    """检查 trafilatura 是否已安装。"""
+    try:
+        import trafilatura  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def parse_generic_article(url, raw_html):
     """通用网页正文提取（用 trafilatura）。"""
     title = ""
@@ -184,11 +202,14 @@ def parse_generic_article(url, raw_html):
             title = html.unescape(m.group(1).strip())
             break
 
+    body = ""
     try:
         import trafilatura
         body = trafilatura.extract(raw_html, include_comments=False, include_tables=True) or ""
     except ImportError:
-        body = ""
+        # 缺库时 body 为空，调用方会报 "无法获取文章内容"
+        # 但不会崩，微信公众号文章走 parse_article 不受影响
+        pass
 
     return {"title": title, "author": "", "date": "", "body": body}
 
@@ -447,13 +468,15 @@ def collector_page():
     llm = get_llm_config()
     prompts = get_collector_prompts()
     fc = get_feishu_config()
+    trafilatura_ok = is_trafilatura_available()
 
     return render_template("collector.html",
                            auto_config=auto_config,
                            feishu_ready=feishu_ready,
                            llm=llm,
                            prompts=prompts,
-                           feishu_config=fc)
+                           feishu_config=fc,
+                           trafilatura_ok=trafilatura_ok)
 
 
 # ──────────────────────────────────────────────

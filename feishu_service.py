@@ -74,12 +74,22 @@ def mask_secret(val):
 
 # ── 飞书 API ─────────────────────────────────────────────────────────────────
 
+import ssl as _ssl
+
+# 某些网络环境（公司防火墙、代理网关）使用自签证书，
+# 裸 urllib 默认严格验证会报 CERTIFICATE_VERIFY_FAILED。
+# 与 LLM 调用保持一致：跳过证书验证。
+_ssl_ctx = _ssl.create_default_context()
+_ssl_ctx.check_hostname = False
+_ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+
 def get_tenant_token(app_id, app_secret):
     """获取飞书 tenant_access_token。"""
     url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
     data = json.dumps({"app_id": app_id, "app_secret": app_secret}).encode()
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with urllib.request.urlopen(req, timeout=10, context=_ssl_ctx) as resp:
         result = json.loads(resp.read())
     if result.get("code") != 0:
         raise Exception(f"获取飞书token失败: {result}")
@@ -96,7 +106,7 @@ def feishu_request(method, path, token, body=None, max_retries=3):
             "Content-Type": "application/json"
         })
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15, context=_ssl_ctx) as resp:
                 result = json.loads(resp.read())
             # 飞书限频错误码：99991400、99991429
             if result.get("code") in (99991400, 99991429) and attempt < max_retries - 1:

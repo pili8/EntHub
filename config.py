@@ -41,11 +41,20 @@ def _get_conn():
     """获取 DB 连接：优先使用 Flask g.db，否则创建独立连接。
 
     返回 (conn, should_close) 元组。
+
+    注意：SSE 流式响应中 Flask 的 teardown_request 可能在 generator 执行期间
+    就关闭了 g.db（连接对象还在但内部状态已 closed），需要检测并创建新连接。
     """
     try:
         from flask import g
         if hasattr(g, "db") and g.db is not None:
-            return g.db, False
+            try:
+                # 验证连接是否仍然可用（可能已被 teardown_request 关闭）
+                g.db.execute("SELECT 1")
+                return g.db, False
+            except sqlite3.ProgrammingError:
+                # 连接已关闭，创建新的独立连接
+                pass
     except (RuntimeError, ImportError):
         pass
     from db import DB_PATH

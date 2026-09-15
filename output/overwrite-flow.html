@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>EntHub 录入覆盖与空值清除 - 交互流程图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #F5F6F8; padding: 32px; color: #1F2937; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: #6B7280; margin-bottom: 24px; }
+  .stage { background: #fff; border-radius: 14px; padding: 20px 24px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .stage-title { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .num { width: 22px; height: 22px; border-radius: 50%; background: #1F2937; color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+  .node { border-radius: 10px; padding: 12px 16px; font-size: 13px; line-height: 1.55; border: 1.5px solid; }
+  .node b { display: block; font-size: 13.5px; margin-bottom: 3px; }
+  .start { background: #EEF2FF; border-color: #6366F1; }
+  .modal { background: #FFFBEB; border-color: #F59E0B; max-width: 460px; }
+  .choice { background: #F0FDF4; border-color: #22C55E; }
+  .danger { background: #FEF2F2; border-color: #EF4444; }
+  .end { background: #F0F9FF; border-color: #0EA5E9; }
+  .arrow { text-align: center; color: #9CA3AF; font-size: 18px; line-height: 1; padding: 6px 0; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: stretch; }
+  .row .node { flex: 1; min-width: 200px; }
+  .diamond { display: flex; justify-content: center; }
+  .d { background: #FAF5FF; border: 1.5px dashed #A855F7; border-radius: 10px; padding: 10px 22px; font-size: 13px; font-weight: 600; color: #7E22CE; }
+  .opt { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .opt .node { flex: 1; min-width: 240px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 8px; margin-left: 6px; font-weight: 400; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: #6B7280; margin-top: 4px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .note { font-size: 12px; color: #6B7280; margin-top: 10px; }
+  .checkline { background:#FFFBEB; border:1.5px dashed #F59E0B; border-radius:8px; padding:8px 12px; font-size:12.5px; color:#92400E; max-width:460px; margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>EntHub · 录入覆盖与空值清除 交互流程</h1>
+  <div class="sub">适用于：手动录入 / 提取录入 → 遇到重复企业时的处理路径　　生成于 2026-08</div>
+
+  <div class="stage">
+    <div class="stage-title"><span class="num">1</span>提交录入</div>
+    <div class="row">
+      <div class="node start"><b>用户提交企业信息</b>表单含：名称、电话、邮箱、股东、工商字段（部分可留空）</div>
+      <div class="node"><b>后端查重</b>按归一化企业名称匹配 companies 表</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="diamond"><div class="d">库里是否已存在该企业？</div></div>
+    <div class="arrow">否 ↓　　　　　　　　是 ↓</div>
+    <div class="row">
+      <div class="node end"><b>直接新建</b>电话/邮箱/股东/标签全量写入，无覆盖问题</div>
+      <div class="node modal"><b>弹出「发现重复企业」对话框</b>显示库内已有电话、本次带来的新号码/新股东
+        <div class="checkline">☐ <b>空值清除</b>（新增复选框，默认不勾）<br>勾选后：表单里留空的字段会清掉库内旧值，用于旧信息作废场景</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="stage-title"><span class="num">2</span>弹窗三选项（空值清除勾选只影响"覆盖更新"）</div>
+    <div class="opt">
+      <div class="node"><b>🔍 查看已有企业</b>跳详情页，不做任何修改</div>
+      <div class="node"><b>➕ 仅合并新数据</b>只追加新电话/新股东，工商字段不动</div>
+      <div class="node choice"><b>✏️ 覆盖更新（核心路径）</b>受"空值清除"勾选影响，规则见下一步</div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="diamond"><div class="d">覆盖更新时，逐字段判断</div></div>
+  </div>
+
+  <div class="stage">
+    <div class="stage-title"><span class="num">3</span>覆盖更新的字段级规则（写入数据库）</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tr style="background:#F9FAFB;">
+        <th style="text-align:left;padding:8px 12px;border:1px solid #E5E7EB;">字段类型</th>
+        <th style="text-align:left;padding:8px 12px;border:1px solid #E5E7EB;">新值非空</th>
+        <th style="text-align:left;padding:8px 12px;border:1px solid #E5E7EB;">新值留空 · 不勾空值清除</th>
+        <th style="text-align:left;padding:8px 12px;border:1px solid #E5E7EB;">新值留空 · 勾选空值清除</th>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #E5E7EB;"><b>工商字段</b><br><span style="color:#6B7280;font-size:12px;">地址/法人/注册资本/网址等</span></td>
+        <td style="padding:8px 12px;border:1px solid #E5E7EB;background:#F0FDF4;">新值替换旧值</td>
+        <td style="padding:8px 12px;border:1px solid #E5E7EB;background:#FFFBEB;">保留旧值</td>
+        <td style="padding:8px 12px;border:1px solid #E5E7EB;background:#FEF2F2;"><b>清空为 NULL</b></td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #E5E7EB;"><b>电话 / 邮箱 / 股东 / 标签</b></td>
+        <td style="padding:8px 12px;border:1px solid #E5E7EB;background:#F0FDF4;">追加新值（去重，主号不变）</td>
+        <td style="padding:8px 12px;border:1px solid #E5E7FB;background:#F0FDF4;" colspan="2" >永不删除（勾选空值清除也一样）</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #E5E7EB;"><b>备注 / 来源文件</b></td>
+        <td style="padding:8px 12px;border:1px solid #E5E7FB;background:#F0F9FF;" colspan="3">任何情况都不动，只能手动编辑</td>
+      </tr>
+    </table>
+    <div class="arrow">↓</div>
+    <div class="node end" style="max-width:460px;"><b>✅ 保存完成，跳转企业详情页</b></div>
+  </div>
+
+  <div class="stage">
+    <div class="legend">
+      <span><span class="dot" style="background:#6366F1"></span>用户动作</span>
+      <span><span class="dot" style="background:#F59E0B"></span>弹窗交互</span>
+      <span><span class="dot" style="background:#22C55E"></span>覆盖路径</span>
+      <span><span class="dot" style="background:#EF4444"></span>数据被清除</span>
+      <span><span class="dot" style="background:#0EA5E9"></span>结束状态</span>
+      <span><span class="dot" style="background:#A855F7"></span>条件判断</span>
+    </div>
+    <div class="note">关键原则：录入/导入永不删数据（多值字段只增不减）；唯一能减少数据的路径是勾选"空值清除"后的留空工商字段，以及详情页手动编辑。</div>
+  </div>
+</div>
+</body>
+</html>

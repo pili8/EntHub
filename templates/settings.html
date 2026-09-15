@@ -689,8 +689,9 @@
           </div>
         </div>
 
-        <div style="margin-top: 16px;">
+        <div style="margin-top: 16px; display: flex; gap: 8px;">
           <button type="submit" class="btn-sm btn-primary-sm"><i data-lucide="save" style="width:14px;height:14px"></i> 保存</button>
+          <button type="button" class="btn-sm btn-outline-sm" onclick="testFeishu()" id="test-feishu-btn"><i data-lucide="plug-zap" style="width:14px;height:14px"></i> 测试连接</button>
         </div>
       </form>
 
@@ -1196,6 +1197,28 @@ async function testLlm() {
   }
 }
 window.testLlm = testLlm;
+
+async function testFeishu() {
+  const btn = document.getElementById('test-feishu-btn');
+  if (!btn) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-2" style="width:14px;height:14px;animation:spin 1s linear"></i> 测试中...';
+  if (window.lucide) lucide.createIcons();
+  window._enthubToast('info', '正在测试飞书连接...', '');
+  try {
+    const resp = await fetch('/api/settings/feishu/test', { method: 'POST' });
+    const result = await resp.json();
+    if (result.code === 0) window._enthubToast('success', '飞书连接正常', result.message);
+    else window._enthubToast('warning', '飞书连接异常', result.message);
+  } catch (e) {
+    window._enthubToast('error', '请求失败', e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+window.testFeishu = testFeishu;
 
 function toggleMask(btn) {
   const input = btn.parentElement.querySelector('.masked-input');

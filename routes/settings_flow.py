@@ -13,7 +13,7 @@ from config import (get_api_providers, update_provider, is_provider_ready,
                      get_webhook_url, save_webhook_url,
                      get_preferences, save_preferences)
 import enthub_api
-from feishu_service import get_feishu_config, save_feishu_config, mask_secret
+from feishu_service import get_feishu_config, save_feishu_config, mask_secret, test_feishu_connection
 
 bp = Blueprint('settings_flow_bp', __name__)
 
@@ -311,16 +311,35 @@ def save_kinboard_webhook():
 
 @bp.route("/settings/feishu", methods=["POST"])
 def save_feishu():
-    """保存飞书配置。"""
-    save_feishu_config(
-        app_id=request.form.get("feishu_app_id", "").strip(),
-        app_secret=request.form.get("feishu_app_secret", "").strip() or None,
-        app_token=request.form.get("feishu_app_token", "").strip(),
-        collect_table_id=request.form.get("feishu_collect_table_id", "").strip(),
-        source_table_id=request.form.get("feishu_source_table_id", "").strip(),
-    )
+    """保存飞书配置。App Secret 留空不覆盖已有值。"""
+    kwargs = {
+        "app_id": request.form.get("feishu_app_id", "").strip(),
+        "app_token": request.form.get("feishu_app_token", "").strip(),
+        "collect_table_id": request.form.get("feishu_collect_table_id", "").strip(),
+        "source_table_id": request.form.get("feishu_source_table_id", "").strip(),
+    }
+    # App Secret 留空 = 不修改，只有用户输入了内容才写入
+    new_secret = request.form.get("feishu_app_secret", "").strip()
+    if new_secret:
+        kwargs["app_secret"] = new_secret
+    save_feishu_config(**kwargs)
     flash("✅ 飞书配置已保存", "success")
     return redirect(url_for("settings_flow_bp.settings_page"))
+
+
+@bp.route("/api/settings/feishu/test", methods=["POST"])
+def test_feishu():
+    """测试飞书连接：认证 + 采集表 + 收集表。"""
+    results = test_feishu_connection()
+    all_ok = all(r["status"] in ("ok", "skip") for r in results)
+    return jsonify({
+        "code": 0 if all_ok else 2001,
+        "message": "\n".join(
+            f"{r['name']}: {'✅ ' + (r.get('detail') or '连接正常') if r['status'] == 'ok' else '⏭️ ' + (r.get('error') or '跳过') if r['status'] == 'skip' else '❌ ' + (r.get('error') or '失败')}"
+            for r in results
+        ),
+        "data": results,
+    })
 
 
 # ── 模块管理（启用 / 停用 / 删除）────────────────────────────────────────────
