@@ -144,6 +144,19 @@
       </a>
       {% endif %}
 
+      {% if 'collector' in ENABLED_MODULE_IDS %}
+      <a href="{{ url_for('collector_bp.leads_page') }}" class="lh-card">
+        <span class="lh-card-icon lh-card-icon--sky">
+          <i data-lucide="newspaper" aria-hidden="true"></i>
+        </span>
+        <span class="lh-card-body">
+          <span class="lh-card-title">采集记录</span>
+          <span class="lh-card-desc">网页采集提取的公司线索和招聘信息</span>
+        </span>
+        <i data-lucide="arrow-right" class="lh-card-arrow" aria-hidden="true"></i>
+      </a>
+      {% endif %}
+
     </div>
   </section>
 

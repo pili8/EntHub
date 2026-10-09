@@ -3,6 +3,7 @@ import io
 import json
 import math
 import sqlite3
+import sys
 from urllib.parse import quote
 from flask import Blueprint, g, request, render_template, redirect, url_for, flash, \
                    Response, jsonify
@@ -93,6 +94,106 @@ def exit_server():
     # 给本进程发 SIGTERM，让 Flask 优雅退出
     os.kill(os.getpid(), signal.SIGTERM)
     return render_template("restarting.html", exit_mode=True)
+
+
+# ── 重启服务 ────────────────────────────────────────────────────────────────
+
+# 重启助手：由服务进程以独立会话拉起，负责「等响应发完 → 停旧进程 → 拉起新进程」。
+# 之所以不直接在本进程里重启，是因为本进程占着 5210 端口，必须先彻底退出、
+# 端口释放后新进程才能 bind；而且助手必须是独立会话，否则会被一起带走。
+_RESTART_HELPER = r'''
+import os, signal, socket, subprocess, sys, time
+
+old_pid = int(sys.argv[1])
+app_path, root, log_path, pid_path, port, bg = sys.argv[2:8]
+
+def port_free(p):
+    s = socket.socket()
+    s.settimeout(0.4)
+    try:
+        s.connect(("127.0.0.1", int(p)))
+        s.close()
+        return False          # 还能连上，说明服务还活着 / 端口还没释放
+    except OSError:
+        return True
+
+time.sleep(1.2)               # 先把接口响应放出去，再动手
+try:
+    os.kill(old_pid, signal.SIGTERM)
+except ProcessLookupError:
+    pass
+
+# 等端口真正释放（最多 12 秒），实在不退就强杀一次
+deadline = time.time() + 12
+while time.time() < deadline and not port_free(port):
+    time.sleep(0.4)
+if not port_free(port):
+    try:
+        os.kill(old_pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    deadline = time.time() + 6
+    while time.time() < deadline and not port_free(port):
+        time.sleep(0.4)
+
+env = dict(os.environ)
+if bg:
+    env["ENTHUB_BG"] = bg      # 沿用原来的运行方式（后台模式关闭 reloader）
+
+log = open(log_path, "a")
+proc = subprocess.Popen([sys.executable, app_path], cwd=root, env=env,
+                        stdout=log, stderr=subprocess.STDOUT,
+                        stdin=subprocess.DEVNULL, start_new_session=True)
+if pid_path:                  # 预览实例不写 pid，避免污染正式服务的 pid 文件
+    try:
+        with open(pid_path, "w") as f:
+            f.write(str(proc.pid))
+    except OSError:
+        pass
+'''
+
+
+@bp.route("/api/system/restart", methods=["POST"])
+def restart_service():
+    """重启 EntHub 服务（界面上的「重启服务」按钮）。
+
+    返回后由独立助手进程完成：停掉当前进程 → 等端口释放 → 以相同方式拉起新进程。
+    前端收到响应后轮询等待服务恢复，再自动刷新页面。
+
+    注意：重启的是「当初启动自己的那个脚本」（sys.argv[0]），不是写死的 app.py ——
+    这样预览实例（也是同一个 Flask app）重启时不会误拉起连生产库的正式服务。
+    """
+    import os
+    import subprocess
+    from pathlib import Path as _Path
+    from config import APP_PORT
+
+    root = _Path(__file__).resolve().parent.parent
+    log_path = _Path.home() / "Library" / "Logs" / "EntHub.log"
+    pid_path = _Path.home() / "Library" / "Application Support" / "EntHub" / "enthub.pid"
+
+    # 主脚本：优先用启动命令里的那个；取不到时退回项目根的 app.py
+    main_script = os.path.abspath(sys.argv[0] or "")
+    if not os.path.isfile(main_script):
+        main_script = str(root / "app.py")
+
+    # 只有正式服务（app.py）才写 pid 文件，避免预览实例污染生产 pid
+    pid_arg = str(pid_path) if os.path.basename(main_script) == "app.py" else ""
+
+    try:
+        subprocess.Popen(
+            [sys.executable, "-c", _RESTART_HELPER,
+             str(os.getpid()), main_script, str(root),
+             str(log_path), pid_arg, str(APP_PORT),
+             os.environ.get("ENTHUB_BG", "")],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+            start_new_session=True,          # 脱离本进程会话，旧进程退出不会带走它
+        )
+    except Exception as e:
+        return jsonify({"code": 2001, "message": f"重启失败：{e}", "data": None}), 500
+
+    return jsonify({"code": 0, "message": "服务正在重启，稍后自动恢复",
+                    "data": {"script": main_script}})
 
 
 # ── 数据浏览 ────────────────────────────────────────────────────────────────

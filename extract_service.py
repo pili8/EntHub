@@ -680,9 +680,11 @@ def _get_llm_config():
         }
     }
     """
-    from config import load_config
-    config = load_config()
-    return config.get("llm_api", {})
+    from config import get_llm_config
+    # 统一走 config.get_llm_config()：多模型时它会返回「当前激活模型」的字段，
+    # 这样在设置页切换模型后，所有调用点立刻生效。
+    # 传 "quick_extract" 让快速提取可以单独指定模型（在录入页选），没选就跟随默认。
+    return get_llm_config("quick_extract")
 
 
 def extract_by_llm(text, timeout=None):

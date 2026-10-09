@@ -1,0 +1,249 @@
+{# 采集记录视图（partial）
+   被 collector.html 以 view=records 引入，也用于 /collector/leads 兼容路由。
+   需要上下文：leads_by_group / page / total_pages / total / failed_total
+              / current_type / current_matched / current_status #}
+
+<!-- ═══ 筛选 ═══ -->
+<div class="card leads-filter">
+  <div class="lf-field">
+    <span class="lf-label">类型</span>
+    <select class="form-input lf-select" onchange="filterType(this.value)">
+      <option value="">全部</option>
+      <option value="招聘" {{ 'selected' if current_type == '招聘' else '' }}>招聘</option>
+      <option value="新闻" {{ 'selected' if current_type == '新闻' else '' }}>新闻</option>
+      <option value="公司宣传" {{ 'selected' if current_type == '公司宣传' else '' }}>公司宣传</option>
+      <option value="政策" {{ 'selected' if current_type == '政策' else '' }}>政策</option>
+      <option value="其他" {{ 'selected' if current_type == '其他' else '' }}>其他</option>
+    </select>
+  </div>
+  <div class="lf-field">
+    <span class="lf-label">匹配</span>
+    <select class="form-input lf-select" onchange="filterMatched(this.value)">
+      <option value="">全部</option>
+      <option value="yes" {{ 'selected' if current_matched == 'yes' else '' }}>已匹配</option>
+      <option value="no" {{ 'selected' if current_matched == 'no' else '' }}>未匹配</option>
+    </select>
+  </div>
+  <div class="lf-field">
+    <span class="lf-label">状态</span>
+    <select class="form-input lf-select" onchange="filterStatus(this.value)">
+      <option value="">全部</option>
+      <option value="ok" {{ 'selected' if current_status == 'ok' else '' }}>提取成功</option>
+      <option value="failed" {{ 'selected' if current_status == 'failed' else '' }}>提取失败</option>
+    </select>
+  </div>
+  <span class="lf-total">共 <strong>{{ total }}</strong> 篇文章</span>
+  <div class="lf-actions">
+    <button type="button" class="page-btn" onclick="backfillPhones()"
+            title="把采集记录里的电话号码（含一条记录里的多个号码）补进企业详情页">
+      <i data-lucide="phone-forwarded" style="width:13px;height:13px"></i> 补全电话
+    </button>
+    {% if failed_total %}
+    <button type="button" class="page-btn page-btn-danger" onclick="purgeAllFailed()">
+      <i data-lucide="trash-2" style="width:13px;height:13px"></i> 清理全部失败（{{ failed_total }}）
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ═══ 文章分组 ═══ -->
+{% if leads_by_group %}
+{% for group in leads_by_group %}
+{% set first_at = (group.first_collected_at or '')[5:16] %}
+{% set last_at = (group.last_collected_at or '')[5:16] %}
+<article class="lead-card {{ 'is-failed' if group.state == 'failed' else ('is-partial' if group.state == 'partial' else '') }}"
+         data-url="{{ group.source_url }}" id="group-{{ loop.index }}">
+
+  <!-- 标题栏：点击展开 / 折叠 -->
+  <div class="lead-card-head" role="button" tabindex="0"
+       onclick="toggleGroup(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleGroup(this);}"
+       aria-expanded="true">
+    <i data-lucide="chevron-right" class="lead-card-caret" aria-hidden="true"></i>
+
+    <span class="src-chip" title="来源公众号">
+      <i data-lucide="message-square" aria-hidden="true"></i>
+      <span class="src-chip-label">公众号</span>
+      <b>{{ group.source_author or '未知来源' }}</b>
+    </span>
+
+    <span class="lead-card-title" title="{{ group.article_title or '无标题' }}">
+      {{ group.article_title or '无标题' }}
+    </span>
+
+    {% if group.main_type %}
+    <span class="type-chip type-{{ group.main_type }}">{{ group.main_type }}</span>
+    {% endif %}
+
+    <span class="meta-chip">{{ group.lead_count }} 条</span>
+
+    <span class="lead-card-time" title="最近采集时间">
+      <i data-lucide="clock" aria-hidden="true"></i>{{ last_at or '—' }}
+    </span>
+
+    {% if group.state == 'failed' %}
+    <span class="state-chip is-failed"><i data-lucide="x-circle" aria-hidden="true"></i>提取失败</span>
+    {% elif group.state == 'partial' %}
+    <span class="state-chip is-partial"><i data-lucide="alert-triangle" aria-hidden="true"></i>部分失败 {{ group.failed_count }}</span>
+    {% else %}
+    <span class="state-chip is-ok"><i data-lucide="check-circle" aria-hidden="true"></i>成功</span>
+    {% endif %}
+
+    <span class="lead-card-ops" onclick="event.stopPropagation()">
+      {% if group.failed_count %}
+      <button type="button" class="row-btn row-btn-retry" onclick="retrySource('{{ group.source_url }}')" title="重新抓取并提取">
+        <i data-lucide="rotate-cw" aria-hidden="true"></i><span>重试</span>
+      </button>
+      {% endif %}
+      {% if group.state == 'failed' %}
+      <button type="button" class="row-btn row-btn-danger" onclick="purgeSourceFailed('{{ group.source_url }}', {{ group.failed_count }})" title="删除该来源的全部失败记录">
+        <i data-lucide="trash-2" aria-hidden="true"></i><span>删除</span>
+      </button>
+      {% endif %}
+      {% if group.source_url and group.source_url != '文字输入' %}
+      <button type="button" class="row-icon-btn" onclick="copySourceLink('{{ group.source_url }}', this)" title="复制原文链接">
+        <i data-lucide="link" aria-hidden="true"></i>
+      </button>
+      <a href="{{ group.source_url }}" target="_blank" rel="noopener" class="lead-source-btn" title="查看原文">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+      </a>
+      {% endif %}
+    </span>
+  </div>
+
+  <!-- 记录表：固定行高，单行省略 -->
+  <div class="lead-card-body">
+    <table class="leads-table">
+      <colgroup>
+        <col style="width: 78px;">
+        <col style="width: 22%;">
+        <col style="width: 96px;">
+        <col style="width: 132px;">
+        <col style="width: 190px;">
+        <col>
+        <col style="width: 92px;">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>类型</th>
+          <th>公司名</th>
+          <th>联系人</th>
+          <th>电话</th>
+          <th>地址</th>
+          <th>摘要</th>
+          <th style="text-align: center;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lead in group.leads %}
+        <tr id="lead-{{ lead.id }}" class="{{ 'is-failed' if lead.extract_status == 'failed' else '' }}"
+            data-name="{{ lead.company_name or '' }}"
+            data-phone="{{ lead.phone or '' }}"
+            data-address="{{ lead.address or '' }}"
+            data-contact="{{ lead.contact_person or '' }}"
+            data-summary="{{ lead.summary or '' }}"
+            data-lead-type="{{ lead.lead_type or '' }}">
+          <td>
+            {% if lead.extract_status == 'failed' %}
+            <span class="type-chip is-failed">失败</span>
+            {% else %}
+            <span class="type-chip type-{{ lead.lead_type }}">{{ lead.lead_type or '未知' }}</span>
+            {% endif %}
+          </td>
+          <td class="cell-company">
+            {% if lead.matched_company_name %}
+            <a href="{{ url_for('companies_bp.company_detail', company_id=lead.company_id) }}" class="cell-link" title="{{ lead.matched_company_name }}">{{ lead.matched_company_name }}</a>
+            {% elif lead.company_name %}
+            <span class="cell-plain" title="{{ lead.company_name }}">{{ lead.company_name }}</span>
+            {% if not lead.company_id %}
+            <button type="button" class="row-btn row-btn-mini" onclick="importCompany({{ lead.id }})" title="把这行信息带到录入页（工商信息由你手动点「在线获取」）">
+              <i data-lucide="package-plus" aria-hidden="true"></i><span>入库</span>
+            </button>
+            {% endif %}
+            {% else %}
+            <span class="cell-empty">—</span>
+            {% endif %}
+          </td>
+          <td title="{{ lead.contact_person or '' }}">{{ lead.contact_person or '—' }}</td>
+          <td class="cell-phone" title="{{ lead.phone or '' }}">{{ lead.phone or '—' }}</td>
+          <td title="{{ lead.address or '' }}">{{ lead.address or '—' }}</td>
+          <td class="cell-summary" title="{{ (lead.error_msg if lead.extract_status == 'failed' else lead.summary) or '' }}">
+            {% if lead.extract_status == 'failed' %}
+            <span class="cell-error">{{ lead.error_msg[:80] if lead.error_msg else '未知错误' }}</span>
+            {% else %}
+            {{ lead.summary or '—' }}
+            {% endif %}
+          </td>
+          <td class="cell-actions">
+            {% if lead.company_id %}
+            <a href="{{ url_for('companies_bp.company_detail', company_id=lead.company_id) }}" class="row-icon-btn" title="查看企业详情">
+              <i data-lucide="arrow-up-right" aria-hidden="true"></i>
+            </a>
+            {% endif %}
+            {% if lead.extract_status == 'failed' %}
+            <button type="button" class="row-icon-btn is-danger" onclick="deleteLead({{ lead.id }})" title="删除这条失败记录">
+              <i data-lucide="trash-2" aria-hidden="true"></i>
+            </button>
+            {% endif %}
+            {% if not lead.company_id and lead.extract_status != 'failed' %}
+            <span class="cell-empty">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 历史采集信息 -->
+  <div class="lead-card-foot">
+    <span class="lcf-item">
+      <i data-lucide="clock" aria-hidden="true"></i>
+      {% if first_at and last_at and first_at != last_at %}
+      首次采集 {{ first_at }} · 最近采集 {{ last_at }}
+      {% else %}
+      采集于 {{ last_at or '—' }}
+      {% endif %}
+    </span>
+    {% if group.source_date %}
+    <span class="lcf-item"><i data-lucide="calendar-days" aria-hidden="true"></i>文章日期 {{ group.source_date[:16] }}</span>
+    {% endif %}
+    <span class="lcf-item lcf-stat">
+      成功 <b class="is-ok">{{ group.ok_count }}</b>
+      {% if group.failed_count %}· 失败 <b class="is-failed">{{ group.failed_count }}</b>{% endif %}
+    </span>
+    {% if group.error_hint %}
+    <span class="lcf-error" title="{{ group.error_hint }}">{{ group.error_hint[:60] }}</span>
+    {% endif %}
+  </div>
+</article>
+{% endfor %}
+
+{% if total_pages > 1 %}
+<nav class="pagination-bar">
+  <div class="pagination-info">
+    第 <strong>{{ page }}</strong> / {{ total_pages }} 页 · 共 {{ total }} 篇
+  </div>
+  <div class="pagination-links">
+    {% if page > 1 %}
+    <a href="{{ url_for('collector_bp.collector_page', view='records', page=page-1, type=current_type, matched=current_matched, status=current_status) }}" class="page-btn">
+      <i data-lucide="chevron-left" aria-hidden="true"></i>上一页
+    </a>
+    {% endif %}
+    {% if page < total_pages %}
+    <a href="{{ url_for('collector_bp.collector_page', view='records', page=page+1, type=current_type, matched=current_matched, status=current_status) }}" class="page-btn page-btn-primary">
+      下一页<i data-lucide="chevron-right" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card empty-state">
+  <i data-lucide="inbox" aria-hidden="true"></i>
+  <p>还没有采集记录</p>
+  <a href="{{ url_for('collector_bp.collector_page', view='collect') }}" class="page-btn page-btn-primary">
+    <i data-lucide="globe" style="width:14px;height:14px"></i> 去采集
+  </a>
+</div>
+{% endif %}

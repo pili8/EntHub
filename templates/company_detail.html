@@ -242,6 +242,17 @@
         {% for cp in company_phones %}
         <div class="phone-row" data-norm="{{ cp.normalized_phone }}">
           {% if cp.is_primary %}<span class="phone-primary-star" title="主号">★</span>{% endif %}
+          {% if cp.lead %}
+          {% set lt = cp.lead.lead_type or '招聘' %}
+          {% set lt_icon = {'招聘': 'briefcase', '新闻': 'newspaper', '公司宣传': 'megaphone', '政策': 'scale'}.get(lt, 'file-text') %}
+          <a href="{{ url_for('collector_bp.leads_page') }}#lead-{{ cp.lead.id }}"
+             class="phone-tag phone-tag-lead"
+             onclick="return openPhoneLeads(event, '{{ cp.normalized_phone }}', {{ cp.lead.id }})"
+             title="{{ lt }}来源{% if cp.lead.article_title %}：{{ cp.lead.article_title }}{% endif %}{% if cp.lead.summary %} · {{ cp.lead.summary }}{% endif %} —— 点击查看该号码关联的全部采集记录"
+             aria-label="{{ lt }}来源，点击查看采集记录">
+            <i data-lucide="{{ lt_icon }}" aria-hidden="true"></i>
+          </a>
+          {% endif %}
           <a href="{{ url_for('pages_bp.search', q=cp.phone) }}" class="phone-number">{{ cp.phone }}</a>
           <button type="button" class="copy-btn" onclick="copyToClipboard('{{ cp.phone }}', this)" title="复制">
             <i data-lucide="copy" aria-hidden="true"></i>
@@ -283,7 +294,7 @@
           {% endif %}
           <div class="phone-tags">
             {% if cp.tag %}
-              <span class="phone-tag phone-tag-clickable" style="background: {{ cp.tag.color }}20; color: {{ cp.tag.color }};" onclick="openPhoneTagSelector('{{ cp.normalized_phone }}')" title="点击修改标记">{{ cp.tag.name }}</span>
+              <span class="phone-tag phone-tag-clickable" style="background: {{ cp.tag.color }}1A; color: {{ cp.tag.color }}; border-color: {{ cp.tag.color }}33;" onclick="openPhoneTagSelector('{{ cp.normalized_phone }}')" title="点击修改标记">{{ cp.tag.name }}</span>
             {% else %}
               <button type="button" class="phone-tag-add-btn" onclick="openPhoneTagSelector('{{ cp.normalized_phone }}')" title="设置标记">
                 <i data-lucide="tag" style="width: 12px; height: 12px;"></i>
@@ -475,6 +486,52 @@
     </div>
     {% endif %}
   </footer>
+
+  <!-- ─────────── 动态线索（采集记录） ─────────── -->
+  {% if 'collector' in ENABLED_MODULE_IDS and collector_leads %}
+  <section class="detail-section">
+    <div class="rel-section-header">
+      <h2 class="detail-section-title">
+        <a href="{{ url_for('collector_bp.leads_page') }}" style="color: inherit; text-decoration: none;" title="查看全部采集记录">动态线索</a>
+      </h2>
+      <span class="rel-section-hint">
+        <i data-lucide="rss" style="width:11px;height:11px;vertical-align:-1px"></i>
+        来自网页采集
+      </span>
+    </div>
+    <div class="detail-groups">
+      <div class="detail-group dg-full">
+        <div class="dg-body">
+          <div class="ent-list">
+            {% for lead in collector_leads %}
+            <div class="lead-row" id="lead-{{ lead.id }}" style="padding: 8px 12px;">
+              <div class="lead-row-main" style="margin-bottom: 2px;">
+                <span class="type-chip type-{{ lead.lead_type }}">{{ lead.lead_type or '未知' }}</span>
+                <a href="{{ url_for('collector_bp.leads_page') }}#lead-{{ lead.id }}" class="lead-title" style="color: var(--text-primary); text-decoration: none;">{{ lead.article_title or lead.company_name or '无标题' }}</a>
+                {% if lead.source_url and lead.source_url != '文字输入' %}
+                <a href="{{ lead.source_url }}" target="_blank" class="lead-source-btn" title="查看原文">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                </a>
+                {% endif %}
+              </div>
+              <div class="lead-row-foot" style="margin-top: 2px;">
+                {% if lead.source_author %}
+                <span class="src-chip src-chip-sm" title="来源公众号">
+                  <i data-lucide="message-square" aria-hidden="true"></i>
+                  <span class="src-chip-label">公众号</span><b>{{ lead.source_author }}</b>
+                </span>
+                {% endif %}
+                {% if lead.phone %}<span class="lead-phone"><i data-lucide="phone" style="width:11px;height:11px;vertical-align:-1px"></i> {{ lead.phone }}</span>{% endif %}
+                <span class="lead-date"><i data-lucide="clock" style="width:11px;height:11px;vertical-align:-1px"></i> {{ lead.collected_at }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
 
   <!-- ─────────── 关联企业（延伸信息） ─────────── -->
   {% if related_phones or related_legal_person or related_shareholders or related_industry or related_email %}
@@ -1257,7 +1314,7 @@ async function refreshPhoneTag(normalizedPhone) {
 
     // 添加单标签或 + 按钮（在共N家之前）
     if (tag) {
-        html += `<span class="phone-tag phone-tag-clickable" style="background: ${tag.color}20; color: ${tag.color};" onclick="openPhoneTagSelector('${normalizedPhone}')" title="点击修改标记">${tag.name}</span>`;
+        html += `<span class="phone-tag phone-tag-clickable" style="background: ${tag.color}1A; color: ${tag.color}; border-color: ${tag.color}33;" onclick="openPhoneTagSelector('${normalizedPhone}')" title="点击修改标记">${tag.name}</span>`;
     } else {
         html += `<button type="button" class="phone-tag-add-btn" onclick="openPhoneTagSelector('${normalizedPhone}')" title="设置标记"><i data-lucide="tag" style="width: 12px; height: 12px;"></i></button>`;
     }
@@ -1266,6 +1323,49 @@ async function refreshPhoneTag(normalizedPhone) {
     tagsContainer.innerHTML = html;
     if (window.lucide) lucide.createIcons();
 }
+
+// ── 号码上的来源标记：一个号码可能对应多条采集记录 ──
+// 先查该号码的全部记录：只有 1 条就直接跳过去，多条则弹列表让用户挑
+function _escPhoneLead(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]
+  ));
+}
+
+async function openPhoneLeads(event, normPhone, fallbackLeadId) {
+  if (event) event.preventDefault();
+  const go = (id) => { window.location.href = '/collector/leads#lead-' + id; };
+  try {
+    const resp = await fetch('/api/collector/leads-by-phone?phone=' + encodeURIComponent(normPhone));
+    const data = await resp.json();
+    if (!data.success || !data.count) { go(fallbackLeadId); return false; }
+    if (data.count === 1) { go(data.leads[0].id); return false; }
+
+    const items = data.leads.map(l => `
+      <a href="/collector/leads#lead-${l.id}"
+         style="display:block;padding:10px 12px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:inherit;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span class="type-chip type-${_escPhoneLead(l.lead_type)}">${_escPhoneLead(l.lead_type || '未知')}</span>
+          <span style="flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            ${_escPhoneLead(l.article_title || '无标题')}
+          </span>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--text-muted);">
+          <span>公众号 ${_escPhoneLead(l.source_author || '—')}</span>
+          ${l.contact_person ? `<span>联系人 ${_escPhoneLead(l.contact_person)}</span>` : ''}
+          <span>${_escPhoneLead((l.collected_at || '').slice(5, 16))}</span>
+        </div>
+      </a>`).join('');
+
+    showModal(`该号码关联 ${data.count} 条采集记录`,
+      `<div style="display:flex;flex-direction:column;gap:8px;">${items}</div>`,
+      [{ text: '关闭', class: 'btn btn-secondary', action: 'closeModal()' }]);
+  } catch (e) {
+    go(fallbackLeadId);
+  }
+  return false;
+}
+window.openPhoneLeads = openPhoneLeads;
 
 window.openPhoneTagSelector = openPhoneTagSelector;
 window.setPhoneTag = setPhoneTag;

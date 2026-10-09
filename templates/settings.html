@@ -47,7 +47,7 @@
           {% if m.pending %}<span class="mod-chip mod-chip-warn">{{ m.pending }} · 待重启</span>{% endif %}
           <span class="mod-state {{ 'on' if m.enabled else 'off' }}">{{ '已启用' if m.enabled else '已停用' }}</span>
           <form method="post" action="{{ url_for('settings_flow_bp.toggle_module') }}"
-                {% if m.risk == 'high' %}onsubmit="return confirmHighRisk(this, '{{ m.name }}', {{ 'true' if m.enabled else 'false' }})"{% endif %}>
+                {% if m.risk == 'high' %}onsubmit="return confirmHighRisk(this, '{{ m.name }}', {{ 'true' if m.enabled else 'false' }}, event)"{% endif %}>
             <input type="hidden" name="module_id" value="{{ m.id }}">
             <input type="hidden" name="action" value="{{ 'off' if m.enabled else 'on' }}">
             <button type="submit" class="mod-switch" data-on="{{ 'true' if m.enabled else 'false' }}"
@@ -588,42 +588,134 @@
 
     <div class="settings-card" style="border-left-color: {{ '#22c55e' if llm.enabled and llm.api_key else '#d1d5db' }};">
       <div class="settings-card-header">
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
           <span style="font-size: 14px; font-weight: 600;">文本提取大模型</span>
+          <label class="llm-switch" title="关闭后「快速提取」的智能解析与网页采集的 AI 提取都不再调用大模型">
+            <input type="checkbox" id="llm-enabled-toggle" {{ 'checked' if llm.enabled else '' }}
+                   onchange="toggleLlmEnabled(this.checked)">
+            <span>启用</span>
+          </label>
+          {% if llm.enabled and llm.active_name %}
+          <span class="status-badge status-badge-active">默认：{{ llm.active_name }}</span>
+          {% elif not llm.enabled %}
+          <span class="status-badge status-badge-inactive">已停用</span>
+          {% endif %}
         </div>
-        <span style="font-size: 12px; color: var(--text-muted);">支持 OpenAI 兼容接口（OpenAI / DeepSeek / 千问 / Ollama 等）</span>
+        <span style="font-size: 12px; color: var(--text-muted);">带 <b style="color: var(--success);">✓</b> 的那条是<b>默认模型</b>；采集页 / 录入页里的「跟随默认」用的就是它</span>
       </div>
 
-      <form method="post" action="{{ url_for('settings_flow_bp.update_llm') }}" style="padding: 16px 20px;">
-        <div style="display: grid; grid-template-columns: 2fr 2fr 1fr 100px auto; gap: 14px; align-items: end;">
-          <div>
-            <label class="settings-label">API 地址</label>
-            <input type="text" name="llm_base_url" value="{{ llm.base_url }}" placeholder="https://api.openai.com/v1" style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: monospace;">
-          </div>
-          <div>
-            <label class="settings-label">API Key</label>
-            <div style="position: relative;">
-              <input type="password" name="llm_api_key" class="masked-input" value="{{ llm.api_key }}" placeholder="sk-***" style="width: 100%; padding: 7px 36px 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: monospace;">
-              <button type="button" onclick="toggleMask(this)" tabindex="-1" class="eye-btn"><i data-lucide="eye" style="width:14px;height:14px"></i></button>
+      <div style="padding: 14px 20px;">
+        <!-- 已配置的模型列表 -->
+        <div class="llm-list">
+          {% for m in llm_models %}
+          <div class="llm-item {{ 'is-active' if m.id == llm_active_id else '' }}">
+            <div class="llm-item-main">
+              <div class="llm-item-name">
+                {% if m.id == llm_active_id %}
+                <i data-lucide="check-circle-2" class="llm-item-check" aria-hidden="true"></i>
+                {% else %}
+                <i data-lucide="circle" class="llm-item-dot" aria-hidden="true"></i>
+                {% endif %}
+                <span>{{ m.name }}</span>
+                {% if m.id == llm_active_id %}<span class="llm-tag">默认模型</span>{% endif %}
+              </div>
+              <div class="llm-item-meta">
+                <code>{{ m.model }}</code>
+                <span class="llm-item-sep">·</span>
+                <span class="llm-item-url" title="{{ m.base_url }}">{{ m.base_url }}</span>
+                {% if m.note %}
+                <span class="llm-item-sep">·</span><span>{{ m.note }}</span>
+                {% endif %}
+                <span class="llm-item-sep">·</span>
+                <span class="llm-item-key">{{ m.api_key[:6] }}***{{ m.api_key[-4:] if m.api_key|length > 10 else '' }}</span>
+              </div>
+            </div>
+            <div class="llm-item-actions">
+              {% if m.id != llm_active_id %}
+              <button type="button" class="llm-mini-btn" onclick="activateLlmModel('{{ m.id }}')"
+                      title="把它设为全局默认模型">
+                <i data-lucide="check" aria-hidden="true"></i> 设为默认
+              </button>
+              {% endif %}
+              <button type="button" class="btn-sm btn-outline-sm" id="llm-test-{{ m.id }}"
+                      onclick="testSavedLlm('{{ m.id }}', this)">
+                <i data-lucide="plug-zap" style="width:12px;height:12px"></i> 测试
+              </button>
+              <button type="button" class="btn-sm btn-outline-sm" onclick="openLlmEditor('{{ m.id }}')">
+                <i data-lucide="pencil" style="width:12px;height:12px"></i> 编辑
+              </button>
+              <button type="button" class="btn-sm btn-outline-sm" onclick="cloneLlmModel('{{ m.id }}')"
+                      title="复制这套配置另存为新模型（地址、密钥都会带过去）">
+                <i data-lucide="copy" style="width:12px;height:12px"></i> 复制
+              </button>
+              <button type="button" class="btn-sm btn-danger-sm" onclick="deleteLlmModel('{{ m.id }}', '{{ m.name }}')"
+                      title="删除这个模型">
+                <i data-lucide="trash-2" style="width:12px;height:12px"></i>
+              </button>
             </div>
           </div>
-          <div>
-            <label class="settings-label">模型</label>
-            <input type="text" name="llm_model" value="{{ llm.model }}" placeholder="gpt-4o-mini" style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;">
+          {% endfor %}
+
+          {% if not llm_models %}
+          <div class="llm-empty">
+            <i data-lucide="cpu" style="width:20px;height:20px" aria-hidden="true"></i>
+            <span>还没有配置模型 —— 点下面「添加模型」，或从常用预设里挑一个</span>
           </div>
-          <div>
-            <label class="settings-label">超时(秒)</label>
-            <input type="number" name="llm_timeout" value="{{ llm.timeout }}" min="5" max="120" style="width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; text-align: center;">
+          {% endif %}
+        </div>
+
+        <!-- 新增 / 编辑表单 -->
+        <div class="llm-editor" id="llm-editor" hidden>
+          <input type="hidden" id="llm-edit-id">
+          <div class="llm-presets">
+            <span class="llm-presets-label">常用预设</span>
+            <select class="form-input" id="llm-preset" onchange="applyLlmPreset(this.value)"
+                    title="选一个服务商自动填好地址和模型名；选「自定义」则自己填"></select>
           </div>
-          <label style="display: flex; align-items: center; font-size: 13px; white-space: nowrap; padding-bottom: 7px;">
-            <input type="checkbox" name="llm_enabled" {{ 'checked' if llm.enabled else '' }} style="margin-right: 5px;">启用
-          </label>
+          <div class="llm-grid">
+            <div>
+              <label class="settings-label">备注名称</label>
+              <input type="text" id="llm-name" class="form-input" placeholder="例如：通义千问 / GLM 5.2">
+            </div>
+            <div>
+              <label class="settings-label">模型名</label>
+              <input type="text" id="llm-model" class="form-input" placeholder="z-ai/glm-5.2" style="font-family: var(--mono);">
+            </div>
+            <div style="grid-column: span 2;">
+              <label class="settings-label">接口地址（Base URL）</label>
+              <input type="text" id="llm-base-url" class="form-input" placeholder="https://openrouter.ai/api/v1" style="font-family: var(--mono);">
+            </div>
+            <div style="grid-column: span 2;">
+              <label class="settings-label">API Key <span id="llm-key-hint" style="color: var(--text-muted); font-weight: 400;"></span></label>
+              <div style="position: relative;">
+                <input type="password" id="llm-api-key" class="form-input masked-input" placeholder="sk-***">
+                <button type="button" onclick="toggleMask(this)" tabindex="-1" class="eye-btn"><i data-lucide="eye" style="width:14px;height:14px"></i></button>
+              </div>
+            </div>
+            <div>
+              <label class="settings-label">超时(秒)</label>
+              <input type="number" id="llm-timeout" class="form-input" value="30" min="5" max="120">
+            </div>
+            <div>
+              <label class="settings-label">备注说明</label>
+              <input type="text" id="llm-note" class="form-input" placeholder="可选">
+            </div>
+          </div>
+          <div class="llm-editor-actions">
+            <button type="button" class="btn-sm btn-primary-sm" onclick="saveLlmModel()" id="llm-save-btn">
+              <i data-lucide="save" style="width:14px;height:14px"></i> 保存模型
+            </button>
+            <button type="button" class="btn-sm btn-outline-sm" onclick="testLlmForm(this)" id="llm-form-test-btn">
+              <i data-lucide="plug-zap" style="width:14px;height:14px"></i> 测试连通
+            </button>
+            <button type="button" class="btn-sm btn-outline-sm" onclick="closeLlmEditor()">取消</button>
+          </div>
         </div>
-        <div style="display: flex; gap: 8px; margin-top: 14px;">
-          <button type="submit" class="btn-sm btn-primary-sm"><i data-lucide="save" style="width:14px;height:14px"></i> 保存</button>
-          <button type="button" onclick="testLlm()" id="test-llm-btn" class="btn-sm btn-outline-sm"><i data-lucide="plug-zap" style="width:14px;height:14px"></i> 测试连通</button>
-        </div>
-      </form>
+
+        <button type="button" class="llm-add-btn" onclick="openLlmEditor()" id="llm-add-btn">
+          <i data-lucide="plus" style="width:14px;height:14px"></i> 添加模型
+        </button>
+      </div>
     </div>
   </div>
 
@@ -694,6 +786,31 @@
           <button type="button" class="btn-sm btn-outline-sm" onclick="testFeishu()" id="test-feishu-btn"><i data-lucide="plug-zap" style="width:14px;height:14px"></i> 测试连接</button>
         </div>
       </form>
+
+      <!-- 飞书同步开关 + 初始化字段 -->
+      <div style="padding: 14px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+        <div>
+          <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">采集时同步到飞书</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">关闭后采集结果仅写入本地线索库，不发送飞书</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span id="sync-feishu-status" style="font-size: 12px; color: {{ '#16a34a' if sync_feishu else '#6b7280' }};">{{ '已开启' if sync_feishu else '已关闭' }}</span>
+          <label class="pref-switch">
+            <input type="checkbox" id="sync-feishu-toggle" {{ 'checked' if sync_feishu else '' }} onchange="toggleSyncFeishu(this.checked)">
+            <span class="mod-switch" data-on="{{ 'true' if sync_feishu else 'false' }}"></span>
+          </label>
+        </div>
+      </div>
+
+      <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+        <div>
+          <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">初始化飞书采集表字段</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">自动创建类型/公司名/联系人/电话等所需字段，已存在的会跳过</div>
+        </div>
+        <button type="button" class="btn-sm btn-outline-sm" onclick="initFeishuFields()" id="init-fields-btn">
+          <i data-lucide="list-plus" style="width:14px;height:14px"></i> 初始化字段
+        </button>
+      </div>
 
       <details style="padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border);">
         <summary style="cursor: pointer; font-weight: 600; color: var(--text-secondary); user-select: none; list-style: none;">
@@ -1220,6 +1337,316 @@ async function testFeishu() {
 }
 window.testFeishu = testFeishu;
 
+async function toggleSyncFeishu(enabled) {
+  try {
+    const resp = await fetch('/api/collector/sync-feishu', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled})
+    });
+    const data = await resp.json();
+    if (data.success) {
+      const status = document.getElementById('sync-feishu-status');
+      status.textContent = enabled ? '已开启' : '已关闭';
+      status.style.color = enabled ? '#16a34a' : '#6b7280';
+      const sw = document.querySelector('#sync-feishu-toggle + .mod-switch');
+      if (sw) sw.dataset.on = enabled;
+      window._enthubToast('success', data.message, '');
+    }
+  } catch (e) {
+    window._enthubToast('error', '操作失败', e.message);
+    document.getElementById('sync-feishu-toggle').checked = !enabled;
+  }
+}
+window.toggleSyncFeishu = toggleSyncFeishu;
+
+function initFeishuFields() {
+  showConfirm('初始化飞书采集表字段',
+    '将创建所需字段（类型 / 公司名 / 联系人 / 电话 / 地址 / 摘要 / 来源 / 发布日期 / 来源链接 / 采集时间），<br>已存在的字段会自动跳过。',
+    () => doInitFeishuFields());
+}
+
+async function doInitFeishuFields() {
+  const btn = document.getElementById('init-fields-btn');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-2" style="width:14px;height:14px;animation:spin 1s linear"></i> 初始化中...';
+  if (window.lucide) lucide.createIcons();
+  try {
+    const resp = await fetch('/api/collector/init-fields', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      window._enthubToast('success', '字段创建完成', data.message || '');
+    } else {
+      window._enthubToast('error', '初始化失败', data.error || '');
+    }
+  } catch (e) {
+    window._enthubToast('error', '请求失败', e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+window.initFeishuFields = initFeishuFields;
+
+// ══════════════ 大模型：多模型管理 ══════════════
+const LLM_MODELS = {{ llm_models | tojson }};
+const LLM_ACTIVE_ID = {{ llm_active_id | tojson }};
+
+// 常用预设：每个品牌一条，选中即自动填好地址与模型名
+const LLM_PRESETS = [
+  { label: '阿里通义千问', name: '通义千问', base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', note: '阿里云百炼（DashScope）' },
+  { label: 'DeepSeek', name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', model: 'deepseek-chat', note: '' },
+  { label: 'Kimi（月之暗面）', name: 'Kimi', base_url: 'https://api.moonshot.cn/v1', model: 'kimi-k2.5', note: '旧的 kimi-k2-* 已下线，现用 k2.5 / k3' },
+  { label: '智谱 AI（GLM）', name: '智谱 GLM', base_url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', note: 'glm-4-flash 免费' },
+  { label: '硅基流动', name: '硅基流动', base_url: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen3-8B', note: '当前默认模型所在的服务商' },
+];
+
+// 预设下拉的第一个选项：不套用预设，自己填
+const LLM_PRESET_CUSTOM = '自定义（自己填写配置）';
+
+function initLlmPresets() {
+  const sel = document.getElementById('llm-preset');
+  if (!sel) return;
+  sel.innerHTML = `<option value="">${LLM_PRESET_CUSTOM}</option>`
+    + LLM_PRESETS.map((p, i) =>
+        `<option value="${i}">${p.label} · ${p.model}</option>`).join('');
+}
+
+function openLlmEditor(id) {
+  const ed = document.getElementById('llm-editor');
+  if (!ed) return;
+  const item = id ? LLM_MODELS.find(m => m.id === id) : null;
+  document.getElementById('llm-edit-id').value = item ? item.id : '';
+  document.getElementById('llm-name').value = item ? item.name : '';
+  document.getElementById('llm-model').value = item ? item.model : '';
+  document.getElementById('llm-base-url').value = item ? item.base_url : '';
+  document.getElementById('llm-api-key').value = '';
+  document.getElementById('llm-timeout').value = item ? item.timeout : 30;
+  document.getElementById('llm-note').value = item ? (item.note || '') : '';
+  document.getElementById('llm-key-hint').textContent = item
+    ? '（留空 = 不修改，当前 ' + (item.api_key || '').slice(0, 6) + '***）' : '';
+  const presetSel = document.getElementById('llm-preset');
+  if (presetSel) presetSel.value = '';   // 回到「自定义」，避免与已填内容对不上
+  document.getElementById('llm-save-btn').innerHTML =
+    '<i data-lucide="save" style="width:14px;height:14px"></i> ' + (item ? '保存修改' : '保存模型');
+  ed.hidden = false;
+  document.getElementById('llm-add-btn').hidden = true;
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('llm-name').focus();
+}
+
+function closeLlmEditor() {
+  const ed = document.getElementById('llm-editor');
+  if (ed) ed.hidden = true;
+  const add = document.getElementById('llm-add-btn');
+  if (add) add.hidden = false;
+}
+
+// 选预设 → 自动填好地址/模型名；选「自定义」→ 清空表单，由用户自己填
+function applyLlmPreset(val) {
+  const hint = document.getElementById('llm-key-hint');
+
+  if (val === '' || val === null || val === undefined) {
+    ['llm-name', 'llm-model', 'llm-base-url', 'llm-note'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    if (hint) hint.textContent = '（自己填写）';
+    const nameEl = document.getElementById('llm-name');
+    if (nameEl) nameEl.focus();
+    return;
+  }
+
+  const p = LLM_PRESETS[Number(val)];
+  if (!p) return;
+  document.getElementById('llm-name').value = p.name || '';
+  document.getElementById('llm-model').value = p.model || '';
+  document.getElementById('llm-base-url').value = p.base_url || '';
+  document.getElementById('llm-note').value = p.note || '';
+
+  if (hint) hint.textContent = '（换成你自己的 Key）';
+  document.getElementById('llm-api-key').focus();
+}
+
+function _llmBody() {
+  return {
+    id: document.getElementById('llm-edit-id').value || null,
+    name: document.getElementById('llm-name').value.trim(),
+    model: document.getElementById('llm-model').value.trim(),
+    base_url: document.getElementById('llm-base-url').value.trim(),
+    api_key: document.getElementById('llm-api-key').value.trim(),
+    timeout: parseInt(document.getElementById('llm-timeout').value || '30', 10),
+    note: document.getElementById('llm-note').value.trim(),
+  };
+}
+
+async function _llmPost(path, body) {
+  const resp = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  return resp.json();
+}
+
+async function saveLlmModel() {
+  const b = _llmBody();
+  if (!b.model) { window._enthubToast('warning', '请填写模型名', '例如 z-ai/glm-5.2'); return; }
+  if (!b.base_url) { window._enthubToast('warning', '请填写接口地址', '从「常用预设」里选一个也能自动填'); return; }
+  const btn = document.getElementById('llm-save-btn');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  try {
+    const d = await _llmPost('/api/settings/llm/models', b);
+    if (d.code === 0) {
+      window._enthubToast('success', d.message, '');
+      setTimeout(() => location.reload(), 700);
+    } else {
+      window._enthubToast('error', '保存失败', d.message || '');
+      btn.disabled = false; btn.innerHTML = orig;
+      if (window.lucide) lucide.createIcons();
+    }
+  } catch (e) {
+    window._enthubToast('error', '保存失败', e.message);
+    btn.disabled = false; btn.innerHTML = orig;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// 测试结果用页内弹窗展示完整诊断（toast 太短，说不清是哪一环的问题）
+function _showLlmTestResult(d) {
+  const ok = d.code === 0;
+  const t = d.data || {};
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const row = (k, v) => (v === null || v === undefined || v === '')
+    ? '' : `<div class="llm-test-row"><span>${k}</span><b>${esc(v)}</b></div>`;
+  const msg = (d.message || '').replace(/^[✅❌]\s*/, '');
+
+  const html = `
+    <div class="llm-test-result ${ok ? 'is-ok' : 'is-fail'}">
+      <div class="llm-test-head">${ok ? '✅' : '❌'} ${esc(msg)}</div>
+      <div class="llm-test-grid">
+        ${row('请求地址', t.url)}
+        ${row('HTTP 状态', t.status)}
+        ${row('耗时', t.elapsed != null ? t.elapsed + ' 秒' : '')}
+        ${row('实际模型', t.model_echo)}
+        ${row('结束原因', t.finish_reason)}
+      </div>
+      ${t.sample ? `<div class="llm-test-sample"><span>返回样例</span><code>${esc(t.sample)}</code></div>` : ''}
+      <div class="llm-test-note">测试方式是真实调用一次 <code>{base_url}/chat/completions</code>
+        （max_tokens=64），一次就能验完五件事：网络可达、地址正确、密钥有效、账户有额度、模型名存在。
+        它只证明「调得通」，不代表提取效果好坏。</div>
+    </div>`;
+
+  showModal('连接测试结果', html, [{ text: '知道了', class: 'btn btn-primary', action: 'closeModal()' }]);
+}
+
+async function testLlmForm(btn) {
+  const b = _llmBody();
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = '测试中…';
+  try {
+    const d = await _llmPost('/api/settings/llm/models/test', b);
+    _showLlmTestResult(d);
+  } catch (e) {
+    window._enthubToast('error', '测试失败', e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+async function testSavedLlm(id, btn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = '测试中…';
+  try {
+    const d = await _llmPost('/api/settings/llm/models/test', { id });
+    _showLlmTestResult(d);
+  } catch (e) {
+    window._enthubToast('error', '测试失败', e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// 复制一套配置另存为新模型：地址/密钥一并带过去，只需改备注名或模型名
+function cloneLlmModel(id) {
+  const item = LLM_MODELS.find(m => m.id === id);
+  if (!item) return;
+  openLlmEditor(id);                                   // 先按原条目预填
+  document.getElementById('llm-edit-id').value = '';   // 清空 id → 保存时创建新条目
+  document.getElementById('llm-name').value = item.name + ' 副本';
+  document.getElementById('llm-api-key').value = item.api_key || '';
+  document.getElementById('llm-key-hint').textContent = '（已带入原密钥，可改）';
+  document.getElementById('llm-save-btn').innerHTML =
+    '<i data-lucide="save" style="width:14px;height:14px"></i> 保存为新模型';
+  if (window.lucide) lucide.createIcons();
+}
+
+function activateLlmModel(id) {
+  const item = LLM_MODELS.find(m => m.id === id);
+  showConfirm('设置默认模型',
+    `将把「${item ? item.name : id}」设为<b>默认模型</b>。<br><br>`
+    + '<span style="color: var(--text-muted); font-size: 12px;">'
+    + '采集页与录入页里选了「跟随默认」的地方都会用它；'
+    + '已经单独指定过模型的功能不受影响。</span>',
+    async () => {
+      try {
+        const d = await _llmPost('/api/settings/llm/models/activate', { id });
+        window._enthubToast(d.code === 0 ? 'success' : 'error',
+          d.code === 0 ? '已设为默认模型' : '切换失败', d.message || '');
+        if (d.code === 0) setTimeout(() => location.reload(), 600);
+      } catch (e) {
+        window._enthubToast('error', '切换失败', e.message);
+      }
+    });
+}
+
+function deleteLlmModel(id, name) {
+  showConfirm('删除模型',
+    `确定删除「${name}」吗？<br><br><span style="color: var(--text-muted); font-size: 12px;">`
+    + '只删除这条配置，已采集的数据不受影响。</span>',
+    async () => {
+      try {
+        const d = await _llmPost('/api/settings/llm/models/delete', { id });
+        window._enthubToast(d.code === 0 ? 'success' : 'error',
+          d.code === 0 ? '已删除' : '删除失败', d.message || '');
+        if (d.code === 0) setTimeout(() => location.reload(), 600);
+      } catch (e) {
+        window._enthubToast('error', '删除失败', e.message);
+      }
+    });
+}
+
+async function toggleLlmEnabled(checked) {
+  try {
+    const d = await _llmPost('/api/settings/llm/enabled', { enabled: checked });
+    window._enthubToast(d.code === 0 ? 'success' : 'error', d.message || '', '');
+  } catch (e) {
+    window._enthubToast('error', '切换失败', e.message);
+  }
+}
+
+window.openLlmEditor = openLlmEditor;
+window.closeLlmEditor = closeLlmEditor;
+window.applyLlmPreset = applyLlmPreset;
+window.saveLlmModel = saveLlmModel;
+window.testLlmForm = testLlmForm;
+window.testSavedLlm = testSavedLlm;
+window.cloneLlmModel = cloneLlmModel;
+window.activateLlmModel = activateLlmModel;
+window.deleteLlmModel = deleteLlmModel;
+window.toggleLlmEnabled = toggleLlmEnabled;
+
+initLlmPresets();
+
 function toggleMask(btn) {
   const input = btn.parentElement.querySelector('.masked-input');
   const icon = btn.querySelector('i');
@@ -1233,19 +1660,25 @@ function toggleMask(btn) {
 window.toggleMask = toggleMask;
 
 function confirmDisablePassword(e) {
-  if (confirm('确定要关闭密码保护吗？\n\n关闭后，所有访问者均可直接进入控制台，无需密码验证。')) {
-    document.getElementById('disable-password-form').submit();
-  }
+  if (e) e.preventDefault();
+  showConfirm('关闭密码保护',
+    '确定要关闭密码保护吗？<br><br><span style="color: var(--text-muted); font-size: 12px;">关闭后所有访问者均可直接进入控制台，无需密码验证。</span>',
+    () => document.getElementById('disable-password-form').submit());
 }
 window.confirmDisablePassword = confirmDisablePassword;
 
 // 高危模块停用前二次确认：把行内的影响说明原样念一遍，避免误点
-function confirmHighRisk(form, name, turningOff) {
+function confirmHighRisk(form, name, turningOff, event) {
   if (!turningOff) return true;
+  if (event) event.preventDefault();
   const row = form.closest('.mod-row');
   const impact = row && row.querySelector('.mod-impact');
   const text = impact ? impact.textContent.trim() : '';
-  return confirm('确定要停用「' + name + '」吗？\n\n' + (text ? text + '\n\n' : '') + '重启服务后生效，随时可以再开启。');
+  showConfirm('停用「' + name + '」',
+    (text ? text + '<br><br>' : '')
+    + '<span style="color: var(--text-muted); font-size: 12px;">重启服务后生效，随时可以再开启。</span>',
+    () => form.submit());
+  return false;
 }
 window.confirmHighRisk = confirmHighRisk;
 

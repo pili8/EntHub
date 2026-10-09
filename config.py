@@ -5,6 +5,7 @@
 """
 import json
 import sqlite3
+import uuid
 from pathlib import Path
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -267,29 +268,216 @@ DEFAULT_LLM = {
     "timeout": 30,
 }
 
+# ── 多模型支持 ────────────────────────────────────────────────────────────────
+# config["llm_api"]["models"] 是模型条目列表，每条：
+#   {id, name(备注名), note(说明), base_url, api_key, model, timeout}
+# config["llm_api"]["active_id"] 指向当前使用的那条。
+# 顶层 base_url/api_key/model/timeout 保留为「激活条目的镜像」，由 get_llm_config()
+# 读取时刷新 —— 这样 collector / extract_service 等既有调用点完全不用改。
+LLM_MODEL_FIELDS = ("base_url", "api_key", "model", "timeout")
 
-def get_llm_config():
-    """获取 LLM API 配置。"""
+
+def _new_model_id():
+    return "m_" + uuid.uuid4().hex[:10]
+
+
+def _normalize_model(item, existing_id=None):
+    """把一条模型配置补全成规范结构。"""
+    item = dict(item or {})
+    name = (item.get("name") or "").strip()
+    model = (item.get("model") or "").strip()
+    try:
+        timeout = int(item.get("timeout") or 30)
+    except (TypeError, ValueError):
+        timeout = 30
+    return {
+        "id": item.get("id") or existing_id or _new_model_id(),
+        "name": name or model or "未命名模型",
+        "note": (item.get("note") or "").strip(),
+        "base_url": (item.get("base_url") or "").strip(),
+        "api_key": (item.get("api_key") or "").strip(),
+        "model": model,
+        "timeout": timeout,
+    }
+
+
+def _ensure_llm_models(config):
+    """确保 models / active_id 就绪，返回 (llm, changed)。
+
+    旧版单模型配置（只有顶层 base_url/api_key/model）自动迁移成第一条，
+    备注名写「默认模型」，避免升级后模型凭空消失。
+    """
+    changed = False
+    llm = config.setdefault("llm_api", dict(DEFAULT_LLM))
+
+    if not isinstance(llm.get("models"), list):
+        llm["models"] = []
+        changed = True
+
+    if not llm["models"] and (llm.get("api_key") or llm.get("model") or llm.get("base_url")):
+        llm["models"] = [_normalize_model({
+            "name": "默认模型",
+            "note": "由旧版单模型配置自动迁移",
+            "base_url": llm.get("base_url", ""),
+            "api_key": llm.get("api_key", ""),
+            "model": llm.get("model", ""),
+            "timeout": llm.get("timeout", 30),
+        }, existing_id="m_default")]
+        changed = True
+
+    ids = [m["id"] for m in llm["models"]]
+    if llm.get("active_id") not in ids:
+        llm["active_id"] = ids[0] if ids else ""
+        changed = True
+
+    return llm, changed
+
+
+def list_llm_models():
+    """列出全部模型条目与当前激活 id（必要时完成旧配置迁移并写回）。"""
     config = load_config()
-    llm = config.get("llm_api", {})
-    # 补全默认值
+    llm, changed = _ensure_llm_models(config)
+    if changed:
+        save_config(config)
+    return llm["models"], llm.get("active_id", "")
+
+
+def get_active_llm_model():
+    """返回当前激活的模型条目；没有配置则 None。"""
+    models, active_id = list_llm_models()
+    for m in models:
+        if m["id"] == active_id:
+            return m
+    return models[0] if models else None
+
+
+def upsert_llm_model(item, model_id=None):
+    """新增或更新一条模型配置（首次添加会自动设为激活），返回该条目。
+
+    api_key 传空表示「不改动原密钥」—— 表单里不回显密钥，避免编辑时误清空。
+    """
+    config = load_config()
+    llm, _ = _ensure_llm_models(config)
+    norm = _normalize_model(item, existing_id=model_id)
+
+    replaced = False
+    for i, m in enumerate(llm["models"]):
+        if m["id"] == norm["id"]:
+            if not norm["api_key"]:
+                norm["api_key"] = m.get("api_key", "")
+            llm["models"][i] = norm
+            replaced = True
+            break
+    if not replaced:
+        llm["models"].append(norm)
+
+    if llm.get("active_id") not in [m["id"] for m in llm["models"]]:
+        llm["active_id"] = norm["id"]
+    save_config(config)
+    return norm
+
+
+def delete_llm_model(model_id):
+    """删除一条模型配置；若删的是当前激活的，自动切到第一条。"""
+    config = load_config()
+    llm, _ = _ensure_llm_models(config)
+    llm["models"] = [m for m in llm["models"] if m["id"] != model_id]
+    if llm.get("active_id") == model_id:
+        llm["active_id"] = llm["models"][0]["id"] if llm["models"] else ""
+    save_config(config)
+    return llm["models"], llm.get("active_id", "")
+
+
+def set_active_llm_model(model_id):
+    """切换当前使用的模型。"""
+    config = load_config()
+    llm, _ = _ensure_llm_models(config)
+    if any(m["id"] == model_id for m in llm["models"]):
+        llm["active_id"] = model_id
+        save_config(config)
+    return llm.get("active_id", "")
+
+
+def get_module_model_id(module):
+    """某个功能单独指定的模型 id；没有则返回空串（表示跟随全局默认）。"""
+    if not module:
+        return ""
+    config = load_config()
+    return (config.get("llm_api", {}).get("module_models") or {}).get(module, "") or ""
+
+
+def set_module_model(module, model_id):
+    """给某个功能单独指定模型；传空串表示恢复成「跟随默认」。"""
+    config = load_config()
+    llm, _ = _ensure_llm_models(config)
+    mm = llm.setdefault("module_models", {})
+    mm[module] = (model_id or "").strip()
+    save_config(config)
+    return mm
+
+
+def get_llm_config(module=None):
+    """获取当前生效的 LLM 配置。
+
+    多模型时取激活条目并把它的字段镜像到顶层，保证既有调用点（collector /
+    extract_service）拿到的仍是 {base_url, api_key, model, timeout}。
+    另外附带 active_id / active_name / module_models 供界面展示。
+
+    module 指定功能名（如 "collector" / "quick_extract"）时：若该功能单独指定了
+    模型就用它，否则依旧用全局激活模型 —— 也就是「默认 + 按需覆盖」。
+    """
+    config = load_config()
+    llm = dict(config.get("llm_api", {}))
     for k, v in DEFAULT_LLM.items():
-        if k not in llm:
-            llm[k] = v
+        llm.setdefault(k, v)
+
+    models = llm.get("models") or []
+    module_models = llm.get("module_models") or {}
+    llm["module_models"] = module_models
+
+    active_id = llm.get("active_id")
+    if module:
+        override = module_models.get(module) or ""
+        if override and any(m.get("id") == override for m in models):
+            active_id = override
+
+    active = next((m for m in models if m.get("id") == active_id), None)
+    if active is None and models:
+        active = models[0]
+
+    if active:
+        for k in LLM_MODEL_FIELDS:
+            if active.get(k) not in (None, ""):
+                llm[k] = active[k]
+        llm["active_id"] = active.get("id", "")
+        llm["active_name"] = active.get("name") or active.get("model") or ""
+
     return llm
 
 
 def save_llm_config(**kwargs):
-    """保存 LLM API 配置。"""
+    """保存 LLM 配置（兼容旧调用）。
+
+    模型字段写进当前激活条目；没有条目时自动建一条「默认模型」。
+    enabled 是全局开关，写在顶层。
+    """
     config = load_config()
-    if "llm_api" not in config:
-        config["llm_api"] = dict(DEFAULT_LLM)
-    llm = config["llm_api"]
+    llm, _ = _ensure_llm_models(config)
+
+    if not llm["models"]:
+        llm["models"] = [_normalize_model({"name": "默认模型"})]
+        llm["active_id"] = llm["models"][0]["id"]
+
+    idx = next((i for i, m in enumerate(llm["models"]) if m["id"] == llm["active_id"]), 0)
+    target = llm["models"][idx]
     for k, v in kwargs.items():
         if k in DEFAULT_LLM:
-            llm[k] = v
+            if k in LLM_MODEL_FIELDS:
+                target[k] = v
+            else:
+                llm[k] = v
     save_config(config)
-    return llm
+    return get_llm_config()
 
 
 def is_llm_ready():

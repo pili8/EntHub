@@ -9,9 +9,18 @@ from flask import Blueprint, g, request, render_template, redirect, url_for, \
 
 from config import (get_api_providers, update_provider, is_provider_ready,
                      get_quota, set_quota_remaining, get_llm_config, save_llm_config,
+                     list_llm_models, upsert_llm_model, delete_llm_model,
+                     set_active_llm_model, get_active_llm_model,
+                     get_module_model_id, set_module_model,
                      set_access_password, is_password_enabled, get_access_password,
                      get_webhook_url, save_webhook_url,
                      get_preferences, save_preferences)
+
+# 支持「单独指定模型」的功能位：内部名 -> 界面名
+LLM_MODULE_LABELS = {
+    "collector": "网页采集",
+    "quick_extract": "快速提取",
+}
 import enthub_api
 from feishu_service import get_feishu_config, save_feishu_config, mask_secret, test_feishu_connection
 
@@ -81,6 +90,7 @@ def settings_page():
     providers = get_api_providers()
     quota = get_quota()
     llm = get_llm_config()
+    llm_models, llm_active_id = list_llm_models()
     local_ips = get_local_ips()
     password_enabled = is_password_enabled()
     webhook_url = get_webhook_url()
@@ -115,6 +125,8 @@ def settings_page():
 
     # 飞书公共服务不在 routes/ 下（是根目录服务层），手动注入核心模块列表
     feishu = get_feishu_config()
+    from routes.collector import get_sync_to_feishu
+    sync_feishu = get_sync_to_feishu()
     feishu_core = {
         "id": "feishu_service",
         "name": "飞书公共服务",
@@ -134,6 +146,7 @@ def settings_page():
 
     return render_template("settings.html",
                            providers=providers, quota=quota, llm=llm,
+                           llm_models=llm_models, llm_active_id=llm_active_id,
                            local_ips=local_ips,
                            password_enabled=password_enabled,
                            webhook_url=webhook_url,
@@ -143,6 +156,7 @@ def settings_page():
                            core_modules=core_modules,
                            prefs=prefs,
                            feishu=feishu,
+                           sync_feishu=sync_feishu,
                            mask_secret=mask_secret)
 
 
@@ -209,6 +223,235 @@ def test_llm():
     if "error" in result:
         return jsonify({"code": 2001, "message": result["error"], "data": None})
     return jsonify({"code": 0, "message": f"✅ 连通成功，提取到 {len(result)} 个字段", "data": result})
+
+
+# ── 多模型管理 ──────────────────────────────────────────────────────────────
+
+def _probe_llm(base_url, api_key, model, timeout=20):
+    """真实发一次最小对话请求，验证这个模型到底能不能用。
+
+    通路：`POST {base_url}/chat/completions`（OpenAI 兼容协议），带
+    `Authorization: Bearer <key>`，body 为 `{model, messages:[ping], max_tokens:64}`。
+    判据 = HTTP 200 且返回体能解析出 `choices`。一次请求即可覆盖：
+      · 网络是否可达（连不上 → 网络错误）
+      · 地址对不对（路径写错 → 404 或返回 HTML）
+      · 密钥是否有效（401 / 403）
+      · 账户有没有额度（402 余额不足 / 429 限流）
+      · 模型名是否存在（404 model not found）
+    返回 (ok, message, detail)，detail 带完整诊断供界面展示。
+    """
+    import json as _json
+    import ssl
+    import time as _time
+    import urllib.error
+    import urllib.request
+
+    base = (base_url or "").rstrip("/")
+    detail = {
+        "url": (base + "/chat/completions") if base else "",
+        "model": model, "status": None, "elapsed": None,
+        "model_echo": None, "finish_reason": None, "sample": None,
+    }
+
+    if not base.startswith("http"):
+        return False, "接口地址不合法，需以 http(s):// 开头", detail
+    if not api_key:
+        return False, "缺少 API Key", detail
+    if not model:
+        return False, "缺少模型名", detail
+
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": "ping"}],
+        # 给足 token：推理型模型会先输出思考过程，max_tokens 太小会拿到空内容
+        "max_tokens": 64,
+    }
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request(
+        detail["url"], data=_json.dumps(payload).encode(), method="POST",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
+
+    t0 = _time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            detail["status"] = resp.status
+            raw = resp.read()
+    except urllib.error.HTTPError as e:
+        detail["status"] = e.code
+        detail["elapsed"] = round(_time.time() - t0, 2)
+        body = e.read().decode(errors="ignore")[:240]
+        detail["sample"] = body
+        low = body.lower()
+        # 各服务商对「模型名不对」用的状态码不统一（404 / 400 / 422），认关键词更准
+        model_missing = "model" in low and any(
+            k in low for k in ("not exist", "does not exist", "invalid", "unknown",
+                               "不存在", "未找到", "not found"))
+        if e.code == 401:
+            return False, "API Key 无效或被拒绝（401）", detail
+        if e.code == 403:
+            return False, "无权限或被拦截（403）—— 密钥权限不足或地区限制", detail
+        if e.code == 402:
+            return False, "账户余额不足（402）—— 需到服务商后台充值", detail
+        if model_missing:
+            return False, f"模型名不存在或该服务商不支持：{body[:130]}", detail
+        if e.code == 404:
+            return False, f"接口地址或模型不存在（404）：{body[:130]}", detail
+        if e.code == 429:
+            return False, "被限流（429）—— 免费额度用完或上游限流，稍后再试", detail
+        if e.code >= 500:
+            return False, f"对方服务端错误（{e.code}）—— 不是你的配置问题", detail
+        return False, f"HTTP {e.code}：{body[:140]}", detail
+    except Exception as e:
+        detail["elapsed"] = round(_time.time() - t0, 2)
+        return False, f"网络不通：{type(e).__name__}: {str(e)[:140]}", detail
+
+    detail["elapsed"] = round(_time.time() - t0, 2)
+
+    try:
+        data = _json.loads(raw)
+    except Exception:
+        detail["sample"] = raw.decode(errors="ignore")[:160]
+        return False, "返回的不是 JSON —— 地址可能填成了网页地址", detail
+
+    choices = data.get("choices") or []
+    if not choices:
+        err = (data.get("error") or {})
+        detail["sample"] = _json.dumps(data, ensure_ascii=False)[:200]
+        return False, f"返回里没有 choices：{err.get('message') or detail['sample'][:110]}", detail
+
+    ch = choices[0]
+    msg = ch.get("message") or {}
+    detail["model_echo"] = data.get("model")
+    detail["finish_reason"] = ch.get("finish_reason")
+    content = (msg.get("content") or "").strip()
+    reasoning = (msg.get("reasoning") or msg.get("reasoning_content") or "").strip()
+    detail["sample"] = (content or reasoning or "(空内容)")[:120]
+
+    return True, f"联通正常（{detail['model_echo'] or model}）", detail
+
+
+@bp.route("/api/settings/llm/models", methods=["POST"])
+def save_llm_model():
+    """新增 / 更新一条模型配置（api_key 留空表示不改动原密钥）。"""
+    body = request.get_json(silent=True) or {}
+    model = (body.get("model") or "").strip()
+    base_url = (body.get("base_url") or "").strip()
+    if not model:
+        return jsonify({"code": 2001, "message": "请填写模型名，例如 z-ai/glm-5.2", "data": None})
+    if not base_url:
+        return jsonify({"code": 2001, "message": "请填写接口地址（Base URL）", "data": None})
+
+    item = upsert_llm_model({
+        "name": (body.get("name") or "").strip() or model,
+        "note": body.get("note", ""),
+        "base_url": base_url,
+        "api_key": body.get("api_key", ""),
+        "model": model,
+        "timeout": body.get("timeout", 30),
+    }, model_id=(body.get("id") or None))
+
+    models, active_id = list_llm_models()
+    return jsonify({
+        "code": 0,
+        "message": f"已保存「{item['name']}」",
+        "data": {"models": models, "active_id": active_id},
+    })
+
+
+@bp.route("/api/settings/llm/models/activate", methods=["POST"])
+def activate_llm_model():
+    """切换当前使用的模型。"""
+    body = request.get_json(silent=True) or {}
+    mid = (body.get("id") or "").strip()
+    active = set_active_llm_model(mid)
+    if active != mid:
+        return jsonify({"code": 2001, "message": "模型不存在", "data": None})
+    item = get_active_llm_model()
+    return jsonify({
+        "code": 0,
+        "message": f"已把「{item['name'] if item else ''}」设为默认模型",
+        "data": {"active_id": active},
+    })
+
+
+@bp.route("/api/settings/llm/models/delete", methods=["POST"])
+def remove_llm_model():
+    """删除一条模型配置。"""
+    body = request.get_json(silent=True) or {}
+    mid = (body.get("id") or "").strip()
+    if not mid:
+        return jsonify({"code": 2001, "message": "缺少模型 id", "data": None})
+    models, active_id = delete_llm_model(mid)
+    return jsonify({
+        "code": 0, "message": "已删除",
+        "data": {"models": models, "active_id": active_id},
+    })
+
+
+@bp.route("/api/settings/llm/enabled", methods=["POST"])
+def toggle_llm_enabled():
+    """启用 / 停用大模型（全局开关，与具体模型无关）。"""
+    body = request.get_json(silent=True) or {}
+    enabled = bool(body.get("enabled"))
+    save_llm_config(enabled=enabled)
+    return jsonify({
+        "code": 0,
+        "message": "已启用大模型" if enabled else "已停用大模型",
+        "data": {"enabled": enabled},
+    })
+
+
+@bp.route("/api/settings/llm/module-model", methods=["POST"])
+def set_module_llm_model():
+    """给某个功能位单独指定模型；传空 model_id 表示恢复「跟随默认」。"""
+    body = request.get_json(silent=True) or {}
+    module = (body.get("module") or "").strip()
+    if module not in LLM_MODULE_LABELS:
+        return jsonify({"code": 2001, "message": "未知的功能标识", "data": None})
+
+    model_id = (body.get("model_id") or "").strip()
+    if model_id:
+        models, _ = list_llm_models()
+        if not any(m["id"] == model_id for m in models):
+            return jsonify({"code": 2001, "message": "模型不存在", "data": None})
+
+    set_module_model(module, model_id)
+    label = LLM_MODULE_LABELS.get(module, module)
+    if model_id:
+        models, _ = list_llm_models()
+        name = next((m["name"] for m in models if m["id"] == model_id), model_id)
+        msg = f"「{label}」将使用「{name}」"
+    else:
+        msg = f"「{label}」恢复为跟随默认模型"
+    return jsonify({"code": 0, "message": msg, "data": {"module": module, "model_id": model_id}})
+
+
+@bp.route("/api/settings/llm/models/test", methods=["POST"])
+def test_llm_model():
+    """测试某个模型的连通性（可测未保存的填写内容）。"""
+    body = request.get_json(silent=True) or {}
+    base_url = (body.get("base_url") or "").strip()
+    api_key = (body.get("api_key") or "").strip()
+    model = (body.get("model") or "").strip()
+    timeout = body.get("timeout") or 15
+
+    # 编辑已有条目时表单不回显密钥，用库里存的兜底
+    if body.get("id"):
+        saved = next((x for x in list_llm_models()[0] if x["id"] == body["id"]), None)
+        if saved:
+            base_url = base_url or saved["base_url"]
+            api_key = api_key or saved["api_key"]
+            model = model or saved["model"]
+            timeout = timeout or saved.get("timeout", 15)
+
+    ok, msg, detail = _probe_llm(base_url, api_key, model, timeout)
+    return jsonify({
+        "code": 0 if ok else 2001,
+        "message": ("✅ " if ok else "❌ ") + msg,
+        "data": detail,
+    })
 
 
 @bp.route("/api/settings/test-connection", methods=["POST"])

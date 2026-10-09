@@ -11,7 +11,7 @@
     <title>EntHub · {% block title %}控制台{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23D97757'/%3E%3Cpath d='M22 50V20a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v30z' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M22 32h-4a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M42 26h4a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3h-4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cline x1='28' y1='24' x2='34' y2='24' stroke='%23fff' stroke-width='2'/%3E%3Cline x1='28' y1='30' x2='34' y2='30' stroke='%23fff' stroke-width='2'/%3E%3Cline x1='28' y1='36' x2='34' y2='36' stroke='%23fff' stroke-width='2'/%3E%3Cline x1='28' y1='42' x2='34' y2='42' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='menubar_icon.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=STATIC_V) }}">
 </head>
 <body>
     <!-- ─────────── 移动端顶部栏（mobile-only） ─────────── -->
@@ -67,6 +67,9 @@
         {% endfor %}
         {% endif %}
         {% endfor %}
+<a href="#" class="m-drawer-item" onclick="event.preventDefault(); mToggleDrawer(); return enthubRestartService();">
+<i data-lucide="rotate-cw"></i><span>重启服务</span>
+</a>
 <a href="{{ url_for('pages_bp.exit_server') }}" class="m-drawer-item m-drawer-item-warn" onclick="return confirmLink(event, '{{ url_for('pages_bp.exit_server') }}', '退出服务', '确定要退出 EntHub 服务吗？');">
 <i data-lucide="power"></i><span>退出服务</span>
 </a>
@@ -111,6 +114,10 @@
                                 {{ m.name_short }}
                             </a>
                         {% endfor %}
+<a href="#" class="nav-dropdown-item" onclick="event.preventDefault(); return enthubRestartService();" style="display: block; padding: 8px 16px; color: var(--text-primary); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
+<i data-lucide="rotate-cw" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
+重启服务
+</a>
 <a href="{{ url_for('pages_bp.exit_server') }}" class="nav-dropdown-item" onclick="return confirmLink(event, '{{ url_for('pages_bp.exit_server') }}', '退出服务', '确定要退出 EntHub 服务吗？');" style="display: block; padding: 8px 16px; color: var(--text-muted); text-decoration: none; font-size: 13px; border-top: 1px solid var(--border);">
 <i data-lucide="power" style="width:14px;height:14px; vertical-align: middle; margin-right: 6px;"></i>
 退出服务
@@ -551,6 +558,88 @@
     window.quickAnnotate = quickAnnotate;
     window.doAnnotate = doAnnotate;
     window._enthubToast = _enthubToast;
+
+    // ── 功能位的大模型选择（采集 / 快速提取等页面共用）──
+    // 传空 modelId 表示恢复「跟随默认模型」
+    window.enthubSaveModuleModel = async function(module, modelId, el) {
+        const params = new URLSearchParams(window.location.search);
+        try {
+            const resp = await fetch('/api/settings/llm/module-model', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ module: module, model_id: modelId }),
+            });
+            const data = await resp.json();
+            if (data.code === 0) {
+                window._enthubToast('success', '已切换提取模型', data.message || '');
+            } else {
+                window._enthubToast('error', '切换失败', data.message || '');
+                // 失败就把下拉拨回去，避免界面与实际不一致
+                if (el && el.dataset.prev !== undefined) el.value = el.dataset.prev;
+            }
+        } catch (e) {
+            window._enthubToast('error', '切换失败', e.message);
+            if (el && el.dataset.prev !== undefined) el.value = el.dataset.prev;
+        }
+        if (el) el.dataset.prev = el.value;
+    };
+
+    // 记下每个模型下拉的初始值，供上面回滚用
+    document.querySelectorAll('select[data-llm-module]').forEach(function(sel) {
+        sel.dataset.prev = sel.value;
+    });
+
+    // ── 重启服务：确认 → 调接口 → 遮罩轮询等服务回来 ──
+    function _restartOverlay(msg, sub) {
+        let ov = document.getElementById('enthub-restart-overlay');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'enthub-restart-overlay';
+            ov.innerHTML = '<div class="enthub-restart-box">'
+                + '<div class="enthub-restart-spin"></div>'
+                + '<div class="enthub-restart-title"></div>'
+                + '<div class="enthub-restart-sub"></div></div>';
+            document.body.appendChild(ov);
+        }
+        ov.querySelector('.enthub-restart-title').textContent = msg || '正在重启服务…';
+        ov.querySelector('.enthub-restart-sub').textContent = sub || '完成后页面会自动刷新，请稍候';
+        ov.style.display = 'flex';
+    }
+
+    async function _waitServiceBack(maxTries) {
+        const tries = maxTries || 40;
+        for (let i = 0; i < tries; i++) {
+            await new Promise(function(r) { setTimeout(r, 1200); });
+            try {
+                const resp = await fetch('/login', { method: 'GET', cache: 'no-store' });
+                if (resp.ok || resp.status === 302) {   // 服务回来了
+                    window.location.reload();
+                    return;
+                }
+            } catch (e) { /* 还没起来，继续等 */ }
+        }
+        const ov = document.getElementById('enthub-restart-overlay');
+        if (ov) {
+            const sub = ov.querySelector('.enthub-restart-sub');
+            if (sub) sub.innerHTML = '等待超时。请手动刷新页面；若仍打不开，检查服务是否已正常启动。';
+        }
+    }
+
+    window.enthubRestartService = function() {
+        showConfirm('重启服务',
+            '重新启动 EntHub 服务（改过代码后需要）。<br><br>'
+            + '<span style="color: var(--text-muted); font-size: 12px;">'
+            + '期间页面会短暂无法访问（约 3-8 秒），完成后自动刷新；'
+            + '已录入的数据不受影响，登录状态也会保留。</span>',
+            async function() {
+                _restartOverlay('正在重启服务…');
+                try {
+                    await fetch('/api/system/restart', { method: 'POST' });
+                } catch (e) { /* 进程可能已退出，忽略——后面的轮询会等它回来 */ }
+                _waitServiceBack();
+            });
+        return false;
+    };
 
     // ── 移动端 UI：搜索浮层、抽屉、Tab Bar 激活态 ──
     (function() {

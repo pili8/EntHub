@@ -17,6 +17,14 @@ from routes import register_blueprints
 from api import api_bp
 from config import is_password_enabled, verify_access_password, APP_PORT, APP_VERSION
 import backup
+import os
+
+# 清掉继承来的 HTTP 代理变量：本机服务是直连外网（飞书开放平台、大模型、工商 API）的，
+# 一旦被带进来（例如从某个注入了代理的终端启动），代理进程退出后所有出站请求都会
+# 连接失败 —— 表现为「飞书突然连不上、也没改过密码」。直连可用，代理只会带来风险。
+for _proxy_key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+                   "http_proxy", "https_proxy", "all_proxy"):
+    os.environ.pop(_proxy_key, None)
 
 # session 签名密钥不能硬编码：硬编码值会随代码进 git 历史，等于公开，
 # 任何人都能据此伪造 session cookie 绕过登录页。密钥改为存本地文件，
@@ -60,11 +68,27 @@ def filesize_filter(size):
 
 # ── 全局模板变量 ────────────────────────────────────────────────────────────
 
+def _static_version():
+    """静态资源版本号：取 style.css 的修改时间。
+
+    改了样式但浏览器仍用缓存的旧文件时，页面会表现为"样式没生效 / 控件错乱"。
+    在引用地址上带这个参数，样式一改浏览器就会重新拉取（服务重启后生效）。
+    """
+    try:
+        return int((Path(__file__).parent / "static" / "style.css").stat().st_mtime)
+    except OSError:
+        return APP_VERSION
+
+
+STATIC_V = _static_version()
+
+
 @app.context_processor
 def inject_globals():
     return {
         "APP_PORT": APP_PORT,
         "APP_VERSION": APP_VERSION,
+        "STATIC_V": STATIC_V,                   # 静态资源版本号（见下方说明）
         "ENABLED_MODULES": routes.MODULES,      # 可见菜单项（group+order），抽屉分组渲染
         "DESKTOP_MODULES": routes.DESKTOP_MODULES,  # 桌面顶部导航项（desktop_order 平铺）
         "ENABLED_MODULE_IDS": routes.ENABLED_IDS,  # 已注册路由的模块 id，页面按需条件渲染 url_for

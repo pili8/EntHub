@@ -180,6 +180,65 @@ def validate_phone(normalized_phone):
     return (False, 'invalid', f'号码格式异常：{n} 位')
 
 
+# ── 多号码 / 多联系人拆分（采集文本常见「薛女士 19508335677 王先生 138…」）──────
+
+def extract_phones(text):
+    """从文本里提取所有可能的电话号码，返回去重后的原始写法列表。
+
+    采集记录的「电话」字段经常是一串号码用空格/顿号/斜杠连着写，
+    直接 normalize_phone 会因为位数超限返回空串，导致整条号码都进不了电话表。
+    这里先拆再逐个归一化：手机号优先，其次 400/800、带区号座机；
+    只有在上面都没匹配到时，才把裸 7-8 位数字当无区号座机兜底。
+    """
+    if not text:
+        return []
+    s = str(text)
+    found = []
+
+    # 手机号（可带 +86 / 86 前缀）
+    for m in re.finditer(r'(?<!\d)(?:\+?86[\s-]?)?(1[3-9]\d{9})(?!\d)', s):
+        found.append(m.group(1))
+    # 400 / 800 服务号码
+    for m in re.finditer(r'(?<!\d)([48]00[-\s]?\d{3}[-\s]?\d{4})(?!\d)', s):
+        found.append(m.group(1))
+    # 带区号座机（可带分机）
+    for m in re.finditer(r'(?<!\d)(0\d{2,3}[-\s]?\d{7,8}(?:[-\s]?\d{1,6})?)(?!\d)', s):
+        found.append(m.group(1))
+    # 兜底：裸 7-8 位座机（仅在没匹配到上面任何形式时）
+    if not found:
+        for m in re.finditer(r'(?<!\d)(\d{7,8})(?!\d)', s):
+            found.append(m.group(1))
+
+    seen, out = set(), []
+    for raw in found:
+        norm = normalize_phone(raw)
+        if norm and norm not in seen:
+            seen.add(norm)
+            out.append(raw.strip())
+    return out
+
+
+def extract_contacts(text):
+    """把「朱女士 韩女士」这类联系人字段拆成列表。"""
+    if not text:
+        return []
+    parts = re.split(r'[\s、,，;；/|]+', str(text).strip())
+    return [p for p in parts if p]
+
+
+def build_phone_note(contact, lead_type):
+    """拼电话备注：「联系人（来源类型）」，如「薛女士（招聘）」。"""
+    contact = (contact or "").strip()
+    lead_type = (lead_type or "").strip()
+    if contact and lead_type:
+        return f"{contact}（{lead_type}）"
+    if contact:
+        return contact
+    if lead_type:
+        return f"（{lead_type}）"
+    return ""
+
+
 def normalize_person_name(name):
     """Normalize a person name: trim, full-width to half-width."""
     import unicodedata

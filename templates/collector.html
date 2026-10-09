@@ -6,16 +6,51 @@
 <div class="page">
   <div class="page-head">
     <h1 class="page-title">网页采集</h1>
-    <p class="page-sub">从网页链接或文字中提取公司信息，写入飞书多维表格</p>
+    {% if view == 'records' %}
+    <p class="page-sub">网页采集的历史记录，按来源文章分组。失败的记录可重试，也可清理</p>
+    {% else %}
+    <p class="page-sub">从网页链接或文字中提取公司信息；采集历史与失败处理都在「采集记录」里</p>
+    {% endif %}
   </div>
 
+  <!-- ═══ 视图切换：采集执行 / 采集记录 ═══ -->
+  <div class="view-tabs" role="tablist">
+    <a href="{{ url_for('collector_bp.collector_page', view='collect') }}"
+       class="view-tab {{ 'is-active' if view != 'records' else '' }}" role="tab"
+       aria-selected="{{ 'true' if view != 'records' else 'false' }}">
+      <i data-lucide="globe" aria-hidden="true"></i>
+      <span>开始采集</span>
+    </a>
+    <a href="{{ url_for('collector_bp.collector_page', view='records') }}"
+       class="view-tab {{ 'is-active' if view == 'records' else '' }}" role="tab"
+       aria-selected="{{ 'true' if view == 'records' else 'false' }}">
+      <i data-lucide="list-checks" aria-hidden="true"></i>
+      <span>采集记录</span>
+      <span class="view-tab-count" title="共 {{ records_total }} 篇文章">{{ records_total }} 篇</span>
+      {% if records_failed %}
+      <span class="view-tab-dot" title="{{ records_failed }} 条记录提取失败，去处理">失败 {{ records_failed }}</span>
+      {% endif %}
+    </a>
+  </div>
+
+  {% if view == 'records' %}
+  {% include "_collector_records.html" %}
+  {% else %}
+
   <!-- 配置状态提示 -->
-  {% if not feishu_ready %}
+  {% if not feishu_ready and sync_feishu %}
   <div class="card" style="border-left: 3px solid #ef4444; padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary);">
     <i data-lucide="alert-triangle" style="width: 18px; height: 18px; color: #ef4444; flex-shrink: 0;"></i>
-    <span>飞书未配置，请先到
+    <span>飞书未配置且同步已开启，采集时无法写入飞书。请到
       <a href="{{ url_for('settings_flow_bp.settings_page') }}" style="color: var(--accent); font-weight: 500;">设置页面</a>
-      配置飞书凭证和采集表 ID</span>
+      配置飞书凭证，或在设置中关闭「同步飞书」仅写本地</span>
+  </div>
+  {% elif not feishu_ready and not sync_feishu %}
+  <div class="card" style="border-left: 3px solid #16a34a; padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary);">
+    <i data-lucide="check-circle" style="width: 18px; height: 18px; color: #16a34a; flex-shrink: 0;"></i>
+    <span>飞书同步已关闭，采集结果仅写入本地线索库。如需备份到飞书，可到
+      <a href="{{ url_for('settings_flow_bp.settings_page') }}" style="color: var(--accent); font-weight: 500;">设置页面</a>
+      开启同步</span>
   </div>
   {% endif %}
 
@@ -43,17 +78,32 @@
         <span style="font-size: 14px; font-weight: 600;">采集信息</span>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <button class="page-btn" onclick="initFields()" id="init-fields-btn">
-          <i data-lucide="list-plus" style="width:13px;height:13px"></i> 初始化飞书字段
-        </button>
         <button class="page-btn" onclick="testConnectivity()" id="test-conn-btn">
           <i data-lucide="plug-zap" style="width:13px;height:13px"></i> 测试连接
         </button>
       </div>
     </div>
 
+    <div id="connectivity-results" style="display: none; padding: 12px 20px; border-bottom: 1px solid var(--border);">
+    </div>
+
     <div style="padding: 20px;">
-      <label style="display: block; font-size: 12px; color: var(--text-secondary); font-weight: 500; margin-bottom: 6px;">粘贴链接或文字信息（每行一个链接，或直接粘贴文字）</label>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px;">
+        <label style="font-size: 12px; color: var(--text-secondary); font-weight: 500;">粘贴链接或文字信息（每行一个链接，或直接粘贴文字）</label>
+        {% if llm_models %}
+        <label class="llm-picker" title="本次采集用哪个大模型做信息提取；选「跟随默认」则用设置页里标着 ✓ 的默认模型">
+          <i data-lucide="cpu" aria-hidden="true"></i>
+          <span>提取模型</span>
+          <select data-llm-module="collector"
+                  onchange="enthubSaveModuleModel('collector', this.value, this)">
+            <option value="">跟随默认{{ '（' + llm.active_name + '）' if llm.active_name else '' }}</option>
+            {% for m in llm_models %}
+            <option value="{{ m.id }}" {{ 'selected' if m.id == llm_module_model }}>{{ m.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+      </div>
       <textarea id="urls-input" class="form-input" placeholder="粘贴网页链接，或直接粘贴公司信息文字"
                 style="width: 100%; height: 120px; resize: vertical; font-size: 14px; line-height: 1.5;"></textarea>
 
@@ -108,7 +158,7 @@
   <div class="card" id="result-card" style="display: none; margin-bottom: 16px;">
     <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px;">
       <i data-lucide="check-circle" style="width:16px;height:16px;color:#22c55e"></i>
-      <span style="font-size: 14px; font-weight: 600;">采集结果</span>
+      <span style="font-size: 14px; font-weight: 600;">本次采集结果</span>
     </div>
     <div class="table-wrap" style="overflow-x: auto;">
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -156,6 +206,7 @@
       </button>
     </div>
   </details>
+  {% endif %}
 </div>
 
 <style>
@@ -193,6 +244,224 @@ details[open] #prompt-chevron {
 
 {% block scripts %}
 <script>
+{% if view == 'records' %}
+// ══════════════ 采集记录视图 ══════════════
+function _setParam(key, val) {
+  const params = new URLSearchParams(window.location.search);
+  if (val) params.set(key, val); else params.delete(key);
+  params.delete('page');
+  params.set('view', 'records');
+  window.location.search = params.toString();
+}
+function filterType(val) { _setParam('type', val); }
+function filterMatched(val) { _setParam('matched', val); }
+function filterStatus(val) { _setParam('status', val); }
+
+// ── 卡片展开 / 折叠：手风琴，任何时刻只展开一张 ──
+function toggleGroup(head) {
+  const card = head.closest('.lead-card');
+  const willExpand = card.classList.contains('is-collapsed');
+  document.querySelectorAll('.lead-card').forEach(c => {
+    c.classList.add('is-collapsed');
+    const h = c.querySelector('.lead-card-head');
+    if (h) h.setAttribute('aria-expanded', 'false');
+  });
+  if (willExpand) {
+    card.classList.remove('is-collapsed');
+    head.setAttribute('aria-expanded', 'true');
+  }
+}
+
+// ── 入库：把这行采集到的公司名/电话/地址一起带到录入页 ──
+// 工商信息不再自动联网，由用户在录入页手动点「在线获取」
+function importCompany(leadId) {
+  const row = document.getElementById('lead-' + leadId);
+  if (!row) return;
+  const params = new URLSearchParams({
+    from: 'collector',
+    lead_id: String(leadId),
+    name: row.dataset.name || '',
+    phone: row.dataset.phone || '',
+    address: row.dataset.address || '',
+    contact: row.dataset.contact || '',
+    summary: row.dataset.summary || '',
+    lead_type: row.dataset.leadType || ''
+  });
+  window.location.href = '/add?' + params.toString();
+}
+
+// ── 复制原文链接 ──
+async function copySourceLink(url, btn) {
+  try {
+    await navigator.clipboard.writeText(url);
+    window._enthubToast('success', '已复制原文链接', '');
+    const icon = btn ? btn.querySelector('i') : null;
+    if (icon) {
+      icon.setAttribute('data-lucide', 'check');
+      if (window.lucide) lucide.createIcons();
+      setTimeout(() => {
+        icon.setAttribute('data-lucide', 'link');
+        if (window.lucide) lucide.createIcons();
+      }, 1400);
+    }
+  } catch (e) {
+    window._enthubToast('error', '复制失败', '浏览器未授权剪贴板访问');
+  }
+}
+
+// ── 把历史采集记录里的电话补进企业详情 ──
+function backfillPhones() {
+  showConfirm('补全电话号码',
+    '把所有采集记录里的电话号码补进对应企业的详情页，一条记录里的多个号码都会补齐。<br><br>'
+    + '<span style="color: var(--text-muted); font-size: 12px;">只补充不覆盖：已存在的号码只补来源标记与备注，'
+    + '不会改动你手工填过的内容。</span>',
+    async () => {
+      window._enthubToast('info', '正在补全电话', '记录较多时可能需要一点时间');
+      try {
+        const resp = await fetch('/api/collector/backfill-phones', { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+          const parts = [`新增 ${data.added} 个号码`];
+          if (data.linked) parts.push(`补来源标记 ${data.linked} 个`);
+          if (data.already) parts.push(`已存在 ${data.already} 个`);
+          if (data.no_company) parts.push(`未匹配企业 ${data.no_company} 条`);
+          window._enthubToast('success',
+            `补全完成，覆盖 ${data.companies} 家企业`, parts.join(' · '));
+          setTimeout(() => window.location.reload(), 1200);
+        } else {
+          window._enthubToast('error', '补全失败', data.error || '');
+        }
+      } catch (e) {
+        window._enthubToast('error', '补全失败', e.message);
+      }
+    });
+}
+
+// ── 重试采集该来源 ──
+async function retrySource(url) {
+  const card = document.querySelector(`.lead-card[data-url="${CSS.escape(url)}"]`);
+  const btn = card ? card.querySelector('.row-btn-retry') : null;
+  const label = btn ? btn.querySelector('span') : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+    if (label) label.textContent = '重试中';
+  }
+  try {
+    const resp = await fetch('/api/collector/retry', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source_url: url})
+    });
+    const data = await resp.json();
+    if (data.success) {
+      window._enthubToast('success', `重试成功，提取 ${data.count} 条`,
+        data.removed_failed ? `已清理 ${data.removed_failed} 条失败记录` : '');
+      setTimeout(() => window.location.reload(), 800);
+    } else {
+      window._enthubToast('error', '重试未成功', data.error || '');
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
+        if (label) label.textContent = '重试';
+      }
+    }
+  } catch (e) {
+    window._enthubToast('error', '重试失败', e.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('is-loading');
+      if (label) label.textContent = '重试';
+    }
+  }
+}
+
+// ── 删除单条失败记录（页面内弹窗确认）──
+function deleteLead(id) {
+  showConfirm('删除失败记录', '确定删除这条失败记录吗？<br><br>'
+    + '<span style="color: var(--text-muted); font-size: 12px;">删除后不可恢复。</span>', async () => {
+    try {
+      const resp = await fetch(`/api/collector/leads/${id}`, {method: 'DELETE'});
+      const data = await resp.json();
+      if (data.success) {
+        window._enthubToast('success', '已删除该条记录', '');
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        window._enthubToast('error', '删除失败', data.error || '');
+      }
+    } catch (e) {
+      window._enthubToast('error', '删除失败', e.message);
+    }
+  });
+}
+
+// ── 删除某来源的全部失败记录 ──
+function purgeSourceFailed(url, count) {
+  showConfirm('删除该来源的失败记录',
+    `确定删除该来源的 ${count} 条失败记录吗？<br><br>`
+    + '<span style="color: var(--text-muted); font-size: 12px;">删除后不可恢复；如需保留请先点「重试」。</span>',
+    () => _purge({source_url: url}));
+}
+
+// ── 清理全部失败记录 ──
+function purgeAllFailed() {
+  showConfirm('清理全部失败记录',
+    '确定删除全部失败记录吗？<br><br>'
+    + '<span style="color: var(--text-muted); font-size: 12px;">删除后不可恢复；如需保留请先逐条点「重试」。</span>',
+    () => _purge({}));
+}
+
+async function _purge(payload) {
+  try {
+    const resp = await fetch('/api/collector/leads/purge-failed', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.success) {
+      window._enthubToast('success', `已删除 ${data.deleted} 条失败记录`, '');
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      window._enthubToast('error', '删除失败', data.error || '');
+    }
+  } catch (e) {
+    window._enthubToast('error', '删除失败', e.message);
+  }
+}
+
+// ── 手风琴初始化：默认只展开第一张；带 #lead-<id> 锚点时展开对应那张 ──
+window.addEventListener('DOMContentLoaded', () => {
+  const cards = [...document.querySelectorAll('.lead-card')];
+  if (!cards.length) return;
+
+  const hash = window.location.hash;
+  let target = cards[0];
+  let anchorRow = null;
+  if (hash && hash.startsWith('#lead-')) {
+    const el = document.querySelector(hash);
+    if (el) {
+      anchorRow = el;
+      const c = el.closest('.lead-card');
+      if (c) target = c;
+    }
+  }
+
+  cards.forEach(c => {
+    const collapse = c !== target;
+    c.classList.toggle('is-collapsed', collapse);
+    const h = c.querySelector('.lead-card-head');
+    if (h) h.setAttribute('aria-expanded', collapse ? 'false' : 'true');
+  });
+
+  if (anchorRow) {
+    anchorRow.classList.add('is-highlight');
+    anchorRow.scrollIntoView({block: 'center', behavior: 'smooth'});
+    setTimeout(() => anchorRow.classList.remove('is-highlight'), 2600);
+  }
+});
+
+{% else %}
 // ── 采集 ──
 async function collect() {
   const urls = document.getElementById('urls-input').value.trim();
@@ -311,18 +580,23 @@ async function readSSE(resp, bar, text) {
 
         if (evt.records.length) {
           document.getElementById('result-card').style.display = 'block';
-          document.getElementById('result-body').innerHTML = evt.records.map(r => `
+          document.getElementById('result-body').innerHTML = evt.records.map(r => {
+            const cid = r['_company_id'] || r['company_id'];
+            const companyCell = cid
+              ? `<a href="/company/${cid}" style="color: var(--accent); font-weight: 500; text-decoration: none;">${r['公司名'] || '-'}</a>`
+              : `${r['公司名'] || '-'}`;
+            return `
             <tr>
               <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['类型'] || '-'}</td>
-              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 500;">${r['公司名'] || '-'}</td>
+              <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${companyCell}</td>
               <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['联系人'] || '-'}</td>
               <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono);">${r['电话'] || '-'}</td>
               <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['地址'] || '-'}</td>
               <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text-muted);">${r['摘要'] || '-'}</td>
               <td style="padding: 8px 12px; border-bottom: 1px solid var(--border);">${r['来源'] || '-'}</td>
               <td style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono);">${r['发布日期'] || '-'}</td>
-            </tr>
-          `).join('');
+            </tr>`;
+          }).join('');
         }
 
         if (evt.count > 0) {
@@ -343,25 +617,6 @@ function clearInput() {
   bar.style.display = 'none';
   document.getElementById('result-card').style.display = 'none';
   document.getElementById('result-body').innerHTML = '';
-}
-
-// ── 初始化飞书字段 ──
-async function initFields() {
-  if (!confirm('将在飞书采集表中创建所需字段（类型/公司名/联系人/电话/地址/摘要/来源/发布日期/来源链接/采集时间），已存在的字段会跳过。继续？')) return;
-  window._enthubToast('info', '正在初始化飞书字段...', '');
-  try {
-    const resp = await fetch('/api/collector/init-fields', {
-      method: 'POST', headers: {'Content-Type': 'application/json'}
-    });
-    const data = await resp.json();
-    if (resp.ok && data.success) {
-      window._enthubToast('success', '字段创建完成', data.message);
-    } else {
-      window._enthubToast('error', '初始化失败', data.error || '');
-    }
-  } catch (e) {
-    window._enthubToast('error', '请求失败', e.message);
-  }
 }
 
 // ── 提示词保存 ──
@@ -506,7 +761,10 @@ async function testConnectivity() {
   btn.disabled = true;
   btn.innerHTML = '<i data-lucide="loader-2" style="width:13px;height:13px;animation:spin 1s linear"></i> 测试中...';
   if (window.lucide) lucide.createIcons();
-  window._enthubToast('info', '正在测试连通性...', '');
+
+  const container = document.getElementById('connectivity-results');
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px;">正在检测...</div>';
 
   try {
     const resp = await fetch('/api/collector/test-connectivity', {
@@ -514,18 +772,37 @@ async function testConnectivity() {
     });
     const data = await resp.json();
 
-    let msg = data.results.map(r => {
-      if (r.status === 'ok') return `${r.name}: ✅ ${r.detail || '连接正常'}`;
-      if (r.status === 'skip') return `${r.name}: ⏭️ ${r.error || '跳过'}`;
-      return `${r.name}: ❌ ${r.error || '失败'}`;
-    }).join('\n');
+    const iconMap = {
+      ok: {icon: 'check-circle-2', color: '#22c55e', label: '正常'},
+      skip: {icon: 'minus-circle', color: '#94a3b8', label: '跳过'},
+      fail: {icon: 'x-circle', color: '#ef4444', label: '失败'},
+    };
+
+    let html = '<div style="display: flex; flex-wrap: wrap; gap: 12px;">';
+    data.results.forEach(r => {
+      const m = iconMap[r.status] || iconMap.fail;
+      const detail = r.detail ? `<span style="font-size: 11px; color: var(--text-tertiary);">${r.detail}</span>` : '';
+      const err = r.error && r.status !== 'ok' ? `<span style="font-size: 11px; color: ${m.color};">${r.error}</span>` : '';
+      html += `<div style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary);">
+        <i data-lucide="${m.icon}" style="width:16px;height:16px;color:${m.color}"></i>
+        <div style="display: flex; flex-direction: column; gap: 1px;">
+          <span style="font-size: 13px; font-weight: 500;">${r.name}</span>
+          ${detail}
+          ${err}
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
 
     if (data.success) {
-      window._enthubToast('success', '连通测试完成', msg);
+      window._enthubToast('success', '连通测试完成', '');
     } else {
-      window._enthubToast('warning', '部分连接异常', msg);
+      window._enthubToast('warning', '部分连接异常', '');
     }
   } catch (e) {
+    container.innerHTML = `<div style="color: #ef4444; font-size: 13px;">测试失败: ${e.message}</div>`;
     window._enthubToast('error', '测试失败', e.message);
   } finally {
     btn.disabled = false; btn.innerHTML = orig;
@@ -536,5 +813,6 @@ async function testConnectivity() {
 // ── 页面初始化 ──
 loadAutoStatus().then(() => scheduleAutoPoll());
 if (window.lucide) lucide.createIcons();
+{% endif %}
 </script>
 {% endblock %}

@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "EntHub 网页采集流程",
+    "locale": "zh-CN",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "input", "label": "输入" },
+    { "id": "fetch", "label": "抓取与解析" },
+    { "id": "ai", "label": "AI 提取" },
+    { "id": "write", "label": "去重与写入" },
+    { "id": "feedback", "label": "实时反馈" },
+    { "id": "errors", "label": "异常处理", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "collect-input", "label": "收集输入", "fromCol": 0, "toCol": 1 },
+    { "id": "fetch-parse", "label": "抓取与解析", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "extract-write", "label": "提取与写入", "fromCol": 4, "toCol": 5 }
+  ],
+  "mainPath": ["user-input", "classify", "dup-check", "fetch-page", "parse-article", "pre-filter", "llm-extract", "dedup-write", "feishu-table"],
+  "nodes": [
+    { "id": "user-input", "lane": "input", "col": 0, "type": "frontend", "label": "用户输入", "sublabel": "链接 / 文字", "yOffset": -36 },
+    { "id": "table-input", "lane": "input", "col": 0, "type": "external", "label": "收集表", "sublabel": "飞书表单", "yOffset": 36 },
+    { "id": "classify", "lane": "input", "col": 1, "type": "backend", "label": "输入分类", "sublabel": "URL / 文字" },
+    { "id": "dup-check", "lane": "write", "col": 1, "type": "database", "label": "链接去重", "sublabel": "已采集跳过" },
+    { "id": "fetch-page", "lane": "fetch", "col": 2, "type": "cloud", "label": "抓取网页", "sublabel": "带重试 2 次" },
+    { "id": "parse-article", "lane": "fetch", "col": 3, "type": "backend", "label": "正文解析", "sublabel": "微信 / 通用", "width": 100 },
+    { "id": "pre-filter", "lane": "ai", "col": 3, "type": "security", "label": "预筛", "sublabel": "公司关键词" },
+    { "id": "llm-extract", "lane": "ai", "col": 4, "type": "backend", "label": "LLM 提取", "sublabel": "结构化公司信息" },
+    { "id": "dedup-write", "lane": "write", "col": 5, "type": "database", "label": "去重写入", "sublabel": "公司名+电话去重", "yOffset": -36 },
+    { "id": "feishu-table", "lane": "write", "col": 5, "type": "external", "label": "飞书多维表格", "sublabel": "采集结果表", "yOffset": 36 },
+    { "id": "sse-feedback", "lane": "feedback", "col": 4, "type": "messagebus", "label": "SSE 实时反馈", "sublabel": "进度推送前端" },
+    { "id": "skip-llm", "lane": "errors", "col": 3, "type": "security", "label": "跳过", "sublabel": "无公司信息" },
+    { "id": "fetch-fail", "lane": "errors", "col": 1, "type": "security", "label": "抓取失败", "sublabel": "重试耗尽" },
+    { "id": "llm-fail", "lane": "errors", "col": 4, "type": "security", "label": "LLM 失败", "sublabel": "API 错误" }
+  ],
+  "edges": [
+    { "from": "user-input", "to": "classify", "label": "提交", "variant": "emphasis", "role": "main" },
+    { "from": "table-input", "to": "classify", "label": "批量读取", "role": "main" },
+    { "from": "classify", "to": "dup-check", "label": "URL 链接", "variant": "emphasis", "role": "main" },
+    { "from": "dup-check", "to": "fetch-page", "label": "未采集", "variant": "emphasis", "role": "main" },
+    { "from": "fetch-page", "to": "parse-article", "label": "原始 HTML", "variant": "emphasis", "role": "main" },
+    { "from": "parse-article", "to": "pre-filter", "label": "标题+正文", "role": "main" },
+    { "from": "pre-filter", "to": "llm-extract", "label": "含公司信息", "variant": "emphasis", "role": "main" },
+    { "from": "llm-extract", "to": "dedup-write", "label": "公司记录", "variant": "emphasis", "role": "main" },
+    { "from": "dedup-write", "to": "feishu-table", "label": "写入", "variant": "emphasis", "role": "main" },
+    { "from": "fetch-page", "to": "sse-feedback", "label": "进度", "role": "async" },
+    { "from": "dedup-write", "to": "sse-feedback", "label": "结果", "role": "async" },
+    { "from": "pre-filter", "to": "skip-llm", "label": "无关键词", "variant": "dashed", "role": "branch" },
+    { "from": "dup-check", "to": "fetch-fail", "label": "已采集", "variant": "dashed", "role": "branch" },
+    { "from": "llm-extract", "to": "llm-fail", "label": "API 错误", "variant": "dashed", "role": "error" },
+    { "from": "classify", "to": "llm-extract", "label": "纯文字直接提取", "variant": "dashed", "role": "branch" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "多源输入", "items": ["支持粘贴链接、纯文字混合输入", "可从飞书收集表批量读取未处理内容", "自动识别每行是网址还是文字"] },
+    { "dot": "emerald", "title": "双重去重", "items": ["链接级去重：已采集过的链接自动跳过", "记录级去重：公司名+电话组合不重复写入", "去重发生在写入飞书之前"] },
+    { "dot": "amber", "title": "智能提取", "items": ["微信公众号文章专用解析器提取正文", "通用网页用 trafilatura 提取", "预筛过滤无公司内容的文章，节省 LLM 调用", "LLM 失败自动重试，兼容不规范 JSON 返回"] }
+  ]
+}

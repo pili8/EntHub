@@ -64,6 +64,17 @@
             <option value="regex">正则</option>
             <option value="llm">大模型</option>
           </select>
+          {% if llm_models %}
+          <span class="smart-toolbar-label">模型</span>
+          <select class="smart-select" data-llm-module="quick_extract"
+                  title="智能提取用哪个大模型；选「跟随默认」则用设置页里标着 ✓ 的默认模型"
+                  onchange="enthubSaveModuleModel('quick_extract', this.value, this)">
+            <option value="">跟随默认{{ '（' + llm.active_name + '）' if llm.active_name else '' }}</option>
+            {% for m in llm_models %}
+            <option value="{{ m.id }}" {{ 'selected' if m.id == llm_module_model }}>{{ m.name }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
         </div>
       </div>
 
@@ -85,6 +96,9 @@
         </button>
       </div>
     </div>
+
+    <!-- 来自采集记录的补充信息（联系人 / 类型 / 摘要） -->
+    <div id="collector-prefill-hint" class="collector-prefill-hint" style="display:none;"></div>
 
     <!-- ═══ 顶部内联提交栏 ═══ -->
     <div class="top-submit" id="top-submit">
@@ -878,5 +892,64 @@ async function _resubmitWithAction(originalFormData, action, existingId, clearEm
     window._enthubToast && window._enthubToast('error', '网络错误', err.message);
   }
 }
+
+// ── URL 参数预填（来自采集记录「入库」按钮，把这行采集到的信息一起带过来）──
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('from') !== 'collector') return;
+  const leadId = params.get('lead_id');
+
+  // 有对应输入框的字段：回填并淡色标记（提示这是采集带来的）
+  const setField = (field, value) => {
+    if (!value) return false;
+    const el = document.querySelector(`[name="${field}"]`);
+    if (!el || el.value) return false;
+    el.value = value;
+    el.style.background = '#FFF8F4';
+    return true;
+  };
+
+  const filled = [];
+  if (setField('name', params.get('name'))) filled.push('公司名');
+  if (setField('phone', params.get('phone'))) filled.push('电话');
+  if (setField('address', params.get('address'))) filled.push('地址');
+
+  const ni = document.querySelector('input[name="name"]');
+  if (ni) ni.focus();
+
+  // 没有输入框、但会随入库写进电话备注的字段：展示成一条提示
+  const extra = [];
+  if (params.get('contact')) extra.push('联系人 ' + params.get('contact'));
+  if (params.get('lead_type')) extra.push('类型 ' + params.get('lead_type'));
+  if (params.get('summary')) extra.push('摘要 ' + params.get('summary'));
+  const hint = document.getElementById('collector-prefill-hint');
+  if (hint) {
+    if (extra.length) {
+      hint.innerHTML = '<i data-lucide="rss" style="width:13px;height:13px"></i>'
+        + '<span>来自采集记录：' + extra.join(' · ')
+        + '<span style="color:var(--text-muted);">（入库时一并写入电话备注）</span></span>';
+      hint.style.display = 'flex';
+      if (window.lucide) lucide.createIcons();
+    } else {
+      hint.style.display = 'none';
+    }
+  }
+
+  window._enthubToast && window._enthubToast('info',
+    filled.length ? '已带入' + filled.join('、') : '已带入采集信息',
+    '核对无误后点「在线获取」再拉工商信息');
+
+  // 隐藏字段：lead_id，供后端入库时回写采集记录 + 同步电话与备注
+  if (leadId) {
+    const form = document.getElementById('add-company-form');
+    if (form) {
+      const hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = '_lead_id';
+      hidden.value = leadId;
+      form.appendChild(hidden);
+    }
+  }
+})();
 </script>
 {% endblock %}

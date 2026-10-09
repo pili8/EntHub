@@ -6,19 +6,162 @@ from flask import Blueprint, g, request, render_template, redirect, url_for, fla
 
 from utils import (
     normalize_name, normalize_credit_code,
-    normalize_person_name, normalize_email, validate_phone,
+    normalize_person_name, normalize_email, validate_phone, normalize_phone,
     phone_location, get_phone_tags, get_phone_tags_batch,
     get_phone_wechat, get_phone_wechat_batch,
+    extract_phones, extract_contacts, build_phone_note,
 )
 from data_helpers import (
     sync_phones, sync_emails, sync_shareholders,
     merge_phones, merge_emails, merge_shareholders,
     split_phones, split_shareholders,
 )
-from config import is_provider_ready, get_webhook_url, get_preferences
+from config import (is_provider_ready, get_webhook_url, get_preferences,
+                    list_llm_models, get_module_model_id, get_llm_config)
+from routes import ENABLED_IDS
 import enthub_api
 
 bp = Blueprint('companies_bp', __name__)
+
+
+def _sync_collector_lead(db, company_id, lead_id):
+    """入库后回写采集记录：关联 company_id + 同步电话到 company_phones + 联系人写入微信备注。
+
+    - 更新 collector_leads.company_id = 新公司 ID
+    - 把 lead 里的电话号码同步到 company_phones（不覆盖已有，关联 collector_lead_id）
+    - 把 lead 里的 contact_person 写到对应号码的 phone_wechat.note
+    """
+    if not lead_id:
+        return
+    try:
+        lead_id = int(lead_id)
+    except (ValueError, TypeError):
+        return
+
+    # 查采集记录
+    lead = db.execute(
+        "SELECT id, company_name, normalized_name, phone, normalized_phone, "
+        "contact_person, lead_type FROM collector_leads WHERE id = ?",
+        [lead_id]
+    ).fetchone()
+    if not lead:
+        return
+
+    # 1. 回写 company_id
+    db.execute(
+        "UPDATE collector_leads SET company_id = ? WHERE id = ?",
+        [company_id, lead_id]
+    )
+
+    # 2. 同名 lead 也一起关联（同 normalized_name 的 lead 都指向这个公司）
+    if lead["normalized_name"]:
+        db.execute(
+            "UPDATE collector_leads SET company_id = ? WHERE normalized_name = ? "
+            "AND company_id IS NULL",
+            [company_id, lead["normalized_name"]]
+        )
+
+    # 3. 把这条 lead 的号码补进电话表（一条记录可能含多个号码）
+    _sync_lead_phones(db, company_id, lead_id,
+                      lead["phone"], lead["contact_person"], lead["lead_type"])
+
+    # 4. 同名其他 lead 的号码也同步（一个公司可能有多条 lead，每条带不同号码）
+    if lead["normalized_name"]:
+        siblings = db.execute(
+            "SELECT id, phone, contact_person, lead_type FROM collector_leads "
+            "WHERE normalized_name = ? AND id != ? "
+            "AND (phone IS NOT NULL AND phone != '')",
+            [lead["normalized_name"], lead_id]
+        ).fetchall()
+        for sl in siblings:
+            _sync_lead_phones(db, company_id, sl["id"],
+                              sl["phone"], sl["contact_person"], sl["lead_type"])
+
+
+def _lead_split_phones(phone_text):
+    """拆采集记录的电话字段，支持一条记录里多个号码。
+
+    显示号会剥掉人名等非号码字符（「薛女士 19508335677」→「19508335677」）。
+    """
+    if not phone_text:
+        return []
+    pairs = split_phones(phone_text)
+    if not pairs:
+        pairs = [(p, normalize_phone(p)) for p in extract_phones(phone_text)]
+    out, seen = [], set()
+    for raw, norm in pairs:
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        out.append((re.sub(r'[^\d\-]', '', str(raw)) or norm, norm))
+    return out
+
+
+def _merge_phone_note(db, norm_phone, contact, lead_type):
+    """备注「联系人（类型）」追加合并到 phone_wechat.note，不覆盖已有内容。
+
+    采集只补备注：微信名留「无微信」占位，不把联系人写成微信号。
+    """
+    token = build_phone_note(contact, lead_type)
+    if not norm_phone or not token:
+        return
+    row = db.execute(
+        "SELECT note FROM phone_wechat WHERE normalized_phone = ?", [norm_phone]
+    ).fetchone()
+    if row is None:
+        db.execute(
+            "INSERT INTO phone_wechat (normalized_phone, wechat_name, note) VALUES (?, ?, ?)",
+            [norm_phone, "无微信", token])
+        return
+    note = (row["note"] or "").strip()
+    if token in note:
+        return
+    merged = f"{note} {token}".strip() if note else token
+    db.execute(
+        "UPDATE phone_wechat SET note = ?, updated_at = datetime('now', 'localtime') "
+        "WHERE normalized_phone = ?", [merged, norm_phone])
+
+
+def _sync_lead_phones(db, company_id, lead_id, phone_text, contact_text, lead_type):
+    """把一条采集记录的号码补进企业电话表，并合并「联系人（类型）」备注。
+
+    只补充不覆盖：已有号码不动号码本身，仅在来源标记为空时补上；
+    联系人按顺序与号码配对，只有一个联系人时套用到所有号码。
+    """
+    pairs = _lead_split_phones(phone_text)
+    if not pairs:
+        return
+    contacts = extract_contacts(contact_text)
+
+    for idx, (raw, norm) in enumerate(pairs):
+        is_valid, _, _ = validate_phone(norm)
+        if not is_valid:
+            continue
+        if idx < len(contacts):
+            contact = contacts[idx]
+        elif contacts:
+            contact = contacts[0]
+        else:
+            contact = ""
+
+        existing = db.execute(
+            "SELECT id, collector_lead_id FROM company_phones "
+            "WHERE company_id = ? AND normalized_phone = ?",
+            [company_id, norm]).fetchone()
+        if existing:
+            if not existing["collector_lead_id"]:
+                db.execute(
+                    "UPDATE company_phones SET collector_lead_id = ? WHERE id = ?",
+                    [lead_id, existing["id"]])
+        else:
+            db.execute(
+                "INSERT INTO company_phones "
+                "(company_id, phone, normalized_phone, is_primary, collector_lead_id) "
+                "VALUES (?, ?, ?, 0, ?)",
+                [company_id, raw, norm, lead_id])
+
+        _merge_phone_note(db, norm, contact, lead_type)
+
 
 MODULE_META = {
     "id": "companies",
@@ -61,7 +204,7 @@ def company_detail(company_id):
 
     # 该公司的所有电话（含重复数），按主号优先 + id 排序
     company_phones = g.db.execute(
-        """SELECT cp.phone, cp.normalized_phone, cp.is_primary,
+        """SELECT cp.phone, cp.normalized_phone, cp.is_primary, cp.collector_lead_id,
                (SELECT COUNT(DISTINCT company_id)
                 FROM company_phones cp2
                 WHERE cp2.normalized_phone = cp.normalized_phone) AS dup_count
@@ -78,6 +221,18 @@ def company_detail(company_id):
     phone_wechat_map = get_phone_wechat_batch(
         g.db, [r["normalized_phone"] for r in company_phones]
     ) if company_phones else {}
+    # collector 模块启用时，查询电话关联的采集记录 lead_id
+    phone_lead_map = {}
+    if 'collector' in ENABLED_IDS and company_phones:
+        lead_ids = [r["collector_lead_id"] for r in company_phones if r["collector_lead_id"]]
+        if lead_ids:
+            placeholders = ",".join(["?"] * len(lead_ids))
+            lead_rows = g.db.execute(
+                f"""SELECT id, lead_type, source_url, summary, article_title
+                    FROM collector_leads WHERE id IN ({placeholders})""",
+                lead_ids
+            ).fetchall()
+            phone_lead_map = {r["id"]: dict(r) for r in lead_rows}
     _show_loc = get_preferences().get("show_phone_location", True)
     company_phones_enriched = []
     for cp in company_phones:
@@ -89,6 +244,7 @@ def company_detail(company_id):
         cp_dict["phone_valid"] = is_valid
         cp_dict["phone_type"] = phone_type
         cp_dict["phone_invalid_reason"] = reason if not is_valid else ""
+        cp_dict["lead"] = phone_lead_map.get(cp_dict.get("collector_lead_id")) if cp_dict.get("collector_lead_id") else None
         company_phones_enriched.append(cp_dict)
 
     # 排序：主号永远排第一，其余按类型+重复数自动排序
@@ -217,6 +373,20 @@ def company_detail(company_id):
                 ).fetchone()[0]
                 field_counts[f] = cnt
 
+    # 采集记录（动态线索）——仅 collector 模块启用时查询
+    collector_leads = []
+    if 'collector' in ENABLED_IDS:
+        collector_leads = g.db.execute(
+            """SELECT id, source_url, source_author, source_date,
+                      article_title, company_name, lead_type,
+                      contact_person, phone, summary, collected_at
+               FROM collector_leads
+               WHERE company_id = ?
+               ORDER BY collected_at DESC
+               LIMIT 20""",
+            [company_id]
+        ).fetchall()
+
     return render_template("company_detail.html", company=row,
                            related_phones=related_phones,
                            related_legal_person=related_legal_person,
@@ -227,7 +397,8 @@ def company_detail(company_id):
                            company_emails=company_emails,
                            shareholders=shareholders,
                            field_counts=field_counts,
-                           webhook_url=get_webhook_url())
+                           webhook_url=get_webhook_url(),
+                           collector_leads=collector_leads)
 
 
 # ── 备注内联编辑 ──────────────────────────────────────────────────────────────
@@ -409,6 +580,12 @@ def add_company():
                 merge_emails(g.db, eid, email_val)
             if shareholders_val:
                 merge_shareholders(g.db, eid, shareholders_val)
+
+            # 来自采集记录入库：回写 company_id + 同步电话 + 联系人写入微信备注
+            lead_id_raw = request.form.get("_lead_id", "")
+            if lead_id_raw:
+                _sync_collector_lead(g.db, eid, lead_id_raw)
+
             g.db.commit()
 
             msg = f"已更新：{fields.get('name', row['name'])}"
@@ -435,6 +612,12 @@ def add_company():
             merge_phones(g.db, eid, phone_val)
             merge_emails(g.db, eid, email_val)
             merge_shareholders(g.db, eid, shareholders_val)
+
+            # 来自采集记录入库：回写 company_id + 同步电话 + 联系人写入微信备注
+            lead_id_raw = request.form.get("_lead_id", "")
+            if lead_id_raw:
+                _sync_collector_lead(g.db, eid, lead_id_raw)
+
             g.db.commit()
 
             msg = f"已合并新数据到：{row['name']}"
@@ -505,6 +688,12 @@ def add_company():
         sync_phones(g.db, cursor.lastrowid, phone_val)
         sync_emails(g.db, cursor.lastrowid, email_val)
         sync_shareholders(g.db, cursor.lastrowid, shareholders_val)
+
+        # 来自采集记录入库：回写 company_id + 同步电话 + 联系人写入微信备注
+        lead_id_raw = request.form.get("_lead_id", "")
+        if lead_id_raw:
+            _sync_collector_lead(g.db, cursor.lastrowid, lead_id_raw)
+
         g.db.commit()
 
         msg = f"已录入：{name}"
@@ -515,7 +704,13 @@ def add_company():
         flash(msg, "success")
         return redirect(url_for("companies_bp.company_detail", company_id=cursor.lastrowid))
 
-    return render_template("add.html", company={})
+    # 快速提取的模型选择：默认跟随全局激活模型，也可以在录入页单独指定
+    llm_models, llm_active_id = list_llm_models()
+    return render_template("add.html", company={},
+                           llm=get_llm_config(),
+                           llm_models=llm_models,
+                           llm_active_id=llm_active_id,
+                           llm_module_model=get_module_model_id("quick_extract"))
 
 
 # ── API 获取/更新工商信息 ────────────────────────────────────────────────────

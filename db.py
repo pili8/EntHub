@@ -245,6 +245,11 @@ def init_db():
     _migrate(conn, "import_preview", "will_update", "INTEGER DEFAULT 0")
     _migrate(conn, "companies", "normalized_legal_person", "TEXT")
     _migrate(conn, "company_shareholders", "position", "TEXT")
+    # collector 模块：电话关联采集记录（模块关闭后字段保留，不查即可）
+    _migrate(conn, "company_phones", "collector_lead_id", "INTEGER")
+    # collector_leads 表新增提取状态字段（存量库补列）
+    _migrate(conn, "collector_leads", "extract_status", "TEXT DEFAULT 'ok'")
+    _migrate(conn, "collector_leads", "error_msg", "TEXT")
 
     # 清理已废弃的列（sort_order, is_recommended）
     # SQLite 3.35+ 支持 DROP COLUMN，旧版本安全跳过（列存在不影响功能）

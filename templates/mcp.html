@@ -584,13 +584,13 @@ async function startMcp(btn) {
         if (data.code === 0) {
             setTimeout(() => location.reload(), 1000);
         } else {
-            alert(data.message || '启动失败');
+            window._enthubToast('error', '启动失败', data.message || '');
             btn.disabled = false;
             btn.innerHTML = originalHTML;
             if (window.lucide) lucide.createIcons();
         }
     } catch (e) {
-        alert('请求失败：' + e.message);
+        window._enthubToast('error', '请求失败', e.message);
         btn.disabled = false;
         btn.innerHTML = originalHTML;
         if (window.lucide) lucide.createIcons();
@@ -611,13 +611,13 @@ async function stopMcp(btn) {
             if (data.code === 0) {
                 setTimeout(() => location.reload(), 500);
             } else {
-                alert(data.message || '停止失败');
+                window._enthubToast('error', '停止失败', data.message || '');
                 btn.disabled = false;
                 btn.innerHTML = originalHTML;
                 if (window.lucide) lucide.createIcons();
             }
         } catch (e) {
-            alert('请求失败：' + e.message);
+            window._enthubToast('error', '请求失败', e.message);
             btn.disabled = false;
             btn.innerHTML = originalHTML;
             if (window.lucide) lucide.createIcons();
